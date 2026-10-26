@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
+#include "../BandParameters.h"
 #include "../dsp/BellCoefficients.h"
 #include "../utility/TripleBuffer.h"
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -15,6 +16,14 @@ namespace openq
 
     double responseMagnitudeDb (const DigitalResponse& response, double frequencyHz);
 
+    struct BankResponse
+    {
+        std::array<DigitalResponse, bandCount> bands;
+        double sampleRate = 0.0;
+    };
+
+    double responseMagnitudeDb (const BankResponse& response, double frequencyHz);
+
     struct ResponseGeometry
     {
         int width = 0, height = 0;
@@ -24,7 +33,7 @@ namespace openq
     struct ResponseFrame
     {
         juce::Path curve;
-        DigitalResponse response;
+        BankResponse response;
         ResponseGeometry geometry;
         bool valid = false;
     };
@@ -43,9 +52,7 @@ namespace openq
 
     private:
         void run() override;
-        const std::atomic<float>& frequency;
-        const std::atomic<float>& gain;
-        const std::atomic<float>& quality;
+        std::array<BandParameterPointers, bandCount> bandParameters;
         const std::atomic<double>& sampleRate;
         TripleBuffer<ResponseGeometry> geometry;
         TripleBuffer<ResponseFrame> frames;

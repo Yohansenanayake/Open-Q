@@ -14,12 +14,12 @@ PluginProcessor::PluginProcessor()
               .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
 #endif
               ),
-      parameters (*this, nullptr, "OpenQState", createParameterLayout()),
-      frequencyParameter (parameters.getRawParameterValue ("bell.frequency")),
-      gainParameter (parameters.getRawParameterValue ("bell.gain")),
-      qParameter (parameters.getRawParameterValue ("bell.q"))
+      parameters (*this, nullptr, "OpenQState", createParameterLayout())
 {
-    parameters.state.setProperty ("schemaVersion", 1, nullptr);
+    parameters.state.setProperty ("schemaVersion", 2, nullptr);
+    parameters.state.setProperty ("bandCount", static_cast<int> (openq::bandCount), nullptr);
+    for (size_t i = 0; i < openq::bandCount; ++i)
+        bandParameters[i] = openq::getBandParameterPointers (parameters, i);
     parameters.state.setProperty ("bellDesign", "zle-ivantsov-v1", nullptr);
 }
 
@@ -62,8 +62,8 @@ bool PluginProcessor::isMidiEffect() const
 
 double PluginProcessor::getTailLengthSeconds() const
 {
-    // Allow hosts to render low-frequency, high-Q ringing after input stops.
-    return 5.0;
+    // Cascaded low-frequency, high-Q boosts can ring far longer than a single band.
+    return 5.0 * static_cast<double> (openq::bandCount);
 }
 
 int PluginProcessor::getNumPrograms()
@@ -98,13 +98,18 @@ void PluginProcessor::changeProgramName (int index, const juce::String& newName)
 void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     juce::ignoreUnused (samplesPerBlock);
-    bell.prepare (sampleRate, frequencyParameter->load(), gainParameter->load(), qParameter->load());
+    for (size_t i = 0; i < bands.size(); ++i)
+    {
+        const auto target = bandParameters[i].load();
+        bands[i].prepare (sampleRate, target.frequency, target.gain, target.q, target.enabled);
+    }
     responseSampleRate.store (sampleRate, std::memory_order_relaxed);
 }
 
 void PluginProcessor::releaseResources()
 {
-    bell.reset();
+    for (auto& band : bands)
+        band.reset();
 }
 
 bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -138,8 +143,12 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (int channel = inputs; channel < buffer.getNumChannels(); ++channel)
         buffer.clear (channel, 0, buffer.getNumSamples());
 
-    bell.setParameters (frequencyParameter->load(), gainParameter->load(), qParameter->load());
-    bell.process (buffer, inputs);
+    for (size_t i = 0; i < bands.size(); ++i)
+    {
+        const auto target = bandParameters[i].load();
+        bands[i].setParameters (target.frequency, target.gain, target.q, target.enabled);
+        bands[i].process (buffer, inputs);
+    }
 }
 
 //==============================================================================
@@ -169,26 +178,32 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     if (xml == nullptr || !xml->hasTagName ("OpenQState"))
         return;
     const auto state = juce::ValueTree::fromXml (*xml);
-    if (static_cast<int> (state.getProperty ("schemaVersion")) != 1
+    if (static_cast<int> (state.getProperty ("schemaVersion")) != 2
+        || static_cast<int> (state.getProperty ("bandCount")) != static_cast<int> (openq::bandCount)
         || state.getProperty ("bellDesign").toString() != "zle-ivantsov-v1"
-        || state.getNumChildren() != 3)
+        || state.getNumChildren() != static_cast<int> (openq::bandCount * 4))
         return;
 
-    for (const auto* id : { "bell.frequency", "bell.gain", "bell.q" })
+    for (size_t band = 0; band < openq::bandCount; ++band)
     {
-        const auto child = state.getChildWithProperty ("id", id);
-        if (!child.isValid() || !child.hasType ("PARAM"))
-            return;
-        const auto text = child.getProperty ("value").toString().trim().toStdString();
-        double value = 0.0;
-        // Xcode 15's libc++ does not provide floating-point std::from_chars.
-        std::istringstream input (text);
-        input.imbue (std::locale::classic());
-        input >> std::noskipws >> value;
-        const auto range = parameters.getParameter (id)->getNormalisableRange();
-        if (input.fail() || !input.eof()
-            || !std::isfinite (value) || value < range.start || value > range.end)
-            return;
+        for (const auto* name : { "frequency", "gain", "q", "enabled" })
+        {
+            const auto id = openq::bandParameterId (band, name);
+            const auto child = state.getChildWithProperty ("id", id);
+            if (!child.isValid() || !child.hasType ("PARAM"))
+                return;
+            const auto text = child.getProperty ("value").toString().trim().toStdString();
+            double value = 0.0;
+            // Xcode 15's libc++ does not provide floating-point std::from_chars.
+            std::istringstream input (text);
+            input.imbue (std::locale::classic());
+            input >> std::noskipws >> value;
+            const auto range = parameters.getParameter (id)->getNormalisableRange();
+            if (input.fail() || !input.eof()
+                || !std::isfinite (value) || value < range.start || value > range.end
+                || (juce::String (name) == "enabled" && !juce::exactlyEqual (value, 0.0) && !juce::exactlyEqual (value, 1.0)))
+                return;
+        }
     }
     parameters.replaceState (state);
 }
@@ -207,8 +222,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParam
     juce::NormalisableRange<float> qRange (0.1f, 10.0f);
     qRange.setSkewForCentre (1.0f);
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
-    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "bell.frequency", 1 }, "Bell Frequency", frequencyRange, 1000.0f));
-    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "bell.gain", 1 }, "Bell Gain", juce::NormalisableRange<float> (-24.0f, 24.0f), 0.0f));
-    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "bell.q", 1 }, "Bell Q", qRange, 1.0f));
+    for (size_t band = 0; band < openq::bandCount; ++band)
+    {
+        const auto prefix = "Band " + juce::String (band + 1) + " ";
+        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "frequency"), 1 }, prefix + "Frequency", frequencyRange, 1000.0f));
+        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "gain"), 1 }, prefix + "Gain", juce::NormalisableRange<float> (-24.0f, 24.0f), 0.0f));
+        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "q"), 1 }, prefix + "Q", qRange, 1.0f));
+        layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { openq::bandParameterId (band, "enabled"), 1 }, prefix + "Enabled", band == 0));
+    }
     return layout;
 }

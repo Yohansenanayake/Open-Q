@@ -4,7 +4,7 @@
 
 namespace openq
 {
-    void BellFilter::prepare (double newSampleRate, double frequencyHz, double gainDb, double q)
+    void BellFilter::prepare (double newSampleRate, double frequencyHz, double gainDb, double q, bool enabled)
     {
         sampleRate = std::isfinite (newSampleRate) && newSampleRate >= 1000.0 ? newSampleRate : 0.0;
         reset();
@@ -15,7 +15,7 @@ namespace openq
         quality.reset (sampleRate, 0.02);
         gain.reset (sampleRate, 0.02);
         wet.reset (sampleRate, 0.02);
-        setParameters (frequencyHz, gainDb, q);
+        setParameters (frequencyHz, gainDb, q, enabled);
         frequency.setCurrentAndTargetValue (frequency.getTargetValue());
         quality.setCurrentAndTargetValue (quality.getTargetValue());
         gain.setCurrentAndTargetValue (gain.getTargetValue());
@@ -23,14 +23,14 @@ namespace openq
         coefficients = makeBellCoefficients (sampleRate, frequency.getCurrentValue(), gain.getCurrentValue(), quality.getCurrentValue());
     }
 
-    void BellFilter::setParameters (double frequencyHz, double gainDb, double q)
+    void BellFilter::setParameters (double frequencyHz, double gainDb, double q, bool enabled)
     {
         if (sampleRate < 1000.0)
             return;
         frequency.setTargetValue (juce::jlimit (20.0, std::min (20000.0, sampleRate * 0.49), std::isfinite (frequencyHz) ? frequencyHz : 1000.0));
         quality.setTargetValue (std::isfinite (q) ? juce::jlimit (0.1, 10.0, q) : 1.0);
         gain.setTargetValue (std::isfinite (gainDb) ? juce::jlimit (-24.0, 24.0, gainDb) : 0.0);
-        wet.setTargetValue (juce::exactlyEqual (gain.getTargetValue(), 0.0) ? 0.0 : 1.0);
+        wet.setTargetValue (enabled && !juce::exactlyEqual (gain.getTargetValue(), 0.0) ? 1.0 : 0.0);
     }
 
     void BellFilter::reset()
@@ -52,6 +52,10 @@ namespace openq
             return;
         }
 
+        // Targets may have settled while dry without updating the coefficients.
+        if (wet.isSmoothing() && juce::exactlyEqual (wet.getCurrentValue(), 0.0))
+            coefficients = makeBellCoefficients (sampleRate, frequency.getCurrentValue(), gain.getCurrentValue(), quality.getCurrentValue());
+
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
         {
             if (frequency.isSmoothing() || quality.isSmoothing() || gain.isSmoothing())
@@ -60,7 +64,7 @@ namespace openq
             const auto mix = wet.getNextValue();
             if (!wet.isSmoothing() && juce::exactlyEqual (mix, 0.0))
             {
-                // Fade out residual ringing before clearing the flat band's state.
+                // Fade out residual ringing before clearing the dry band's state.
                 reset();
                 frequency.skip (buffer.getNumSamples() - sample - 1);
                 quality.skip (buffer.getNumSamples() - sample - 1);

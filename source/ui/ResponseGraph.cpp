@@ -6,7 +6,7 @@ namespace openq
     ResponseGraph::ResponseGraph (juce::AudioProcessorValueTreeState& parameters, const std::atomic<double>& sampleRate) : worker (parameters, sampleRate)
     {
         setTitle ("Frequency response");
-        setDescription ("Digital EQ response for the current frequency, gain, and Q settings, including when playback is stopped.");
+        setDescription ("Combined digital EQ response of all enabled bands, including when playback is stopped.");
         setOpaque (true);
         startTimer (250);
     }

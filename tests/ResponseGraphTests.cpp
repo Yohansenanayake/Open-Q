@@ -88,9 +88,9 @@ TEST_CASE ("Target response follows all controls with no audio processing", "[re
             auto* parameter = processor.parameters.getParameter (id);
             parameter->setValueNotifyingHost (parameter->convertTo0to1 (value));
         };
-        set ("bell.frequency", target.frequency);
-        set ("bell.gain", target.gain);
-        set ("bell.q", target.q);
+        set ("band.0.frequency", target.frequency);
+        set ("band.0.gain", target.gain);
+        set ("band.0.q", target.q);
         const auto probeFrequency = static_cast<double> (target.frequency) * 0.8;
         const openq::DigitalResponse expected { openq::makeBellCoefficients (48000.0, target.frequency, target.gain, target.q), 48000.0 };
         const auto expectedDb = openq::responseMagnitudeDb (expected, probeFrequency);
@@ -106,6 +106,65 @@ TEST_CASE ("Target response follows all controls with no audio processing", "[re
     const openq::DigitalResponse clamped { openq::makeBellCoefficients (8000.0, 3920.0, 24.0, 0.1), 8000.0 };
     CHECK_THAT (openq::responseMagnitudeDb (worker.getFrame().response, 3000.0),
         Catch::Matchers::WithinAbs (openq::responseMagnitudeDb (clamped, 3000.0), 1e-4));
+    worker.stop();
+}
+
+TEST_CASE ("Response follows every slot and sums enabled bands before clipping without audio", "[multiband][response][threading]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    openq::ResponseWorker worker (processor.parameters, processor.getResponseSampleRate());
+    worker.setGeometry ({ 400, 200 });
+    REQUIRE (worker.start());
+    auto set = [&] (size_t band, const char* name, float value) {
+        auto* parameter = processor.parameters.getParameter (openq::bandParameterId (band, name));
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (value));
+    };
+    for (size_t band = 0; band < openq::bandCount; ++band)
+    {
+        if (band > 0)
+            set (band - 1, "enabled", 0.0f);
+        const auto frequency = 1000.0f + static_cast<float> (band) * 200.0f;
+        const auto gain = 3.0f + static_cast<float> (band);
+        const auto q = 1.0f + static_cast<float> (band) * 0.2f;
+        set (band, "frequency", frequency);
+        set (band, "gain", gain);
+        set (band, "q", q);
+        set (band, "enabled", 1.0f);
+        const openq::DigitalResponse expected { openq::makeBellCoefficients (48000.0, frequency, gain, q), 48000.0 };
+        const auto probe = frequency * 0.8;
+        worker.requestUpdate();
+        REQUIRE (awaitFrame (worker, [&] (const auto& frame) {
+            return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, probe) - openq::responseMagnitudeDb (expected, probe)) < 1e-4;
+        }));
+    }
+    for (size_t band = 0; band < openq::bandCount; ++band)
+    {
+        set (band, "frequency", 20000.0f);
+        set (band, "gain", 24.0f);
+        set (band, "q", 1.0f);
+        set (band, "enabled", 1.0f);
+    }
+    worker.requestUpdate();
+    REQUIRE (awaitFrame (worker, [] (const auto& frame) {
+        return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0) - 192.0) < 1e-4;
+    }));
+    CHECK_THAT (worker.getFrame().curve.getPointAlongPath (worker.getFrame().curve.getLength()).y, Catch::Matchers::WithinAbs (0.0, 1e-4));
+
+    // Seven boosts exceed the display range before the final cut brings the endpoint to +18 dB.
+    for (size_t band = 0; band < openq::bandCount; ++band)
+        set (band, "gain", band == 7 ? -24.0f : 6.0f);
+    worker.requestUpdate();
+    REQUIRE (awaitFrame (worker, [] (const auto& frame) {
+        return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0) - 18.0) < 1e-4;
+    }));
+    CHECK_THAT (worker.getFrame().curve.getPointAlongPath (worker.getFrame().curve.getLength()).y, Catch::Matchers::WithinAbs (25.0, 0.001));
+    for (size_t band = 0; band < openq::bandCount; ++band)
+        set (band, "enabled", 0.0f);
+    worker.requestUpdate();
+    REQUIRE (awaitFrame (worker, [] (const auto& frame) {
+        return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0)) < 1e-9;
+    }));
     worker.stop();
 }
 
@@ -149,7 +208,7 @@ TEST_CASE ("Target response waits for a prepared sample rate and follows state r
     REQUIRE (awaitFrame (worker, [] (const auto& frame) { return frame.valid; }));
 
     PluginProcessor preset;
-    auto* gain = preset.parameters.getParameter ("bell.gain");
+    auto* gain = preset.parameters.getParameter ("band.0.gain");
     gain->setValueNotifyingHost (gain->convertTo0to1 (-9.0f));
     juce::MemoryBlock state;
     preset.getStateInformation (state);

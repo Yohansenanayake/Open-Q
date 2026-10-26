@@ -17,12 +17,15 @@ public:
     void resized() override;
 
 private:
+    void selectBand (size_t band);
+    PluginProcessor& processor;
     openq::ResponseGraph responseGraph;
+    std::array<juce::TextButton, openq::bandCount> bandButtons;
+    juce::ToggleButton enabledButton { "Band enabled" };
     std::array<juce::Slider, 3> controls;
     std::array<juce::Label, 3> labels;
-    juce::AudioProcessorValueTreeState::SliderAttachment frequencyAttachment;
-    juce::AudioProcessorValueTreeState::SliderAttachment gainAttachment;
-    juce::AudioProcessorValueTreeState::SliderAttachment qAttachment;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 3> controlAttachments;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> enabledAttachment;
     std::unique_ptr<melatonin::Inspector> inspector;
     juce::TextButton inspectButton { "Inspect the UI" };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginEditor)

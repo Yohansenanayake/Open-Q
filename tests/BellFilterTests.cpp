@@ -180,36 +180,36 @@ TEST_CASE ("Bell impulse decays at low frequency and high Q", "[bell][response]"
 TEST_CASE ("Bell parameters survive session recall and malformed states are ignored", "[bell][state]")
 {
     PluginProcessor source;
-    setParameter (source, "bell.frequency", 7500.0f);
-    setParameter (source, "bell.gain", -9.0f);
-    setParameter (source, "bell.q", 3.0f);
+    setParameter (source, "band.0.frequency", 7500.0f);
+    setParameter (source, "band.0.gain", -9.0f);
+    setParameter (source, "band.0.q", 3.0f);
     juce::MemoryBlock saved;
     source.getStateInformation (saved);
     PluginProcessor restored;
     restored.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
-    CHECK_THAT (restored.parameters.getRawParameterValue ("bell.frequency")->load(), Catch::Matchers::WithinAbs (7500.0, 0.01));
-    CHECK_THAT (restored.parameters.getRawParameterValue ("bell.gain")->load(), Catch::Matchers::WithinAbs (-9.0, 0.001));
-    CHECK_THAT (restored.parameters.getRawParameterValue ("bell.q")->load(), Catch::Matchers::WithinAbs (3.0, 0.001));
+    CHECK_THAT (restored.parameters.getRawParameterValue ("band.0.frequency")->load(), Catch::Matchers::WithinAbs (7500.0, 0.01));
+    CHECK_THAT (restored.parameters.getRawParameterValue ("band.0.gain")->load(), Catch::Matchers::WithinAbs (-9.0, 0.001));
+    CHECK_THAT (restored.parameters.getRawParameterValue ("band.0.q")->load(), Catch::Matchers::WithinAbs (3.0, 0.001));
     for (const auto* invalid : { "nan", "inf", "nonsense", "20001", "1.0garbage", "", "1000,5", "1000 5", "1e999" })
     {
         auto state = source.parameters.copyState();
-        state.getChildWithProperty ("id", "bell.frequency").setProperty ("value", invalid, nullptr);
+        state.getChildWithProperty ("id", "band.0.frequency").setProperty ("value", invalid, nullptr);
         juce::MemoryBlock bad;
         juce::AudioProcessor::copyXmlToBinary (*state.createXml(), bad);
         restored.setStateInformation (bad.getData(), static_cast<int> (bad.getSize()));
-        CHECK_THAT (restored.parameters.getRawParameterValue ("bell.frequency")->load(), Catch::Matchers::WithinAbs (7500.0, 0.01));
+        CHECK_THAT (restored.parameters.getRawParameterValue ("band.0.frequency")->load(), Catch::Matchers::WithinAbs (7500.0, 0.01));
     }
     restored.setStateInformation (nullptr, 0);
     const char garbage[] = "not a preset";
     restored.setStateInformation (garbage, sizeof (garbage));
-    CHECK_THAT (restored.parameters.getRawParameterValue ("bell.gain")->load(), Catch::Matchers::WithinAbs (-9.0, 0.001));
+    CHECK_THAT (restored.parameters.getRawParameterValue ("band.0.gain")->load(), Catch::Matchers::WithinAbs (-9.0, 0.001));
 
     auto scientificState = source.parameters.copyState();
-    scientificState.getChildWithProperty ("id", "bell.frequency").setProperty ("value", "1.25e3", nullptr);
+    scientificState.getChildWithProperty ("id", "band.0.frequency").setProperty ("value", "1.25e3", nullptr);
     juce::MemoryBlock scientific;
     juce::AudioProcessor::copyXmlToBinary (*scientificState.createXml(), scientific);
     restored.setStateInformation (scientific.getData(), static_cast<int> (scientific.getSize()));
-    CHECK_THAT (restored.parameters.getRawParameterValue ("bell.frequency")->load(), Catch::Matchers::WithinAbs (1250.0, 0.01));
+    CHECK_THAT (restored.parameters.getRawParameterValue ("band.0.frequency")->load(), Catch::Matchers::WithinAbs (1250.0, 0.01));
 }
 
 TEST_CASE ("Processor applies host automation to rendered audio", "[bell][automation]")
@@ -220,7 +220,7 @@ TEST_CASE ("Processor applies host automation to rendered audio", "[bell][automa
     juce::MidiBuffer midi;
     for (const auto gainDb : { -6.0f, 6.0f })
     {
-        setParameter (processor, "bell.gain", gainDb);
+        setParameter (processor, "band.0.gain", gainDb);
         double inputEnergy = 0.0, outputEnergy = 0.0;
         for (int block = 0; block < 100; ++block)
         {

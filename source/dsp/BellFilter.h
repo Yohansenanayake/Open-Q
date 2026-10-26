@@ -9,8 +9,8 @@ namespace openq
     class BellFilter
     {
     public:
-        void prepare (double sampleRate, double frequencyHz, double gainDb, double q);
-        void setParameters (double frequencyHz, double gainDb, double q);
+        void prepare (double sampleRate, double frequencyHz, double gainDb, double q, bool enabled = true);
+        void setParameters (double frequencyHz, double gainDb, double q, bool enabled = true);
         void process (juce::AudioBuffer<float>& buffer, int numChannels);
         void reset();
 

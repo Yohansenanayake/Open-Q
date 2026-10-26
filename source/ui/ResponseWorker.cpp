@@ -9,7 +9,8 @@ namespace openq
     {
         struct TargetParameters
         {
-            double frequency = 1000.0, gain = 0.0, quality = 1.0, sampleRate = 0.0;
+            std::array<BandSettings, bandCount> bands;
+            double sampleRate = 0.0;
             bool operator== (const TargetParameters&) const = default;
         };
     }
@@ -26,13 +27,20 @@ namespace openq
         return std::isfinite (magnitude) ? 20.0 * std::log10 (std::max (magnitude, 1e-12)) : 0.0;
     }
 
+    double responseMagnitudeDb (const BankResponse& response, double frequencyHz)
+    {
+        double db = 0.0;
+        for (const auto& band : response.bands)
+            db += responseMagnitudeDb (band, frequencyHz);
+        return db;
+    }
+
     ResponseWorker::ResponseWorker (juce::AudioProcessorValueTreeState& parameters, const std::atomic<double>& rate)
         : juce::Thread ("Open-Q response"),
-          frequency (*parameters.getRawParameterValue ("bell.frequency")),
-          gain (*parameters.getRawParameterValue ("bell.gain")),
-          quality (*parameters.getRawParameterValue ("bell.q")),
           sampleRate (rate)
     {
+        for (size_t i = 0; i < bandCount; ++i)
+            bandParameters[i] = getBandParameterPointers (parameters, i);
     }
 
     ResponseWorker::~ResponseWorker() { stop(); }
@@ -59,7 +67,10 @@ namespace openq
             if (threadShouldExit())
                 break;
             const auto geometryChanged = geometry.pull();
-            const TargetParameters target { frequency.load (std::memory_order_relaxed), gain.load (std::memory_order_relaxed), quality.load (std::memory_order_relaxed), sampleRate.load (std::memory_order_relaxed) };
+            TargetParameters target;
+            target.sampleRate = sampleRate.load (std::memory_order_relaxed);
+            for (size_t i = 0; i < bandCount; ++i)
+                target.bands[i] = bandParameters[i].load();
             const auto responseChanged = target != previous;
             if (!first && !geometryChanged && !responseChanged)
                 continue;
@@ -67,7 +78,12 @@ namespace openq
             previous = target;
             auto& frame = frames.getWriter();
             frame.geometry = geometry.getReader();
-            frame.response = { makeBellCoefficients (target.sampleRate, target.frequency, target.gain, target.quality), target.sampleRate };
+            frame.response.sampleRate = target.sampleRate;
+            for (size_t i = 0; i < bandCount; ++i)
+            {
+                const auto& band = target.bands[i];
+                frame.response.bands[i] = { makeBellCoefficients (target.sampleRate, band.frequency, band.enabled ? band.gain : 0.0, band.q), target.sampleRate };
+            }
             frame.curve.clear();
             frame.valid = frame.geometry.width > 0 && frame.geometry.height > 0
                           && std::isfinite (frame.response.sampleRate) && frame.response.sampleRate >= 1000.0;

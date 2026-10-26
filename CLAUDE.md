@@ -19,9 +19,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - IDE: VS Code with Ninja, CMake Tools, and Microsoft C/C++ (GDB on Linux).
 - GitHub Actions builds Linux, macOS, and Windows. Intel IPP is disabled until profiling justifies it. Signing and notarization are deferred on both macOS and Windows.
 - The project license is AGPL-3.0-only. The template MIT notice is retained in `licenses/Pamplejuce-MIT.txt`; imported DSP origins are recorded in `THIRD_PARTY_NOTICES.md`.
-- The first band uses ZLE-derived Ivantsov coefficients (`zle-ivantsov-v1`), double channel states, and 20 ms parameter smoothing. Keep the three `bell.*` parameter IDs and saved design revision stable.
+- Eight fixed bell slots use ZLE-derived Ivantsov coefficients (`zle-ivantsov-v1`), independent double channel states, and 20 ms parameter smoothing and enable fades. Parameter IDs are `band.0.frequency`, `band.0.gain`, `band.0.q`, `band.0.enabled` through index 7. Band 1 starts enabled; the others start disabled. Slot identity is independent of selection and frequency order.
+- State schema 2 records all 32 parameters, the band count, and the design revision. The user authorized dropping compatibility with prerelease single-band states and automation; no migration is required. Validate complete state before replacing it. Preserve the pinned DSP design behavior when adding modes.
+- The editor reattaches one shared set of knobs and an enable toggle to the selected slot. Band selection does not affect audio processing. Selection buttons are disabled during knob drag gestures.
 - The graph uses an editor-owned response worker that reads APVTS parameter atomics and the processor's atomic prepared sample rate. Geometry and complete drawing frames travel through SPSC triple buffers; each mailbox has one producer and one consumer. Never read live filter state from the UI.
-- The graph shows the target digital response using `makeBellCoefficients`, independently of `processBlock`, including while playback is stopped. It waits for a valid prepared sample rate rather than guessing one. Audio smoothing and the wet/dry fade are intentionally not reflected in the curve.
+- The graph sums the enabled bands' target digital responses in dB using `makeBellCoefficients`, then clips the combined curve to the display range. It runs independently of `processBlock`, including while playback is stopped, and waits for a valid prepared sample rate rather than guessing one. Audio smoothing and wet/dry fades are intentionally not reflected in the curve.
 
 ## About This Project
 

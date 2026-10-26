@@ -23,6 +23,8 @@ The adaptation extracts the bell calculation and its frequency-wrapping/Phi help
 
 The response worker and frame-driven UI organization follow the studied ZLE pattern. Open-Q calculates its target response from parameter values using its DSP coefficient-design function, rather than importing ZLE's ideal-prototype response models or graph components. The graph worker reads parameter atomics independently of audio processing.
 
+Open-Q's eight-slot bank and shared selected-band controls are also informed by the same pinned ZLE revision (`zlp/controller.*`, `zlp/zlp_definitions.hpp`, and `panel/control_panel/left_control_panel.cpp`). The bank, parameter bindings, enable fades, and combined digital response are implemented separately in Open-Q; no additional ZLE processing or UI source was imported for this feature.
+
 ## Pamplejuce template
 
 The original build system, plugin skeleton, and supporting template files are derived from [Pamplejuce](https://github.com/sudara/pamplejuce), copyright (c) 2022 Sudara Williams. Its complete MIT notice is retained in [licenses/Pamplejuce-MIT.txt](licenses/Pamplejuce-MIT.txt).

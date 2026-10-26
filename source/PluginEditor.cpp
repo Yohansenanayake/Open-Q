@@ -1,9 +1,22 @@
 #include "PluginEditor.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), responseGraph (p.parameters, p.getResponseSampleRate()), frequencyAttachment (p.parameters, "bell.frequency", controls[0]), gainAttachment (p.parameters, "bell.gain", controls[1]), qAttachment (p.parameters, "bell.q", controls[2])
+    : AudioProcessorEditor (&p), processor (p), responseGraph (p.parameters, p.getResponseSampleRate())
 {
     addAndMakeVisible (responseGraph);
+    for (size_t band = 0; band < bandButtons.size(); ++band)
+    {
+        auto& button = bandButtons[band];
+        button.setButtonText (juce::String (band + 1));
+        button.setTitle ("Select band " + juce::String (band + 1));
+        button.setComponentID ("select.band." + juce::String (band));
+        button.setClickingTogglesState (true);
+        button.setRadioGroupId (1);
+        button.onClick = [this, band] { selectBand (band); };
+        addAndMakeVisible (button);
+    }
+    enabledButton.setComponentID ("band.enabled");
+    addAndMakeVisible (enabledButton);
     const std::array<juce::String, 3> names { "Frequency", "Gain", "Q" };
     for (size_t i = 0; i < controls.size(); ++i)
     {
@@ -11,8 +24,15 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         control.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         control.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 110, 26);
         control.setTitle (names[i]);
-        control.textFromValueFunction = nullptr;
-        control.setNumDecimalPlacesToDisplay (i == 0 ? 1 : 2);
+        control.setComponentID ("band." + names[i].toLowerCase());
+        control.onDragStart = [this] {
+            for (auto& button : bandButtons)
+                button.setEnabled (false);
+        };
+        control.onDragEnd = [this] {
+            for (auto& button : bandButtons)
+                button.setEnabled (true);
+        };
         control.setDoubleClickReturnValue (true, i == 0 ? 1000.0 : i == 1 ? 0.0
                                                                           : 1.0);
         addAndMakeVisible (control);
@@ -25,6 +45,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     controls[1].setTextValueSuffix (" dB");
     controls[1].setTooltip ("Boost or cut. Zero dB leaves the signal unchanged.");
     controls[2].setTooltip ("Bandwidth: lower Q is wider, higher Q is narrower.");
+    selectBand (0);
 
     addAndMakeVisible (inspectButton);
 
@@ -41,7 +62,29 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
-    setSize (720, 540);
+    setSize (720, 580);
+}
+
+void PluginEditor::selectBand (size_t band)
+{
+    if (band >= openq::bandCount)
+        return;
+    // Commit text edits to the original band before replacing attachments.
+    for (auto& control : controls)
+        control.hideTextBox (false);
+    enabledAttachment.reset();
+    for (auto& attachment : controlAttachments)
+        attachment.reset();
+    const std::array<const char*, 3> names { "frequency", "gain", "q" };
+    for (size_t i = 0; i < controls.size(); ++i)
+    {
+        controlAttachments[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.parameters, openq::bandParameterId (band, names[i]), controls[i]);
+        controls[i].textFromValueFunction = nullptr;
+        controls[i].setNumDecimalPlacesToDisplay (i == 0 ? 1 : 2);
+    }
+    enabledAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.parameters, openq::bandParameterId (band, "enabled"), enabledButton);
+    bandButtons[band].setToggleState (true, juce::dontSendNotification);
+    enabledButton.setButtonText ("Band " + juce::String (band + 1) + " enabled");
 }
 
 PluginEditor::~PluginEditor()
@@ -64,6 +107,12 @@ void PluginEditor::resized()
     area.removeFromTop (40);
     responseGraph.setBounds (area.removeFromTop (280));
     area.removeFromTop (12);
+    auto selector = area.removeFromTop (30);
+    enabledButton.setBounds (selector.removeFromRight (150));
+    const auto buttonWidth = selector.getWidth() / static_cast<int> (bandButtons.size());
+    for (auto& button : bandButtons)
+        button.setBounds (selector.removeFromLeft (buttonWidth).reduced (2, 0));
+    area.removeFromTop (8);
     inspectButton.setBounds (area.removeFromBottom (32).removeFromLeft (130));
     const auto width = area.getWidth() / 3;
     for (size_t i = 0; i < controls.size(); ++i)
