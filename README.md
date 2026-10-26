@@ -4,9 +4,9 @@ An open-source JUCE equalizer by **Yohan Senanayake**, developed incrementally a
 
 Frequency ranges from 20 Hz to 20 kHz (capped at 49% of sample rate), gain from -24 to +24 dB, and Q from 0.1 to 10. Controls smooth over 20 ms, with a short fade to dry before clearing a flat band's ringing state; double-click resets a control. The default 0 dB setting passes audio through unchanged. No buffering latency is added.
 
-The graph shows the **last applied digital response**, including the band's wet/dry transition, on a logarithmic frequency axis and a -24 to +24 dB gain axis. A low-priority worker calculates 400 response points; triple buffers hand off snapshots and completed drawing frames without making audio processing wait for the UI. The displayed range ends at Nyquist when it is below 20 kHz.
+The graph shows the **target digital response** calculated from the current frequency, gain, and Q using the same coefficient-design function as the audio DSP, on a logarithmic frequency axis and a -24 to +24 dB gain axis. A low-priority worker calculates 400 response points; triple buffers hand off geometry and completed drawing frames without making audio processing wait for the UI. The displayed range ends at Nyquist when it is below 20 kHz.
 
-The graph waits for audio processing to begin. If the host suspends processing, the curve holds its last applied response even when a knob's target changes. It is a frozen coefficient response, not a spectrum analyzer or a measurement of ringing audio. Graph work stops while the editor is hidden and resumes when it is shown.
+The graph updates when knobs or automation change, including with stopped playback or suspended audio processing. It needs a valid sample rate from `prepareToPlay`, but does not need a `processBlock` call. Before the host supplies a sample rate, it displays “Waiting for audio preparation”. The curve represents the settled EQ settings; audio smoothing, the wet/dry transition, and ringing are not visualized by this response curve. Graph work stops while the editor is hidden and resumes when it is shown.
 
 ## Development
 

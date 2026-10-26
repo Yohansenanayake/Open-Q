@@ -21,7 +21,7 @@ The adaptation extracts the bell calculation and its frequency-wrapping/Phi help
 - Open-Q adaptation: `source/utility/TripleBuffer.h`, under **AGPL-3.0-only**.
 - Modifications by Yohan Senanayake, 26 October 2026: renamed the namespace/type, default-initialized payload slots, removed raw-array access, and applied Open-Q formatting. The single-producer/single-consumer exchange and its memory ordering are retained.
 
-The response worker and frame-driven UI organization follow the studied ZLE pattern. Open-Q calculates its response from applied digital coefficient snapshots, including its wet/dry mix, rather than importing ZLE's ideal-prototype response models or graph components.
+The response worker and frame-driven UI organization follow the studied ZLE pattern. Open-Q calculates its target response from parameter values using its DSP coefficient-design function, rather than importing ZLE's ideal-prototype response models or graph components. The graph worker reads parameter atomics independently of audio processing.
 
 ## Pamplejuce template
 

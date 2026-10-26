@@ -1,7 +1,7 @@
 #include "PluginEditor.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), responseGraph (p.getResponseSnapshots()), frequencyAttachment (p.parameters, "bell.frequency", controls[0]), gainAttachment (p.parameters, "bell.gain", controls[1]), qAttachment (p.parameters, "bell.q", controls[2])
+    : AudioProcessorEditor (&p), responseGraph (p.parameters, p.getResponseSampleRate()), frequencyAttachment (p.parameters, "bell.frequency", controls[0]), gainAttachment (p.parameters, "bell.gain", controls[1]), qAttachment (p.parameters, "bell.q", controls[2])
 {
     addAndMakeVisible (responseGraph);
     const std::array<juce::String, 3> names { "Frequency", "Gain", "Q" };

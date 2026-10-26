@@ -99,6 +99,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     juce::ignoreUnused (samplesPerBlock);
     bell.prepare (sampleRate, frequencyParameter->load(), gainParameter->load(), qParameter->load());
+    responseSampleRate.store (sampleRate, std::memory_order_relaxed);
 }
 
 void PluginProcessor::releaseResources()
@@ -139,13 +140,6 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     bell.setParameters (frequencyParameter->load(), gainParameter->load(), qParameter->load());
     bell.process (buffer, inputs);
-    const auto response = bell.getAppliedResponse();
-    if (buffer.getNumSamples() > 0 && response != lastPublishedResponse)
-    {
-        responseSnapshots.getWriter() = response;
-        responseSnapshots.publish();
-        lastPublishedResponse = response;
-    }
 }
 
 //==============================================================================

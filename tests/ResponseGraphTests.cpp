@@ -60,58 +60,60 @@ TEST_CASE ("Triple buffer publishes complete latest values without tearing", "[r
     CHECK_FALSE (mailbox.pull());
 }
 
-TEST_CASE ("Response magnitude includes digital coefficients and complex wet/dry mixing", "[response]")
+TEST_CASE ("Target response uses the digital DSP coefficient design", "[response]")
 {
-    openq::AppliedResponse response { openq::makeBellCoefficients (48000.0, 20000.0, 6.0, 1.0), 1.0, 48000.0 };
+    openq::DigitalResponse response { openq::makeBellCoefficients (48000.0, 20000.0, 6.0, 1.0), 48000.0 };
     CHECK_THAT (openq::responseMagnitudeDb (response, 20000.0), Catch::Matchers::WithinAbs (6.0, 1e-9));
     CHECK_THAT (openq::responseMagnitudeDb (response, 24000.0), Catch::Matchers::WithinAbs (5.83299135367, 1e-9));
-    response.wet = 0.0;
-    CHECK_THAT (openq::responseMagnitudeDb (response, 20000.0), Catch::Matchers::WithinAbs (0.0, 0.0));
-    response = { { 2.0, 0.0, 0.0, 0.0, 0.0 }, 0.5, 48000.0 };
-    CHECK_THAT (openq::responseMagnitudeDb (response, 1000.0), Catch::Matchers::WithinAbs (20.0 * std::log10 (1.5), 1e-9));
-    response.coefficients = { 0.0, 1.0, 0.0, 0.0, 0.0 };
-    CHECK_THAT (openq::responseMagnitudeDb (response, 24000.0), Catch::Matchers::WithinAbs (-240.0, 1e-9));
+    response.coefficients = openq::makeBellCoefficients (48000.0, 1000.0, 0.0, 1.0);
+    CHECK_THAT (openq::responseMagnitudeDb (response, 1000.0), Catch::Matchers::WithinAbs (0.0, 0.0));
 }
 
-TEST_CASE ("Processor publishes applied snapshots including flat and fading branches", "[response]")
+TEST_CASE ("Target response follows all controls with no audio processing", "[response][threading]")
 {
     PluginProcessor processor;
-    auto& mailbox = processor.getResponseSnapshots();
-    auto* gain = processor.parameters.getParameter ("bell.gain");
-    gain->setValueNotifyingHost (gain->convertTo0to1 (12.0f));
     processor.prepareToPlay (48000.0, 64);
-    CHECK_FALSE (mailbox.pull());
-    juce::AudioBuffer<float> buffer (2, 64);
-    buffer.clear();
-    juce::MidiBuffer midi;
-    processor.processBlock (buffer, midi);
-    REQUIRE (mailbox.pull());
-    const auto boosted = mailbox.getReader();
-    CHECK_THAT (boosted.wet, Catch::Matchers::WithinAbs (1.0, 0.0));
-    CHECK_THAT (boosted.sampleRate, Catch::Matchers::WithinAbs (48000.0, 0.0));
-    CHECK_THAT (openq::responseMagnitudeDb (boosted, 1000.0), Catch::Matchers::WithinAbs (12.0, 1e-5));
-    processor.processBlock (buffer, midi);
-    CHECK_FALSE (mailbox.pull());
-    gain->setValueNotifyingHost (gain->convertTo0to1 (0.0f));
-    processor.processBlock (buffer, midi);
-    REQUIRE (mailbox.pull());
-    const auto fading = mailbox.getReader();
-    CHECK (fading.wet > 0.0);
-    CHECK (fading.wet < 1.0);
-    CHECK (openq::responseMagnitudeDb (fading, 1000.0) > 1.0);
-    for (int i = 0; i < 20; ++i)
-        processor.processBlock (buffer, midi);
-    REQUIRE (mailbox.pull());
-    CHECK_THAT (mailbox.getReader().wet, Catch::Matchers::WithinAbs (0.0, 0.0));
-    CHECK_THAT (openq::responseMagnitudeDb (mailbox.getReader(), 1000.0), Catch::Matchers::WithinAbs (0.0, 0.0));
+    openq::ResponseWorker worker (processor.parameters, processor.getResponseSampleRate());
+    worker.setGeometry ({ 400, 200 });
+    REQUIRE (worker.start());
+    worker.requestUpdate();
+    REQUIRE (awaitFrame (worker, [] (const auto& frame) { return frame.valid; }));
+    struct Target
+    {
+        float frequency, gain, q;
+    };
+    for (const auto target : { Target { 1000.0f, 6.0f, 1.0f }, Target { 10000.0f, -12.0f, 4.0f }, Target { 20000.0f, 24.0f, 0.1f } })
+    {
+        auto set = [&] (const char* id, float value) {
+            auto* parameter = processor.parameters.getParameter (id);
+            parameter->setValueNotifyingHost (parameter->convertTo0to1 (value));
+        };
+        set ("bell.frequency", target.frequency);
+        set ("bell.gain", target.gain);
+        set ("bell.q", target.q);
+        const auto probeFrequency = static_cast<double> (target.frequency) * 0.8;
+        const openq::DigitalResponse expected { openq::makeBellCoefficients (48000.0, target.frequency, target.gain, target.q), 48000.0 };
+        const auto expectedDb = openq::responseMagnitudeDb (expected, probeFrequency);
+        worker.requestUpdate();
+        REQUIRE (awaitFrame (worker, [&] (const auto& frame) {
+            return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, probeFrequency) - expectedDb) < 1e-4;
+        }));
+    }
+    // Sample-rate changes must update the response without a processBlock call too.
+    processor.prepareToPlay (8000.0, 64);
+    worker.requestUpdate();
+    REQUIRE (awaitFrame (worker, [] (const auto& frame) { return frame.valid && juce::exactlyEqual (frame.response.sampleRate, 8000.0); }));
+    const openq::DigitalResponse clamped { openq::makeBellCoefficients (8000.0, 3920.0, 24.0, 0.1), 8000.0 };
+    CHECK_THAT (openq::responseMagnitudeDb (worker.getFrame().response, 3000.0),
+        Catch::Matchers::WithinAbs (openq::responseMagnitudeDb (clamped, 3000.0), 1e-4));
+    worker.stop();
 }
 
 TEST_CASE ("Response worker handles resize, invalid geometry, and repeated stop/restart", "[response][threading]")
 {
-    openq::TripleBuffer<openq::AppliedResponse> snapshots;
-    snapshots.getWriter() = { {}, 0.0, 8000.0 };
-    snapshots.publish();
-    openq::ResponseWorker worker (snapshots);
+    PluginProcessor processor;
+    processor.prepareToPlay (8000.0, 64);
+    openq::ResponseWorker worker (processor.parameters, processor.getResponseSampleRate());
     for (int iteration = 0; iteration < 3; ++iteration)
     {
         worker.setGeometry ({ 400, 200 });
@@ -134,19 +136,28 @@ TEST_CASE ("Response worker handles resize, invalid geometry, and repeated stop/
     }
 }
 
-TEST_CASE ("Response worker waits for prepared audio and accepts the latest publication", "[response][threading]")
+TEST_CASE ("Target response waits for a prepared sample rate and follows state recall", "[response][threading]")
 {
-    openq::TripleBuffer<openq::AppliedResponse> snapshots;
-    openq::ResponseWorker worker (snapshots);
+    PluginProcessor processor;
+    openq::ResponseWorker worker (processor.parameters, processor.getResponseSampleRate());
     worker.setGeometry ({ 400, 200 });
     REQUIRE (worker.start());
     worker.requestUpdate();
     REQUIRE (awaitFrame (worker, [] (const auto& frame) { return !frame.valid; }));
-    snapshots.getWriter() = { openq::makeBellCoefficients (48000.0, 1000.0, 6.0, 1.0), 1.0, 48000.0 };
-    snapshots.publish();
+    processor.prepareToPlay (48000.0, 64);
     worker.requestUpdate();
     REQUIRE (awaitFrame (worker, [] (const auto& frame) { return frame.valid; }));
-    CHECK_THAT (openq::responseMagnitudeDb (worker.getFrame().response, 1000.0), Catch::Matchers::WithinAbs (6.0, 1e-9));
+
+    PluginProcessor preset;
+    auto* gain = preset.parameters.getParameter ("bell.gain");
+    gain->setValueNotifyingHost (gain->convertTo0to1 (-9.0f));
+    juce::MemoryBlock state;
+    preset.getStateInformation (state);
+    processor.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+    worker.requestUpdate();
+    REQUIRE (awaitFrame (worker, [] (const auto& frame) {
+        return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 1000.0) + 9.0) < 1e-5;
+    }));
     worker.stop();
 }
 

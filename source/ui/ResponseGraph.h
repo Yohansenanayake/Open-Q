@@ -7,7 +7,7 @@ namespace openq
     class ResponseGraph : public juce::Component, private juce::Timer
     {
     public:
-        explicit ResponseGraph (TripleBuffer<AppliedResponse>& snapshots);
+        ResponseGraph (juce::AudioProcessorValueTreeState& parameters, const std::atomic<double>& sampleRate);
         ~ResponseGraph() override;
         void paint (juce::Graphics& graphics) override;
         void paintOverChildren (juce::Graphics&) override;

@@ -6,7 +6,6 @@ namespace openq
     struct BiquadCoefficients
     {
         double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;
-        bool operator== (const BiquadCoefficients&) const = default;
     };
 
     BiquadCoefficients makeBellCoefficients (double sampleRate, double frequencyHz, double gainDb, double q);

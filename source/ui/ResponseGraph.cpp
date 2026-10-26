@@ -3,10 +3,10 @@
 
 namespace openq
 {
-    ResponseGraph::ResponseGraph (TripleBuffer<AppliedResponse>& snapshots) : worker (snapshots)
+    ResponseGraph::ResponseGraph (juce::AudioProcessorValueTreeState& parameters, const std::atomic<double>& sampleRate) : worker (parameters, sampleRate)
     {
         setTitle ("Frequency response");
-        setDescription ("Last applied digital EQ response. The curve holds its value if the host suspends audio processing.");
+        setDescription ("Digital EQ response for the current frequency, gain, and Q settings, including when playback is stopped.");
         setOpaque (true);
         startTimer (250);
     }
@@ -64,7 +64,7 @@ namespace openq
         g.fillAll (juce::Colour (0xff161b23));
         g.setColour (juce::Colour (0xffb4bfce));
         g.setFont (13.0f);
-        g.drawText ("Last applied response", 52, 6, 200, 24, juce::Justification::centredLeft);
+        g.drawText ("Frequency response", 52, 6, 200, 24, juce::Justification::centredLeft);
         g.drawText ("dB", 2, 6, 42, 24, juce::Justification::centredRight);
         if (frame.valid)
             g.drawText (juce::String (frame.response.sampleRate / 1000.0, 1) + " kHz", getWidth() - 110, 6, 90, 24, juce::Justification::centredRight);
@@ -95,7 +95,7 @@ namespace openq
         if (!frame.valid)
         {
             g.setColour (juce::Colour (0xffb4bfce));
-            g.drawText ("Waiting for audio processing", plot, juce::Justification::centred);
+            g.drawText ("Waiting for audio preparation", plot, juce::Justification::centred);
         }
         else if (frame.geometry == ResponseGeometry { plot.getWidth(), plot.getHeight() })
         {
