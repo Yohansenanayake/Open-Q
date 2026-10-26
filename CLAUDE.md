@@ -7,8 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Build an open-source JUCE equalizer alternative to FabFilter Pro-Q, one small, complete step at a time.
 - The primary reference is the local project at `/home/yohan/Projects/audio/ZLEqualizer`. Study the relevant implementation before developing each feature; do not port the whole plugin at once.
 - Reusing reference code or dependencies is welcome. Record their origins, preserve required notices, give credit, and check the applicable licenses before incorporating them.
-- The reference README identifies ZLEqualizer as AGPLv3 and excludes its logos from that license. Open-Q currently retains the Pamplejuce MIT license; resolve licensing before importing reference code.
+- The reference README identifies ZLEqualizer as AGPLv3 and excludes its logos from that license. Open-Q is AGPL-3.0-only; preserve ZLE and template notices when importing reference code.
 - Keep audio processing realtime-safe and use the existing Pamplejuce build and test structure.
+- Keep filter response type, coefficient-design algorithm, and processing state separate so future per-band modes and different bell/shelf designs remain possible. Start with one validated design; do not implement extra modes prematurely.
+- Consult [filter-design research](yohan-docs/filter-design-research.md) before choosing or importing DSP. Pin the implementation revision and preserve saved-session behavior when adding modes.
 
 ## Project Setup
 
@@ -16,7 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Bundle ID: `com.yohansenanayake.openq`; manufacturer code: `Ysen`; plugin code: `OpQ1`. Keep these stable for host/session compatibility.
 - IDE: VS Code with Ninja, CMake Tools, and Microsoft C/C++ (GDB on Linux).
 - GitHub Actions builds Linux, macOS, and Windows. Intel IPP is disabled until profiling justifies it. Signing and notarization are deferred on both macOS and Windows.
-- The license will switch to AGPL later, before importing AGPL reference code. Preserve the existing template notices.
+- The project license is AGPL-3.0-only. The template MIT notice is retained in `licenses/Pamplejuce-MIT.txt`; imported DSP origins are recorded in `THIRD_PARTY_NOTICES.md`.
+- The first band uses ZLE-derived Ivantsov coefficients (`zle-ivantsov-v1`), double channel states, and 20 ms parameter smoothing. Keep the three `bell.*` parameter IDs and saved design revision stable.
 
 ## About This Project
 
@@ -72,7 +75,7 @@ Target setup happens via explicit function calls in `CMakeLists.txt`, not at inc
 - `pamplejuce_add_assets()` - Includes all files in assets/ as binary data (from `Assets.cmake`)
 - `pamplejuce_add_tests()` - Configures the Catch2 test target (from `Tests.cmake`)
 - `pamplejuce_add_benchmarks()` - Configures the Catch2 benchmark target (from `Benchmarks.cmake`)
-- `pamplejuce_shared_code_defaults()` - C++23, fast math (from `SharedCodeDefaults.cmake`)
+- `pamplejuce_shared_code_defaults()` - C++23 and compiler defaults (from `SharedCodeDefaults.cmake`); Open-Q removes its fast-math flags to preserve finite-value checks
 - `pamplejuce_xcode_prettify()` - Xcode folder/scheme cleanup (from `XcodePrettify.cmake`)
 
 Note: after `include(PamplejuceFunctions)`, a plain `include(Tests)` (or Assets, etc.) is a no-op - call the function instead.

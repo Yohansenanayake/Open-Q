@@ -118,6 +118,11 @@ jobs:
           echo "STANDALONE_PATH=$ARTIFACTS_PATH/Standalone/${{ env.PRODUCT_NAME }}.app" >> $GITHUB_ENV
           echo "ARTIFACT_NAME=${{ env.PRODUCT_NAME }}-${{ env.VERSION }}-${{ runner.os }}" >> $GITHUB_ENV
 
+      - name: Include licenses and credits
+        run: |
+          cp LICENSE THIRD_PARTY_NOTICES.md README.md "${{ env.ARTIFACTS_PATH }}/"
+          cp -R licenses "${{ env.ARTIFACTS_PATH }}/"
+
       - name: Pluginval
         run: |
           curl -LO "https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_${{ runner.os }}.zip"

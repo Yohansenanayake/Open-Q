@@ -1,6 +1,8 @@
 # Open-Q
 
-An open-source JUCE equalizer by **Yohan Senanayake**, developed incrementally as an alternative to FabFilter Pro-Q. Currently this is a personalized Pamplejuce starter with passthrough audio; EQ features are still to come.
+An open-source JUCE equalizer by **Yohan Senanayake**, developed incrementally as an alternative to FabFilter Pro-Q. The first feature is a mono/stereo bell EQ with custom ZLE-derived Ivantsov coefficients, DAW automation, and saved state.
+
+Frequency ranges from 20 Hz to 20 kHz (capped at 49% of sample rate), gain from -24 to +24 dB, and Q from 0.1 to 10. Controls smooth over 20 ms, with a short fade to dry before clearing a flat band's ringing state; double-click resets a control. The default 0 dB setting passes audio through unchanged. No buffering latency is added.
 
 ## Development
 
@@ -22,8 +24,10 @@ GitHub Actions builds and tests on Linux, macOS, and Windows and runs pluginval.
 
 ## References and credits
 
-- [Pamplejuce](https://github.com/sudara/pamplejuce) by Sudara Williams provides the build/test/CI template. Its MIT notice is retained in `LICENSE`.
+- [Pamplejuce](https://github.com/sudara/pamplejuce) by Sudara Williams provides the build/test/CI template. Its MIT notice is retained in `licenses/Pamplejuce-MIT.txt`.
 - [JUCE](https://github.com/juce-framework/JUCE) provides the audio plugin framework; see its own license.
-- [ZLEqualizer](https://github.com/ZL-Audio/ZLEqualizer) is the primary implementation reference, available locally at `/home/yohan/Projects/audio/ZLEqualizer`. No reference code has been imported yet. Record credits and license notices alongside any future reuse.
+- [ZLEqualizer](https://github.com/ZL-Audio/ZLEqualizer) is the primary implementation reference, available locally at `/home/yohan/Projects/audio/ZLEqualizer`. Its pinned Ivantsov bell coefficient calculation is adapted in `source/dsp/BellCoefficients.cpp`; see [third-party notices](THIRD_PARTY_NOTICES.md) for the source revision, author, and modifications.
 
-The project license is planned to switch to AGPL before incorporating AGPL reference code. The existing `LICENSE` is unchanged during initial setup.
+Open-Q is licensed under **AGPL-3.0-only**; see [LICENSE](LICENSE). Original third-party notices are preserved.
+
+The bell design revision is stored with sessions. New filter types and user-selectable designs remain future work; the coefficient-design function is separate from the channel-state processor. DSP uses ordinary floating-point semantics in optimized builds so finite-value checks remain effective.

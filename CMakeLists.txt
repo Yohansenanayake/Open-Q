@@ -110,9 +110,13 @@ clap_juce_extensions_plugin(TARGET "${PROJECT_NAME}"
     CLAP_ID "${BUNDLE_ID}"
     CLAP_FEATURES audio-effect)
 
-# Enable fast math, C++23 and a few other target defaults
+# Apply C++23 and the template compiler defaults
 pamplejuce_shared_code_defaults()
 
+# Keep finite-value validation effective in optimized DSP builds.
+get_target_property(sharedCodeOptions SharedCode INTERFACE_COMPILE_OPTIONS)
+list(FILTER sharedCodeOptions EXCLUDE REGEX "Ofast|fp:fast")
+set_property(TARGET SharedCode PROPERTY INTERFACE_COMPILE_OPTIONS "${sharedCodeOptions}")
 
 # Manually list all .h and .cpp files for the plugin
 # If you are like me, you'll use globs for your sanity.

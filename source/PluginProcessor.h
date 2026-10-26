@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dsp/BellFilter.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
 class PluginProcessor : public juce::AudioProcessor
@@ -35,6 +36,14 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    juce::AudioProcessorValueTreeState parameters;
+
 private:
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    std::atomic<float>* frequencyParameter;
+    std::atomic<float>* gainParameter;
+    std::atomic<float>* qParameter;
+    openq::BellFilter bell;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };
