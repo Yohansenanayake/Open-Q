@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
+#include "dsp/BandStatus.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
 namespace openq
@@ -14,7 +15,7 @@ namespace openq
     struct BandSettings
     {
         double frequency = 1000.0, gain = 0.0, q = 1.0;
-        bool enabled = false;
+        BandStatus status = BandStatus::Off;
         bool operator== (const BandSettings&) const = default;
     };
 
@@ -23,11 +24,11 @@ namespace openq
         std::atomic<float>* frequency = nullptr;
         std::atomic<float>* gain = nullptr;
         std::atomic<float>* q = nullptr;
-        std::atomic<float>* enabled = nullptr;
+        std::atomic<float>* status = nullptr;
 
         BandSettings load() const
         {
-            return { frequency->load (std::memory_order_relaxed), gain->load (std::memory_order_relaxed), q->load (std::memory_order_relaxed), enabled->load (std::memory_order_relaxed) > 0.5f };
+            return { frequency->load (std::memory_order_relaxed), gain->load (std::memory_order_relaxed), q->load (std::memory_order_relaxed), static_cast<BandStatus> (juce::roundToInt (status->load (std::memory_order_relaxed))) };
         }
     };
 
@@ -36,6 +37,6 @@ namespace openq
         return { parameters.getRawParameterValue (bandParameterId (band, "frequency")),
             parameters.getRawParameterValue (bandParameterId (band, "gain")),
             parameters.getRawParameterValue (bandParameterId (band, "q")),
-            parameters.getRawParameterValue (bandParameterId (band, "enabled")) };
+            parameters.getRawParameterValue (bandParameterId (band, "status")) };
     }
 }

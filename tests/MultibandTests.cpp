@@ -45,11 +45,11 @@ TEST_CASE ("Eight independent band slots survive recall and reject incomplete st
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
         const auto initial = openq::getBandParameterPointers (processor.parameters, band).load();
-        CHECK (initial.enabled == (band == 0));
+        CHECK (initial.status == (band == 0 ? openq::BandStatus::On : openq::BandStatus::Off));
         setBand (processor, band, "frequency", 100.0f + static_cast<float> (band) * 1300.0f);
         setBand (processor, band, "gain", static_cast<float> (band) - 4.0f);
         setBand (processor, band, "q", 0.5f + static_cast<float> (band));
-        setBand (processor, band, "enabled", band % 2 == 0 ? 1.0f : 0.0f);
+        setBand (processor, band, "status", static_cast<float> (band % 3));
     }
     juce::MemoryBlock saved;
     processor.getStateInformation (saved);
@@ -62,14 +62,14 @@ TEST_CASE ("Eight independent band slots survive recall and reject incomplete st
         CHECK_THAT (actual.frequency, Catch::Matchers::WithinAbs (expected.frequency, 0.001));
         CHECK_THAT (actual.gain, Catch::Matchers::WithinAbs (expected.gain, 0.001));
         CHECK_THAT (actual.q, Catch::Matchers::WithinAbs (expected.q, 0.001));
-        CHECK (actual.enabled == expected.enabled);
+        CHECK (actual.status == expected.status);
     }
 
-    for (int corruption = 0; corruption < 7; ++corruption)
+    for (int corruption = 0; corruption < 11; ++corruption)
     {
         auto state = processor.parameters.copyState();
         state.getChildWithProperty ("id", "band.0.gain").setProperty ("value", 20.0, nullptr);
-        auto last = state.getChildWithProperty ("id", "band.7.enabled");
+        auto last = state.getChildWithProperty ("id", "band.7.status");
         switch (corruption)
         {
             case 0:
@@ -82,7 +82,7 @@ TEST_CASE ("Eight independent band slots survive recall and reject incomplete st
                 last.setProperty ("value", "nan", nullptr);
                 break;
             case 3:
-                last.setProperty ("id", "band.0.enabled", nullptr);
+                last.setProperty ("id", "band.0.status", nullptr);
                 break;
             case 4:
                 state.setProperty ("schemaVersion", 1, nullptr);
@@ -92,6 +92,18 @@ TEST_CASE ("Eight independent band slots survive recall and reject incomplete st
                 break;
             case 6:
                 state.setProperty ("bellDesign", "unknown", nullptr);
+                break;
+            case 7:
+                last.setProperty ("value", 3, nullptr);
+                break;
+            case 8:
+                last.setProperty ("value", -1, nullptr);
+                break;
+            case 9:
+                state.setProperty ("schemaVersion", 2, nullptr);
+                break;
+            case 10:
+                last.setProperty ("value", 1.5, nullptr);
                 break;
         }
         juce::MemoryBlock bad;
@@ -112,7 +124,7 @@ TEST_CASE ("All eight bells cascade in mono and stereo with independent channel 
         REQUIRE (processor.setBusesLayout (layout));
         for (size_t band = 0; band < openq::bandCount; ++band)
         {
-            setBand (processor, band, "enabled", 1.0f);
+            setBand (processor, band, "status", 2.0f);
             setBand (processor, band, "gain", 3.0f);
         }
         processor.prepareToPlay (48000.0, 128);
@@ -123,12 +135,32 @@ TEST_CASE ("All eight bells cascade in mono and stereo with independent channel 
         CHECK_THAT (renderGain (processor, channels), Catch::Matchers::WithinAbs (0.0, 0.02));
 
         for (size_t band = 0; band < openq::bandCount; ++band)
-            setBand (processor, band, "enabled", 0.0f);
+            setBand (processor, band, "status", 0.0f);
         CHECK_THAT (renderGain (processor, channels), Catch::Matchers::WithinAbs (0.0, 1e-9));
         setBand (processor, 7, "gain", 6.0f);
-        setBand (processor, 7, "enabled", 1.0f);
+        setBand (processor, 7, "status", 2.0f);
         CHECK_THAT (renderGain (processor, channels), Catch::Matchers::WithinAbs (6.0, 0.02));
         processor.releaseResources();
+    }
+}
+
+TEST_CASE ("All band status transitions retain settings and only On applies EQ", "[multiband][automation]")
+{
+    PluginProcessor processor;
+    setBand (processor, 1, "frequency", 4000.0f);
+    setBand (processor, 1, "gain", 12.0f);
+    setBand (processor, 1, "q", 0.5f);
+    processor.prepareToPlay (48000.0, 128);
+    for (const auto status : { openq::BandStatus::On, openq::BandStatus::Bypass, openq::BandStatus::On, openq::BandStatus::Off, openq::BandStatus::Bypass, openq::BandStatus::Off, openq::BandStatus::On })
+    {
+        CAPTURE (static_cast<int> (status));
+        setBand (processor, 1, "status", static_cast<float> (status));
+        CHECK_THAT (renderGain (processor, 2, 4000.0), Catch::Matchers::WithinAbs (status == openq::BandStatus::On ? 12.0 : 0.0, 0.02));
+        const auto settings = openq::getBandParameterPointers (processor.parameters, 1).load();
+        CHECK (settings.status == status);
+        CHECK_THAT (settings.frequency, Catch::Matchers::WithinAbs (4000.0, 0.001));
+        CHECK_THAT (settings.gain, Catch::Matchers::WithinAbs (12.0, 0.001));
+        CHECK_THAT (settings.q, Catch::Matchers::WithinAbs (0.5, 0.001));
     }
 }
 
@@ -140,7 +172,7 @@ TEST_CASE ("Host tail allowance covers eight cascaded ringing bells", "[multiban
         setBand (processor, band, "frequency", 20.0f);
         setBand (processor, band, "gain", 24.0f);
         setBand (processor, band, "q", 10.0f);
-        setBand (processor, band, "enabled", 1.0f);
+        setBand (processor, band, "status", 2.0f);
     }
     processor.prepareToPlay (8000.0, 128);
     juce::AudioBuffer<float> buffer (1, 128);
@@ -170,7 +202,7 @@ TEST_CASE ("Disabled bells settle new settings and resume with fresh coefficient
     for (int i = 0; i < 241000; ++i)
     {
         if (i == 240000)
-            filter.setParameters (20.0, 24.0, 10.0, false);
+            filter.setParameters (20.0, 24.0, 10.0, openq::BandStatus::Off);
         const auto input = static_cast<float> (0.05 * std::sin (2.0 * std::numbers::pi * 20.0 * i / 48000.0));
         sample.setSample (0, 0, input);
         filter.process (sample, 1);
@@ -180,11 +212,11 @@ TEST_CASE ("Disabled bells settle new settings and resume with fresh coefficient
             REQUIRE (juce::exactlyEqual (sample.getSample (0, 0), input));
         previous = sample.getSample (0, 0);
     }
-    filter.setParameters (4000.0, 12.0, 0.5, false);
+    filter.setParameters (4000.0, 12.0, 0.5, openq::BandStatus::Off);
     juce::AudioBuffer<float> silence (1, 4096);
     silence.clear();
     filter.process (silence, 1);
-    filter.setParameters (4000.0, 12.0, 0.5, true);
+    filter.setParameters (4000.0, 12.0, 0.5, openq::BandStatus::On);
     filter.process (silence, 1);
     CHECK (juce::exactlyEqual (silence.getMagnitude (0, silence.getNumSamples()), 0.0f));
 
@@ -206,7 +238,83 @@ TEST_CASE ("Disabled bells settle new settings and resume with fresh coefficient
     CHECK_THAT (10.0 * std::log10 (outputEnergy / inputEnergy), Catch::Matchers::WithinAbs (12.0, 0.02));
 }
 
-TEST_CASE ("Rapid enable automation stays finite and independent of block boundaries", "[multiband][automation]")
+TEST_CASE ("Bypass tracks the live signal and parameter automation before fading back to On", "[multiband][automation]")
+{
+    PluginProcessor processor;
+    setBand (processor, 1, "frequency", 80.0f);
+    setBand (processor, 1, "gain", 18.0f);
+    setBand (processor, 1, "q", 5.0f);
+    setBand (processor, 1, "status", 1.0f);
+    processor.prepareToPlay (48000.0, 1);
+    openq::BellFilter reference;
+    reference.prepare (48000.0, 80.0, 18.0, 5.0);
+    juce::AudioBuffer<float> actual (2, 1), filtered (2, 1);
+    juce::MidiBuffer midi;
+    for (int i = 0; i < 9000; ++i)
+    {
+        if (i == 2500)
+        {
+            setBand (processor, 1, "frequency", 120.0f);
+            setBand (processor, 1, "gain", 12.0f);
+            setBand (processor, 1, "q", 3.0f);
+            reference.setParameters (120.0, 12.0, 3.0);
+        }
+        if (i == 5000)
+            setBand (processor, 1, "status", 2.0f);
+        if (i == 7000)
+            setBand (processor, 1, "status", 1.0f);
+        for (int channel = 0; channel < 2; ++channel)
+        {
+            const auto input = static_cast<float> (0.01 * std::sin (2.0 * std::numbers::pi * (80.0 + channel * 40.0) * i / 48000.0));
+            actual.setSample (channel, 0, input);
+            filtered.setSample (channel, 0, input);
+        }
+        const auto input = actual;
+        reference.process (filtered, 2);
+        processor.processBlock (actual, midi);
+        const auto mix = i < 5000 ? 0.0 : i < 7000 ? std::min (1.0, (i - 4999) / 960.0)
+                                                   : std::max (0.0, 1.0 - (i - 6999) / 960.0);
+        for (int channel = 0; channel < 2; ++channel)
+        {
+            const auto dry = input.getSample (channel, 0);
+            const auto expected = dry + mix * (filtered.getSample (channel, 0) - dry);
+            REQUIRE_THAT (actual.getSample (channel, 0), Catch::Matchers::WithinAbs (expected, 1e-7));
+            if (juce::exactlyEqual (mix, 0.0))
+                REQUIRE (juce::exactlyEqual (actual.getSample (channel, 0), dry));
+        }
+    }
+}
+
+TEST_CASE ("Off to Bypass refreshes settled coefficients and retains new ringing for On", "[multiband][automation]")
+{
+    openq::BellFilter dormant, reference;
+    dormant.prepare (48000.0, 1000.0, 6.0, 1.0, openq::BandStatus::Off);
+    dormant.setParameters (20.0, 24.0, 10.0, openq::BandStatus::Off);
+    juce::AudioBuffer<float> silence (1, 2048);
+    silence.clear();
+    dormant.process (silence, 1);
+    dormant.setParameters (20.0, 24.0, 10.0, openq::BandStatus::Bypass);
+    reference.prepare (48000.0, 20.0, 24.0, 10.0);
+    juce::AudioBuffer<float> actual (1, 1), filtered (1, 1);
+    double audibleTail = 0.0;
+    for (int i = 0; i < 2048; ++i)
+    {
+        if (i == 128)
+            dormant.setParameters (20.0, 24.0, 10.0, openq::BandStatus::On);
+        const auto input = i == 0 ? 1.0f : 0.0f;
+        actual.setSample (0, 0, input);
+        filtered.setSample (0, 0, input);
+        dormant.process (actual, 1);
+        reference.process (filtered, 1);
+        const auto mix = i < 128 ? 0.0 : std::min (1.0, (i - 127) / 960.0);
+        const auto expected = input + mix * (filtered.getSample (0, 0) - input);
+        REQUIRE_THAT (actual.getSample (0, 0), Catch::Matchers::WithinAbs (expected, 1e-7));
+        audibleTail += std::abs (actual.getSample (0, 0) - input);
+    }
+    CHECK (audibleTail > 0.01);
+}
+
+TEST_CASE ("Rapid band status automation stays finite and independent of block boundaries", "[multiband][automation]")
 {
     openq::BellFilter whole, split;
     whole.prepare (48000.0, 80.0, 18.0, 5.0);
@@ -214,9 +322,9 @@ TEST_CASE ("Rapid enable automation stays finite and independent of block bounda
     float previous = 0.0f;
     for (int segment = 0; segment < 40; ++segment)
     {
-        const bool enabled = segment % 2 == 0;
-        whole.setParameters (80.0, 18.0, 5.0, enabled);
-        split.setParameters (80.0, 18.0, 5.0, enabled);
+        const auto status = static_cast<openq::BandStatus> (segment % 3);
+        whole.setParameters (80.0, 18.0, 5.0, status);
+        split.setParameters (80.0, 18.0, 5.0, status);
         juce::AudioBuffer<float> buffer (1, 137);
         for (int i = 0; i < buffer.getNumSamples(); ++i)
             buffer.setSample (0, i, static_cast<float> (0.01 * std::sin (2.0 * std::numbers::pi * 80.0 * (segment * 137 + i) / 48000.0)));
@@ -242,9 +350,9 @@ TEST_CASE ("Shared controls select all eight slots without overwriting other ban
         setBand (processor, band, "gain", static_cast<float> (band));
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
     auto* gain = dynamic_cast<juce::Slider*> (editor->findChildWithID ("band.gain"));
-    auto* enabled = dynamic_cast<juce::ToggleButton*> (editor->findChildWithID ("band.enabled"));
+    auto* status = dynamic_cast<juce::ComboBox*> (editor->findChildWithID ("band.status"));
     REQUIRE (gain != nullptr);
-    REQUIRE (enabled != nullptr);
+    REQUIRE (status != nullptr);
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
         auto* button = dynamic_cast<juce::TextButton*> (editor->findChildWithID ("select.band." + juce::String (band)));
@@ -253,14 +361,24 @@ TEST_CASE ("Shared controls select all eight slots without overwriting other ban
         CHECK (button->getToggleState());
         CHECK_THAT (gain->getValue(), Catch::Matchers::WithinAbs (static_cast<double> (band), 0.001));
         gain->setValue (-static_cast<double> (band), juce::sendNotificationSync);
-        enabled->setToggleState (true, juce::sendNotificationSync);
+        for (int state = 0; state < 3; ++state)
+        {
+            status->setSelectedItemIndex (state, juce::sendNotificationSync);
+            const auto settings = openq::getBandParameterPointers (processor.parameters, band).load();
+            CHECK (settings.status == static_cast<openq::BandStatus> (state));
+            CHECK_THAT (settings.gain, Catch::Matchers::WithinAbs (-static_cast<double> (band), 0.001));
+        }
     }
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
         const auto target = openq::getBandParameterPointers (processor.parameters, band).load();
         CHECK_THAT (target.gain, Catch::Matchers::WithinAbs (-static_cast<double> (band), 0.001));
-        CHECK (target.enabled);
+        CHECK (target.status == openq::BandStatus::On);
     }
+    setBand (processor, 7, "status", 1.0f);
+    CHECK (status->getSelectedItemIndex() == 1);
+    setBand (processor, 7, "status", 2.0f);
+    CHECK (status->getSelectedItemIndex() == 2);
     editor.reset();
     processor.prepareToPlay (48000.0, 128);
     CHECK_THAT (renderGain (processor, 2), Catch::Matchers::WithinAbs (-28.0, 0.05));

@@ -82,7 +82,7 @@ namespace openq
             for (size_t i = 0; i < bandCount; ++i)
             {
                 const auto& band = target.bands[i];
-                frame.response.bands[i] = { makeBellCoefficients (target.sampleRate, band.frequency, band.enabled ? band.gain : 0.0, band.q), target.sampleRate };
+                frame.response.bands[i] = { makeBellCoefficients (target.sampleRate, band.frequency, band.status == BandStatus::On ? band.gain : 0.0, band.q), target.sampleRate };
             }
             frame.curve.clear();
             frame.valid = frame.geometry.width > 0 && frame.geometry.height > 0

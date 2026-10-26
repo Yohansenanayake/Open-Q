@@ -16,7 +16,7 @@ PluginProcessor::PluginProcessor()
               ),
       parameters (*this, nullptr, "OpenQState", createParameterLayout())
 {
-    parameters.state.setProperty ("schemaVersion", 2, nullptr);
+    parameters.state.setProperty ("schemaVersion", 3, nullptr);
     parameters.state.setProperty ("bandCount", static_cast<int> (openq::bandCount), nullptr);
     for (size_t i = 0; i < openq::bandCount; ++i)
         bandParameters[i] = openq::getBandParameterPointers (parameters, i);
@@ -101,7 +101,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     for (size_t i = 0; i < bands.size(); ++i)
     {
         const auto target = bandParameters[i].load();
-        bands[i].prepare (sampleRate, target.frequency, target.gain, target.q, target.enabled);
+        bands[i].prepare (sampleRate, target.frequency, target.gain, target.q, target.status);
     }
     responseSampleRate.store (sampleRate, std::memory_order_relaxed);
 }
@@ -146,7 +146,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (size_t i = 0; i < bands.size(); ++i)
     {
         const auto target = bandParameters[i].load();
-        bands[i].setParameters (target.frequency, target.gain, target.q, target.enabled);
+        bands[i].setParameters (target.frequency, target.gain, target.q, target.status);
         bands[i].process (buffer, inputs);
     }
 }
@@ -178,7 +178,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     if (xml == nullptr || !xml->hasTagName ("OpenQState"))
         return;
     const auto state = juce::ValueTree::fromXml (*xml);
-    if (static_cast<int> (state.getProperty ("schemaVersion")) != 2
+    if (static_cast<int> (state.getProperty ("schemaVersion")) != 3
         || static_cast<int> (state.getProperty ("bandCount")) != static_cast<int> (openq::bandCount)
         || state.getProperty ("bellDesign").toString() != "zle-ivantsov-v1"
         || state.getNumChildren() != static_cast<int> (openq::bandCount * 4))
@@ -186,7 +186,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
-        for (const auto* name : { "frequency", "gain", "q", "enabled" })
+        for (const auto* name : { "frequency", "gain", "q", "status" })
         {
             const auto id = openq::bandParameterId (band, name);
             const auto child = state.getChildWithProperty ("id", id);
@@ -201,7 +201,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             const auto range = parameters.getParameter (id)->getNormalisableRange();
             if (input.fail() || !input.eof()
                 || !std::isfinite (value) || value < range.start || value > range.end
-                || (juce::String (name) == "enabled" && !juce::exactlyEqual (value, 0.0) && !juce::exactlyEqual (value, 1.0)))
+                || (juce::String (name) == "status" && !juce::exactlyEqual (value, std::round (value))))
                 return;
         }
     }
@@ -228,7 +228,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParam
         layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "frequency"), 1 }, prefix + "Frequency", frequencyRange, 1000.0f));
         layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "gain"), 1 }, prefix + "Gain", juce::NormalisableRange<float> (-24.0f, 24.0f), 0.0f));
         layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "q"), 1 }, prefix + "Q", qRange, 1.0f));
-        layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { openq::bandParameterId (band, "enabled"), 1 }, prefix + "Enabled", band == 0));
+        layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { openq::bandParameterId (band, "status"), 1 }, prefix + "Status", juce::StringArray { "Off", "Bypass", "On" }, static_cast<int> (band == 0 ? openq::BandStatus::On : openq::BandStatus::Off)));
     }
     return layout;
 }

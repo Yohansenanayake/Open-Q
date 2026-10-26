@@ -123,14 +123,14 @@ TEST_CASE ("Response follows every slot and sums enabled bands before clipping w
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
         if (band > 0)
-            set (band - 1, "enabled", 0.0f);
+            set (band - 1, "status", 0.0f);
         const auto frequency = 1000.0f + static_cast<float> (band) * 200.0f;
         const auto gain = 3.0f + static_cast<float> (band);
         const auto q = 1.0f + static_cast<float> (band) * 0.2f;
         set (band, "frequency", frequency);
         set (band, "gain", gain);
         set (band, "q", q);
-        set (band, "enabled", 1.0f);
+        set (band, "status", 2.0f);
         const openq::DigitalResponse expected { openq::makeBellCoefficients (48000.0, frequency, gain, q), 48000.0 };
         const auto probe = frequency * 0.8;
         worker.requestUpdate();
@@ -143,7 +143,7 @@ TEST_CASE ("Response follows every slot and sums enabled bands before clipping w
         set (band, "frequency", 20000.0f);
         set (band, "gain", 24.0f);
         set (band, "q", 1.0f);
-        set (band, "enabled", 1.0f);
+        set (band, "status", 2.0f);
     }
     worker.requestUpdate();
     REQUIRE (awaitFrame (worker, [] (const auto& frame) {
@@ -159,12 +159,16 @@ TEST_CASE ("Response follows every slot and sums enabled bands before clipping w
         return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0) - 18.0) < 1e-4;
     }));
     CHECK_THAT (worker.getFrame().curve.getPointAlongPath (worker.getFrame().curve.getLength()).y, Catch::Matchers::WithinAbs (25.0, 0.001));
-    for (size_t band = 0; band < openq::bandCount; ++band)
-        set (band, "enabled", 0.0f);
-    worker.requestUpdate();
-    REQUIRE (awaitFrame (worker, [] (const auto& frame) {
-        return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0)) < 1e-9;
-    }));
+    for (const float status : { 1.0f, 0.0f, 2.0f })
+    {
+        for (size_t band = 0; band < openq::bandCount; ++band)
+            set (band, "status", status);
+        worker.requestUpdate();
+        const auto expectedDb = juce::exactlyEqual (status, 2.0f) ? 18.0 : 0.0;
+        REQUIRE (awaitFrame (worker, [expectedDb] (const auto& frame) {
+            return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0) - expectedDb) < 1e-4;
+        }));
+    }
     worker.stop();
 }
 

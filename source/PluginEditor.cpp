@@ -15,8 +15,10 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         button.onClick = [this, band] { selectBand (band); };
         addAndMakeVisible (button);
     }
-    enabledButton.setComponentID ("band.enabled");
-    addAndMakeVisible (enabledButton);
+    statusSelector.setComponentID ("band.status");
+    statusSelector.addItemList ({ "Off", "Bypass", "On" }, 1);
+    statusSelector.setTooltip ("Off: unused slot. Bypass: keep the band without applying EQ. On: apply EQ. All states retain frequency, gain, and Q.");
+    addAndMakeVisible (statusSelector);
     const std::array<juce::String, 3> names { "Frequency", "Gain", "Q" };
     for (size_t i = 0; i < controls.size(); ++i)
     {
@@ -72,7 +74,7 @@ void PluginEditor::selectBand (size_t band)
     // Commit text edits to the original band before replacing attachments.
     for (auto& control : controls)
         control.hideTextBox (false);
-    enabledAttachment.reset();
+    statusAttachment.reset();
     for (auto& attachment : controlAttachments)
         attachment.reset();
     const std::array<const char*, 3> names { "frequency", "gain", "q" };
@@ -82,9 +84,9 @@ void PluginEditor::selectBand (size_t band)
         controls[i].textFromValueFunction = nullptr;
         controls[i].setNumDecimalPlacesToDisplay (i == 0 ? 1 : 2);
     }
-    enabledAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.parameters, openq::bandParameterId (band, "enabled"), enabledButton);
+    statusAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (processor.parameters, openq::bandParameterId (band, "status"), statusSelector);
     bandButtons[band].setToggleState (true, juce::dontSendNotification);
-    enabledButton.setButtonText ("Band " + juce::String (band + 1) + " enabled");
+    statusSelector.setTitle ("Band " + juce::String (band + 1) + " status");
 }
 
 PluginEditor::~PluginEditor()
@@ -108,7 +110,7 @@ void PluginEditor::resized()
     responseGraph.setBounds (area.removeFromTop (280));
     area.removeFromTop (12);
     auto selector = area.removeFromTop (30);
-    enabledButton.setBounds (selector.removeFromRight (150));
+    statusSelector.setBounds (selector.removeFromRight (150).reduced (4, 0));
     const auto buttonWidth = selector.getWidth() / static_cast<int> (bandButtons.size());
     for (auto& button : bandButtons)
         button.setBounds (selector.removeFromLeft (buttonWidth).reduced (2, 0));
