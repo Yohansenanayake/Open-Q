@@ -1,7 +1,8 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
-#include <charconv>
 #include <cmath>
+#include <locale>
+#include <sstream>
 
 //==============================================================================
 PluginProcessor::PluginProcessor()
@@ -179,9 +180,12 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             return;
         const auto text = child.getProperty ("value").toString().trim().toStdString();
         double value = 0.0;
-        const auto parsed = std::from_chars (text.data(), text.data() + text.size(), value);
+        // Xcode 15's libc++ does not provide floating-point std::from_chars.
+        std::istringstream input (text);
+        input.imbue (std::locale::classic());
+        input >> std::noskipws >> value;
         const auto range = parameters.getParameter (id)->getNormalisableRange();
-        if (parsed.ec != std::errc() || parsed.ptr != text.data() + text.size()
+        if (input.fail() || !input.eof()
             || !std::isfinite (value) || value < range.start || value > range.end)
             return;
     }
