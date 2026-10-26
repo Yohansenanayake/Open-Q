@@ -2,31 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## First-Time Setup
+## Open-Q Project Direction
 
-If the values below still say "Pamplejuce" or "Pamplejuce Demo", this project was freshly created from the template and hasn't been personalized yet. Ask the user:
+- Build an open-source JUCE equalizer alternative to FabFilter Pro-Q, one small, complete step at a time.
+- The primary reference is the local project at `/home/yohan/Projects/audio/ZLEqualizer`. Study the relevant implementation before developing each feature; do not port the whole plugin at once.
+- Reusing reference code or dependencies is welcome. Record their origins, preserve required notices, give credit, and check the applicable licenses before incorporating them.
+- The reference README identifies ZLEqualizer as AGPLv3 and excludes its logos from that license. Open-Q currently retains the Pamplejuce MIT license; resolve licensing before importing reference code.
+- Keep audio processing realtime-safe and use the existing Pamplejuce build and test structure.
 
-1. **What's your plugin called?** (display name for DAWs, e.g. "Super Synth")
-2. **What's your company name?** (e.g. "My Audio Co")
-3. **What type of plugin is this?** (synth, effect, utility, etc.)
-4. **What IDE do you use?** (CLion, VS Code, Xcode, other)
-5. **Do you want CI/CD via GitHub Actions?** Note: public repos get unlimited CI minutes, but private repos have a limited monthly allowance. If they're on a private repo and want to avoid burning minutes during active development, suggest commenting out matrix entries in the workflow to build on just one platform (e.g. only their dev OS) and running tests only — they can re-enable the full matrix when preparing a release.
-6. **If using CI, do you need Intel IPP?** (provides SIMD-optimized DSP functions — if not, comment out the IPP install steps in the workflow to avoid CI failures)
-7. **Are you code signing?** Code signing is essentially required to distribute to anyone (beta testers, friends, customers) — without it, macOS Gatekeeper and Windows SmartScreen will block or warn on the plugin. But it can be set up later; it's fine to skip during early development. Ask separately for macOS and Windows:
-   - **macOS**: codesigning + notarization requires an Apple Developer account ($99/year). If not signing yet, comment out the codesign/notarize steps in the CI workflow. Guide: [How to code sign and notarize macOS audio plugins in CI](https://melatonin.dev/blog/how-to-code-sign-and-notarize-macos-audio-plugins-in-ci/)
-   - **Windows**: Azure Trusted Signing is the recommended approach (free tier available). If not signing yet, comment out the Azure signing step. Guide: [Code signing on Windows with Azure Trusted Signing](https://melatonin.dev/blog/code-signing-on-windows-with-azure-trusted-signing/)
+## Project Setup
 
-Then:
-- Update `CMakeLists.txt`: set `PROJECT_NAME` (no spaces), `PRODUCT_NAME` (display name), `COMPANY_NAME`, `BUNDLE_ID`, `PLUGIN_MANUFACTURER_CODE` (4 chars), and `PLUGIN_CODE` (4 chars)
-- Let the user know: builds default to **Debug** mode for development (faster builds, better debugging). If they're making music with the plugin and experiencing performance issues (audio dropouts, high CPU), they should ask to build in **Release** mode instead.
-- Rewrite the **Build Commands** section below to match their IDE:
-  - **CLion**: use `cmake-build-debug` / `cmake-build-release` as build directories (CLion's defaults — sharing them avoids duplicate builds). Use `-G Ninja` with CLion's bundled ninja so the `.ninja_log` format stays compatible between CLI and IDE builds.
-  - **VS Code**: use `build` or `Builds` as the build directory. Recommend Ninja + the CMake Tools extension.
-  - **Xcode**: use `-G Xcode` and open the generated `.xcodeproj`. CLI builds can use `Builds` with Ninja.
-- If they don't want CI right now, comment out the platforms in the matrix they don't need
-- If they don't need IPP, comment out the IPP install steps in the workflow
-- If they're not code signing on a platform, comment out the relevant signing/notarization steps in the workflow
-- Remove this setup section from CLAUDE.md once complete
+- Product: **Open-Q**; CMake target: `OpenQ`; author/manufacturer: **Yohan Senanayake**.
+- Bundle ID: `com.yohansenanayake.openq`; manufacturer code: `Ysen`; plugin code: `OpQ1`. Keep these stable for host/session compatibility.
+- IDE: VS Code with Ninja, CMake Tools, and Microsoft C/C++ (GDB on Linux).
+- GitHub Actions builds Linux, macOS, and Windows. Intel IPP is disabled until profiling justifies it. Signing and notarization are deferred on both macOS and Windows.
+- The license will switch to AGPL later, before importing AGPL reference code. Preserve the existing template notices.
 
 ## About This Project
 
@@ -36,29 +26,27 @@ The template provides the build system, CI/CD, and project structure. The plugin
 
 ## Build Commands
 
+Initialize dependencies once: `git submodule update --init --recursive`.
+
 ```bash
-# Configure (run once, or after CMakeLists.txt changes)
-cmake -B Builds -DCMAKE_BUILD_TYPE=Debug
+# Debug development build (matches the VS Code tasks)
+cmake -S . -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DJUCE_BUILD_EXTRAS=ON
+cmake --build Builds --config Debug --target OpenQ_VST3 OpenQ_Standalone AudioPluginHost --parallel 2
 
-# Build
-cmake --build Builds --config Debug
-
-# Run tests (from project root)
+# Tests
+cmake --build Builds --target Tests Benchmarks --parallel 2
 ctest --test-dir Builds --verbose --output-on-failure
 
-# Or run tests directly
-./Builds/Tests
+# Release build for making music / checking CPU usage
+cmake -S . -B Builds/Release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DJUCE_BUILD_EXTRAS=OFF
+cmake --build Builds/Release --config Release --target OpenQ_VST3 OpenQ_Standalone --parallel 2
 
-# Run a single test by name
-./Builds/Tests "[test name]"
-
-# Run benchmarks
+# Benchmarks
+cmake --build Builds --target Benchmarks --parallel 2
 ./Builds/Benchmarks
 ```
 
-For faster builds, add Ninja: `cmake -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Debug`
-
-On macOS for universal binary: `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"`
+Development defaults to **Debug**. Use **Release** for audio performance checks or if Debug causes high CPU or dropouts. VS Code's Run Build Task lists the Debug and Release tasks; F5 launches AudioPluginHost on Linux. Load `Builds/OpenQ_artefacts/Debug/VST3/Open-Q.vst3` in the host, then set plugin breakpoints.
 
 ## Project Structure
 

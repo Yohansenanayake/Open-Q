@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "VST3: JUCE AudioPluginHost (Linux)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/Builds/JUCE/extras/AudioPluginHost/AudioPluginHost_artefacts/Debug/AudioPluginHost",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "setupCommands": [
+                {
+                    "description": "Keep plugin breakpoints pending until the VST3 loads",
+                    "text": "-gdb-set breakpoint pending on",
+                    "ignoreFailures": false
+                }
+            ],
+            "preLaunchTask": "Build VST3 and AudioPluginHost"
+        }
+    ]
+}

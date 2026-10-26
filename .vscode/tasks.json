@@ -1,0 +1,101 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Configure VST3 debugging",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/Builds",
+                "-G",
+                "Ninja",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+                "-DJUCE_BUILD_EXTRAS=ON"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Build VST3 and AudioPluginHost",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/Builds",
+                "--config",
+                "Debug",
+                "--target",
+                "OpenQ_VST3",
+                "AudioPluginHost",
+                "--parallel",
+                "2"
+            ],
+            "dependsOn": "Configure VST3 debugging",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "Build plugin binaries (Debug)",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/Builds",
+                "--config",
+                "Debug",
+                "--target",
+                "OpenQ_VST3",
+                "OpenQ_Standalone",
+                "--parallel",
+                "2"
+            ],
+            "dependsOn": "Configure VST3 debugging",
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "Configure plugin Release",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/Builds/Release",
+                "-G",
+                "Ninja",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+                "-DJUCE_BUILD_EXTRAS=OFF"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Build plugin binaries (Release)",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/Builds/Release",
+                "--config",
+                "Release",
+                "--target",
+                "OpenQ_VST3",
+                "OpenQ_Standalone",
+                "--parallel",
+                "2"
+            ],
+            "dependsOn": "Configure plugin Release",
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    ]
+}

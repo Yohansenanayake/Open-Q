@@ -14,11 +14,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Set image name
+        run: echo "CI_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/open-q-linux-ci:latest" >> "$GITHUB_ENV"
+
       - name: Login to ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Build
-        run: docker build -t ghcr.io/sudara/pamplejuce-linux-ci:latest -f .github/docker/linux-ci.Dockerfile .
+        run: docker build -t "$CI_IMAGE" -f .github/docker/linux-ci.Dockerfile .
 
       - name: Push
-        run: docker push ghcr.io/sudara/pamplejuce-linux-ci:latest
+        run: docker push "$CI_IMAGE"
