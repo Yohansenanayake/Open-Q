@@ -139,6 +139,13 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     bell.setParameters (frequencyParameter->load(), gainParameter->load(), qParameter->load());
     bell.process (buffer, inputs);
+    const auto response = bell.getAppliedResponse();
+    if (buffer.getNumSamples() > 0 && response != lastPublishedResponse)
+    {
+        responseSnapshots.getWriter() = response;
+        responseSnapshots.publish();
+        lastPublishedResponse = response;
+    }
 }
 
 //==============================================================================

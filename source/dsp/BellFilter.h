@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
 
+#include "AppliedResponse.h"
 #include "BellCoefficients.h"
 #include <juce_audio_basics/juce_audio_basics.h>
 
@@ -13,6 +14,8 @@ namespace openq
         void setParameters (double frequencyHz, double gainDb, double q);
         void process (juce::AudioBuffer<float>& buffer, int numChannels);
         void reset();
+        // Audio-thread only; consumers receive a published copy through the processor.
+        AppliedResponse getAppliedResponse() const;
 
     private:
         struct State

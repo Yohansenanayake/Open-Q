@@ -1,8 +1,9 @@
 #include "PluginEditor.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), frequencyAttachment (p.parameters, "bell.frequency", controls[0]), gainAttachment (p.parameters, "bell.gain", controls[1]), qAttachment (p.parameters, "bell.q", controls[2])
+    : AudioProcessorEditor (&p), responseGraph (p.getResponseSnapshots()), frequencyAttachment (p.parameters, "bell.frequency", controls[0]), gainAttachment (p.parameters, "bell.gain", controls[1]), qAttachment (p.parameters, "bell.q", controls[2])
 {
+    addAndMakeVisible (responseGraph);
     const std::array<juce::String, 3> names { "Frequency", "Gain", "Q" };
     for (size_t i = 0; i < controls.size(); ++i)
     {
@@ -10,6 +11,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         control.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         control.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 110, 26);
         control.setTitle (names[i]);
+        control.textFromValueFunction = nullptr;
         control.setNumDecimalPlacesToDisplay (i == 0 ? 1 : 2);
         control.setDoubleClickReturnValue (true, i == 0 ? 1000.0 : i == 1 ? 0.0
                                                                           : 1.0);
@@ -39,7 +41,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
-    setSize (540, 300);
+    setSize (720, 540);
 }
 
 PluginEditor::~PluginEditor()
@@ -60,6 +62,8 @@ void PluginEditor::resized()
 {
     auto area = getLocalBounds().reduced (16);
     area.removeFromTop (40);
+    responseGraph.setBounds (area.removeFromTop (280));
+    area.removeFromTop (12);
     inspectButton.setBounds (area.removeFromBottom (32).removeFromLeft (130));
     const auto width = area.getWidth() / 3;
     for (size_t i = 0; i < controls.size(); ++i)

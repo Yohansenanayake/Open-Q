@@ -3,6 +3,7 @@
 #include "BinaryData.h"
 #include "PluginProcessor.h"
 #include "melatonin_inspector/melatonin_inspector.h"
+#include "ui/ResponseGraph.h"
 
 //==============================================================================
 class PluginEditor : public juce::AudioProcessorEditor
@@ -16,6 +17,7 @@ public:
     void resized() override;
 
 private:
+    openq::ResponseGraph responseGraph;
     std::array<juce::Slider, 3> controls;
     std::array<juce::Label, 3> labels;
     juce::AudioProcessorValueTreeState::SliderAttachment frequencyAttachment;

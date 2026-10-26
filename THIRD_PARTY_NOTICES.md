@@ -14,6 +14,15 @@ Open-Q is licensed under **AGPL-3.0-only**. Copyright (c) 2026 Yohan Senanayake 
 
 The adaptation extracts the bell calculation and its frequency-wrapping/Phi helpers, retains ZLE's sigma and spline constants, and changes the surrounding API to named normalized biquad coefficients. Yohan Senanayake added input limits, invalid-input handling, coefficient validation, and a zero-gain identity path on 26 October 2026. Other ZLE responses, dynamic-EQ machinery, logos, and GUI assets were not imported. The smoothing and channel-state implementation in Open-Q is separate from ZLE's processing classes.
 
+## ZLEqualizer triple-buffer handoff
+
+- Author/copyright: **Copyright (C) 2026 zsliu98**.
+- Source: `source/panel/helper/tri_buffer.hpp` at ZLEqualizer commit `3ce598ee065b3d3847121e76e196feda7ed8f56d`.
+- Open-Q adaptation: `source/utility/TripleBuffer.h`, under **AGPL-3.0-only**.
+- Modifications by Yohan Senanayake, 26 October 2026: renamed the namespace/type, default-initialized payload slots, removed raw-array access, and applied Open-Q formatting. The single-producer/single-consumer exchange and its memory ordering are retained.
+
+The response worker and frame-driven UI organization follow the studied ZLE pattern. Open-Q calculates its response from applied digital coefficient snapshots, including its wet/dry mix, rather than importing ZLE's ideal-prototype response models or graph components.
+
 ## Pamplejuce template
 
 The original build system, plugin skeleton, and supporting template files are derived from [Pamplejuce](https://github.com/sudara/pamplejuce), copyright (c) 2022 Sudara Williams. Its complete MIT notice is retained in [licenses/Pamplejuce-MIT.txt](licenses/Pamplejuce-MIT.txt).

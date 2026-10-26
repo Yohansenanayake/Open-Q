@@ -4,6 +4,11 @@
 
 namespace openq
 {
+    AppliedResponse BellFilter::getAppliedResponse() const
+    {
+        return { coefficients, wet.getCurrentValue(), sampleRate };
+    }
+
     void BellFilter::prepare (double newSampleRate, double frequencyHz, double gainDb, double q)
     {
         sampleRate = std::isfinite (newSampleRate) && newSampleRate >= 1000.0 ? newSampleRate : 0.0;

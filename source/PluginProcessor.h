@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dsp/BellFilter.h"
+#include "utility/TripleBuffer.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
 class PluginProcessor : public juce::AudioProcessor
@@ -38,12 +39,17 @@ public:
 
     juce::AudioProcessorValueTreeState parameters;
 
+    // One response worker consumes this mailbox; it survives editor close/reopen.
+    openq::TripleBuffer<openq::AppliedResponse>& getResponseSnapshots() { return responseSnapshots; }
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     std::atomic<float>* frequencyParameter;
     std::atomic<float>* gainParameter;
     std::atomic<float>* qParameter;
     openq::BellFilter bell;
+    openq::TripleBuffer<openq::AppliedResponse> responseSnapshots;
+    openq::AppliedResponse lastPublishedResponse;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };
