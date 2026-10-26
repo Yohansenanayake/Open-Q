@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "BandControlCard.h"
+#include "BinaryData.h"
 
 namespace openq
 {
@@ -9,15 +10,44 @@ namespace openq
         setTitle ("Selected band controls");
         title.setJustificationType (juce::Justification::centredLeft);
         addAndMakeVisible (title);
-        status.setComponentID ("band.status");
-        status.addItemList ({ "Off", "Bypass", "On" }, 1);
-        status.setTooltip ("Off: unused slot. Bypass: keep the filter warm without applying EQ. On: apply EQ. Settings are retained in all states.");
-        addAndMakeVisible (status);
+        auto power = juce::Drawable::createFromImageData (BinaryData::bypass_svg, BinaryData::bypass_svgSize);
+        auto close = juce::Drawable::createFromImageData (BinaryData::close_svg, BinaryData::close_svgSize);
+        auto trash = juce::Drawable::createFromImageData (BinaryData::trash_svg, BinaryData::trash_svgSize);
+        jassert (power != nullptr && close != nullptr && trash != nullptr);
+        if (power != nullptr && close != nullptr && trash != nullptr)
+        {
+            auto powerOn = power->createCopy();
+            auto powerHover = power->createCopy();
+            auto closeHover = close->createCopy();
+            auto trashHover = trash->createCopy();
+            power->replaceColour (juce::Colours::black, juce::Colour (0xff8996a5));
+            close->replaceColour (juce::Colours::black, juce::Colour (0xff8996a5));
+            trash->replaceColour (juce::Colours::black, juce::Colour (0xff8996a5));
+            powerOn->replaceColour (juce::Colours::black, juce::Colour (0xff6edbd4));
+            powerHover->replaceColour (juce::Colours::black, juce::Colour (0xffe0e7ef));
+            closeHover->replaceColour (juce::Colours::black, juce::Colour (0xffe0e7ef));
+            trashHover->replaceColour (juce::Colours::black, juce::Colour (0xffe0e7ef));
+            powerButton.setImages (power.get(), powerHover.get(), powerOn.get(), nullptr, powerOn.get(), powerHover.get(), powerOn.get());
+            deleteButton.setImages (trash.get(), trashHover.get(), trashHover.get());
+            closeButton.setImages (close.get(), closeHover.get(), closeHover.get());
+        }
+        powerButton.setComponentID ("band.power");
+        powerButton.setClickingTogglesState (true);
+        powerButton.onClick = [this] {
+            if (statusAttachment != nullptr && powerButton.isEnabled())
+                statusAttachment->setValueAsCompleteGesture (static_cast<float> (powerButton.getToggleState() ? BandStatus::On : BandStatus::Bypass));
+        };
+        addAndMakeVisible (powerButton);
         deleteButton.setComponentID ("band.delete");
         deleteButton.setTitle ("Delete selected band");
-        deleteButton.setTooltip ("Delete this band (set Off). Click empty graph space to hide the card without deleting.");
+        deleteButton.setTooltip ("Delete this band (set Off)");
         deleteButton.onClick = [this] { if (onDelete) onDelete(); };
         addAndMakeVisible (deleteButton);
+        closeButton.setComponentID ("band.close");
+        closeButton.setTitle ("Close band controls");
+        closeButton.setTooltip ("Hide this card without changing the band or its audio");
+        closeButton.onClick = [this] { if (onClose) onClose(); };
+        addAndMakeVisible (closeButton);
         const std::array<juce::String, 3> names { "Frequency", "Gain", "Q" };
         for (size_t i = 0; i < controls.size(); ++i)
         {
@@ -53,7 +83,7 @@ namespace openq
         if (band >= bandCount)
             return;
         title.setText ("Band " + juce::String (band + 1) + "  /  Bell", juce::dontSendNotification);
-        status.setTitle ("Band " + juce::String (band + 1) + " status");
+        powerButton.setTitle ("Band " + juce::String (band + 1) + " power");
         const std::array<const char*, 3> names { "frequency", "gain", "q" };
         for (size_t i = 0; i < controls.size(); ++i)
         {
@@ -61,7 +91,12 @@ namespace openq
             controls[i].textFromValueFunction = nullptr;
             controls[i].setNumDecimalPlacesToDisplay (i == 0 ? 1 : 2);
         }
-        statusAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, bandParameterId (band, "status"), status);
+        statusAttachment = std::make_unique<juce::ParameterAttachment> (*parameters.getParameter (bandParameterId (band, "status")), [this] (float value) {
+            const auto bandStatus = static_cast<BandStatus> (juce::roundToInt (value));
+            powerButton.setToggleState (bandStatus == BandStatus::On, juce::dontSendNotification);
+            powerButton.setEnabled (bandStatus != BandStatus::Off);
+            powerButton.setTooltip (bandStatus == BandStatus::On ? "Bypass this band" : bandStatus == BandStatus::Bypass ? "Enable this band" : "Band deleted. Double-click empty graph space to create a band."); }, nullptr);
+        statusAttachment->sendInitialUpdate();
     }
 
     void BandControlCard::paint (juce::Graphics& g)
@@ -77,9 +112,12 @@ namespace openq
     {
         auto area = getLocalBounds().reduced (10);
         auto header = area.removeFromTop (26);
+        closeButton.setBounds (header.removeFromRight (26));
+        header.removeFromRight (6);
         deleteButton.setBounds (header.removeFromRight (26));
         header.removeFromRight (6);
-        status.setBounds (header.removeFromRight (100));
+        powerButton.setBounds (header.removeFromLeft (26));
+        header.removeFromLeft (6);
         title.setBounds (header);
         area.removeFromTop (6);
         const auto width = area.getWidth() / 3;

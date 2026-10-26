@@ -27,7 +27,18 @@ Open-Q's eight-slot bank and shared selected-band controls are also informed by 
 
 ## ZLEqualizer node interaction reference
 
-Open-Q's node interaction follows the source study of ZLEqualizer commit `3ce598ee065b3d3847121e76e196feda7ed8f56d`, copyright (C) 2026 zsliu98, under AGPL-3.0-only. Relevant sources are `source/gui/dragger/dragger_component.cpp`, `dragger_attachment.hpp`, and `source/panel/curve_panel/response_panel/dragger_panel/`. Open-Q implements relative dragging, display-to-host parameter conversion, three-state node visibility, and host gesture handling in `source/ui/ResponseGraph.cpp`. It uses its own bell-only creation defaults, digital response paths, parameter-polling node positions, and fixed shortcuts. The selection-driven band card also follows the studied `panel/control_panel/` and floating-popup pattern, with Open-Q’s existing parameter attachments and three-state selector. No ZLE icons, logos, or other UI assets are imported.
+Open-Q's node interaction follows the source study of ZLEqualizer commit `3ce598ee065b3d3847121e76e196feda7ed8f56d`, copyright (C) 2026 zsliu98, under AGPL-3.0-only. Relevant sources are `source/gui/dragger/dragger_component.cpp`, `dragger_attachment.hpp`, and `source/panel/curve_panel/response_panel/dragger_panel/`. Open-Q implements relative dragging, display-to-host parameter conversion, three-state node visibility, and host gesture handling in `source/ui/ResponseGraph.cpp`. It uses its own bell-only creation defaults, digital response paths, parameter-polling node positions, and fixed shortcuts. The selection-driven band card also follows the studied `panel/control_panel/` and floating-popup pattern, with Open-Q’s existing parameter attachments and status controls. The Spectrum icon imports are recorded separately below; no excluded logos are imported.
+
+## ZL Spectrum Equalizer research reference
+
+[ZL Spectrum Equalizer](https://github.com/ZL-Audio/ZLSpectrumEqualizer), copyright (C) 2026 zsliu98, is Open-Q's second implementation reference. Its UI and architecture were studied at commit `10388f0cb594c6a322f8652cd718aed28c2e2c39`. Source headers specify AGPL version 3, and its README excludes the ZL Audio and Spectrum Equalizer logos. The initial research imported no code or assets. On 27 October 2026, Open-Q copied the following files unchanged from that revision, retaining existing source notices:
+
+- `assets/icons/bypass.svg` → `assets/icons/bypass.svg`.
+- `assets/icons/close.svg` → `assets/icons/close.svg`.
+- `assets/icons/trash.svg` → `assets/icons/trash.svg`.
+- `assets/icons/main.py` → `tools/format_svg_icons.py`.
+
+These files are used under AGPL-3.0-only; see [LICENSE](LICENSE). Button colors and interaction states are applied in C++ rather than altering the SVGs. The formatting helper is stored outside `assets/` so it is not embedded in plugin binaries. It adds a transparent bounds rectangle and normalizes `black` to `#000000` for multiline SVGs in the current directory. Neither `logo.svg` nor `zlaudio.svg` was copied, and no new dependencies were added.
 
 ## Pamplejuce template
 

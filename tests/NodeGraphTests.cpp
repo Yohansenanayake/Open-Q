@@ -253,11 +253,12 @@ TEST_CASE ("Band card opens on selection, preserves settings when hidden and del
     const auto selectedNode = first.getBounds().translated (graph->getX(), graph->getY());
     CHECK_FALSE (card->getBounds().intersects (selectedNode));
     auto* gain = dynamic_cast<juce::Slider*> (card->findChildWithID ("band.gain"));
-    auto* status = dynamic_cast<juce::ComboBox*> (card->findChildWithID ("band.status"));
+    auto* power = dynamic_cast<juce::DrawableButton*> (card->findChildWithID ("band.power"));
     REQUIRE (gain != nullptr);
-    REQUIRE (status != nullptr);
+    REQUIRE (power != nullptr);
+    REQUIRE (power->getCurrentImage() != nullptr);
     gain->setValue (6.0, juce::sendNotificationSync);
-    status->setSelectedItemIndex (1, juce::sendNotificationSync);
+    power->setToggleState (false, juce::sendNotificationSync);
     const auto saved = settings (processor, 0);
     CHECK (saved.status == openq::BandStatus::Bypass);
     CHECK_THAT (saved.gain, Catch::Matchers::WithinAbs (6.0, 0.001));
@@ -267,8 +268,27 @@ TEST_CASE ("Band card opens on selection, preserves settings when hidden and del
     first.mouseDown (mouse (first, { 12.0f, 12.0f }));
     first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
     CHECK (card->isVisible());
-    CHECK (status->getSelectedItemIndex() == 1);
+    CHECK_FALSE (power->getToggleState());
     CHECK_THAT (gain->getValue(), Catch::Matchers::WithinAbs (6.0, 0.001));
+    auto* close = dynamic_cast<juce::DrawableButton*> (card->findChildWithID ("band.close"));
+    REQUIRE (close != nullptr);
+    REQUIRE (close->getCurrentImage() != nullptr);
+    for (const float state : { 2.0f, 1.0f })
+    {
+        set (processor, 0, "status", state);
+        const auto beforeClose = settings (processor, 0);
+        const auto changes = gestures.changes.size();
+        close->onClick();
+        CHECK_FALSE (card->isVisible());
+        CHECK (first.isVisible());
+        CHECK (graph->getSelectedBand() == openq::bandCount);
+        CHECK (settings (processor, 0) == beforeClose);
+        CHECK (gestures.changes.size() == changes);
+        first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+        first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+        CHECK (card->isVisible());
+        CHECK (power->getToggleState() == (beforeClose.status == openq::BandStatus::On));
+    }
     gain->onDragStart();
     const auto cardBounds = card->getBounds();
     set (processor, 0, "gain", -24.0f);
@@ -280,8 +300,9 @@ TEST_CASE ("Band card opens on selection, preserves settings when hidden and del
     juce::MemoryOutputStream png;
     REQUIRE (juce::PNGImageFormat().writeImageToStream (image, png));
     REQUIRE (juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("openq-band-card.png").replaceWithData (png.getData(), png.getDataSize()));
-    auto* remove = dynamic_cast<juce::TextButton*> (card->findChildWithID ("band.delete"));
+    auto* remove = dynamic_cast<juce::DrawableButton*> (card->findChildWithID ("band.delete"));
     REQUIRE (remove != nullptr);
+    REQUIRE (remove->getCurrentImage() != nullptr);
     remove->onClick();
     CHECK (settings (processor, 0).status == openq::BandStatus::Off);
     CHECK_FALSE (card->isVisible());

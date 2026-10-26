@@ -354,9 +354,9 @@ TEST_CASE ("Shared controls select all eight slots without overwriting other ban
     processor.prepareToPlay (48000.0, 128);
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
     auto* gain = dynamic_cast<juce::Slider*> (editor->findChildWithID ("band.card")->findChildWithID ("band.gain"));
-    auto* status = dynamic_cast<juce::ComboBox*> (editor->findChildWithID ("band.card")->findChildWithID ("band.status"));
+    auto* power = dynamic_cast<juce::DrawableButton*> (editor->findChildWithID ("band.card")->findChildWithID ("band.power"));
     REQUIRE (gain != nullptr);
-    REQUIRE (status != nullptr);
+    REQUIRE (power != nullptr);
     auto* graph = dynamic_cast<openq::ResponseGraph*> (editor->findChildWithID ("response.graph"));
     REQUIRE (graph != nullptr);
     for (size_t band = 0; band < openq::bandCount; ++band)
@@ -367,11 +367,11 @@ TEST_CASE ("Shared controls select all eight slots without overwriting other ban
         CHECK (button->getToggleState());
         CHECK_THAT (gain->getValue(), Catch::Matchers::WithinAbs (static_cast<double> (band), 0.001));
         gain->setValue (-static_cast<double> (band), juce::sendNotificationSync);
-        for (int state = 0; state < 3; ++state)
+        for (const bool on : { false, true })
         {
-            status->setSelectedItemIndex (state, juce::sendNotificationSync);
+            power->setToggleState (on, juce::sendNotificationSync);
             const auto settings = openq::getBandParameterPointers (processor.parameters, band).load();
-            CHECK (settings.status == static_cast<openq::BandStatus> (state));
+            CHECK (settings.status == (on ? openq::BandStatus::On : openq::BandStatus::Bypass));
             CHECK_THAT (settings.gain, Catch::Matchers::WithinAbs (-static_cast<double> (band), 0.001));
         }
     }
@@ -382,9 +382,15 @@ TEST_CASE ("Shared controls select all eight slots without overwriting other ban
         CHECK (target.status == openq::BandStatus::On);
     }
     setBand (processor, 7, "status", 1.0f);
-    CHECK (status->getSelectedItemIndex() == 1);
+    CHECK_FALSE (power->getToggleState());
+    setBand (processor, 7, "status", 0.0f);
+    CHECK_FALSE (power->getToggleState());
+    CHECK_FALSE (power->isEnabled());
+    power->onClick();
+    CHECK (openq::getBandParameterPointers (processor.parameters, 7).load().status == openq::BandStatus::Off);
     setBand (processor, 7, "status", 2.0f);
-    CHECK (status->getSelectedItemIndex() == 2);
+    CHECK (power->getToggleState());
+    CHECK (power->isEnabled());
     editor.reset();
     processor.prepareToPlay (48000.0, 128);
     CHECK_THAT (renderGain (processor, 2), Catch::Matchers::WithinAbs (-28.0, 0.05));

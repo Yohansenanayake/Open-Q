@@ -17,6 +17,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
             positionBandCard();
     };
     bandCard.onDelete = [this] { responseGraph.deleteSelectedBand(); };
+    bandCard.onClose = [this] { selectBand (openq::bandCount); };
     selectBand (openq::bandCount);
     addAndMakeVisible (inspectButton);
     inspectButton.onClick = [this] {
@@ -72,6 +73,7 @@ PluginEditor::~PluginEditor()
     responseGraph.onNodeLayoutChanged = nullptr;
     bandCard.onDragStateChanged = nullptr;
     bandCard.onDelete = nullptr;
+    bandCard.onClose = nullptr;
 }
 
 void PluginEditor::paint (juce::Graphics& g)
