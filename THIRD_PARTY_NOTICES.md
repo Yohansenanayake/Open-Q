@@ -2,17 +2,17 @@
 
 Open-Q is licensed under **AGPL-3.0-only**. Copyright (c) 2026 Yohan Senanayake for Open-Q contributions. Third-party material retains its original notices and applicable licenses.
 
-## ZLEqualizer bell coefficient design
+## ZLEqualizer bell and shelf coefficient designs
 
 - Author/copyright: **Copyright (C) 2026 zsliu98**.
 - Project: [ZLEqualizer](https://github.com/ZL-Audio/ZLEqualizer).
 - Imported revision: `3ce598ee065b3d3847121e76e196feda7ed8f56d`.
 - Original file: `source/dsp/filter/iir_filter/coeff/ivantsov_coeff.cpp`.
-- Open-Q adaptation: `source/dsp/BellCoefficients.cpp`.
+- Open-Q adaptation: `source/dsp/FilterCoefficients.cpp`.
 - License: GNU Affero General Public License, **version 3 only**; see [LICENSE](LICENSE).
 - Research: Yuriy Ivantsov, [On the Ideal Bilinear and Biquadratic Digital Filter](https://ivantsovy.com/research/paper1.pdf).
 
-The adaptation extracts the bell calculation and its frequency-wrapping/Phi helpers, retains ZLE's sigma and spline constants, and changes the surrounding API to named normalized biquad coefficients. Yohan Senanayake added input limits, invalid-input handling, coefficient validation, and a zero-gain identity path on 26 October 2026. Other ZLE responses, dynamic-EQ machinery, logos, and GUI assets were not imported. The smoothing and channel-state implementation in Open-Q is separate from ZLE's processing classes.
+The adaptation extracts the bell and second-order low/high shelf calculations and their shared frequency-wrapping/Phi helpers, retains ZLE's sigma and spline constants, and changes the surrounding API to named normalized biquad coefficients. Yohan Senanayake added input limits, invalid-input handling, coefficient validation, and a zero-gain identity path on 26 October 2026. On 27 October 2026, the second-order `get2LowShelf`/`get2HighShelf` formulas from the same pinned revision were added with response-type dispatch; the bell calculation is unchanged. Other ZLE responses, dynamic-EQ machinery, logos, and GUI assets were not imported. The smoothing and channel-state implementation in Open-Q is separate from ZLE's processing classes.
 
 ## ZLEqualizer triple-buffer handoff
 
@@ -27,7 +27,7 @@ Open-Q's eight-slot bank and shared selected-band controls are also informed by 
 
 ## ZLEqualizer node interaction reference
 
-Open-Q's node interaction follows the source study of ZLEqualizer commit `3ce598ee065b3d3847121e76e196feda7ed8f56d`, copyright (C) 2026 zsliu98, under AGPL-3.0-only. Relevant sources are `source/gui/dragger/dragger_component.cpp`, `dragger_attachment.hpp`, and `source/panel/curve_panel/response_panel/dragger_panel/`. Open-Q implements relative dragging, display-to-host parameter conversion, three-state node visibility, and host gesture handling in `source/ui/ResponseGraph.cpp`. It uses its own bell-only creation defaults, digital response paths, parameter-polling node positions, and fixed shortcuts. The selection-driven band card also follows the studied `panel/control_panel/` and floating-popup pattern, with Open-Q’s existing parameter attachments and status controls. The Spectrum icon imports are recorded separately below; no excluded logos are imported.
+Open-Q's node interaction follows the source study of ZLEqualizer commit `3ce598ee065b3d3847121e76e196feda7ed8f56d`, copyright (C) 2026 zsliu98, under AGPL-3.0-only. Relevant sources are `source/gui/dragger/dragger_component.cpp`, `dragger_attachment.hpp`, and `source/panel/curve_panel/response_panel/dragger_panel/`. Open-Q implements relative dragging, shelf half-gain node placement and inverse gain mapping, display-to-host parameter conversion, three-state node visibility, and host gesture handling in `source/ui/ResponseGraph.cpp`. It uses its own bell-only creation defaults, digital response paths, parameter-polling node positions, and fixed shortcuts. The selection-driven band card also follows the studied `panel/control_panel/` and floating-popup pattern, with Open-Q’s existing parameter attachments and status controls. The Spectrum icon imports are recorded separately below; no excluded logos are imported.
 
 ## ZL Spectrum Equalizer research reference
 

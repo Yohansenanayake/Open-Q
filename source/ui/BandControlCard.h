@@ -18,6 +18,7 @@ namespace openq
     private:
         juce::AudioProcessorValueTreeState& parameters;
         juce::Label title;
+        juce::ComboBox typeSelector;
         juce::DrawableButton powerButton { "Band power", juce::DrawableButton::ImageFitted };
         juce::DrawableButton deleteButton { "Delete band", juce::DrawableButton::ImageFitted };
         juce::DrawableButton closeButton { "Close band controls", juce::DrawableButton::ImageFitted };
@@ -25,5 +26,6 @@ namespace openq
         std::array<juce::Label, 3> labels;
         std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 3> attachments;
         std::unique_ptr<juce::ParameterAttachment> statusAttachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> typeAttachment;
     };
 }

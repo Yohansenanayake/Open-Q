@@ -41,7 +41,7 @@ namespace
 TEST_CASE ("Eight independent band slots survive recall and reject incomplete states", "[multiband][state]")
 {
     PluginProcessor processor;
-    REQUIRE (processor.getParameters().size() == 32);
+    REQUIRE (processor.getParameters().size() == 40);
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
         const auto initial = openq::getBandParameterPointers (processor.parameters, band).load();
@@ -50,6 +50,7 @@ TEST_CASE ("Eight independent band slots survive recall and reject incomplete st
         setBand (processor, band, "gain", static_cast<float> (band) - 4.0f);
         setBand (processor, band, "q", 0.5f + static_cast<float> (band));
         setBand (processor, band, "status", static_cast<float> (band % 3));
+        setBand (processor, band, "type", static_cast<float> (band % 3));
     }
     juce::MemoryBlock saved;
     processor.getStateInformation (saved);
@@ -63,9 +64,10 @@ TEST_CASE ("Eight independent band slots survive recall and reject incomplete st
         CHECK_THAT (actual.gain, Catch::Matchers::WithinAbs (expected.gain, 0.001));
         CHECK_THAT (actual.q, Catch::Matchers::WithinAbs (expected.q, 0.001));
         CHECK (actual.status == expected.status);
+        CHECK (actual.type == expected.type);
     }
 
-    for (int corruption = 0; corruption < 11; ++corruption)
+    for (int corruption = 0; corruption < 16; ++corruption)
     {
         auto state = processor.parameters.copyState();
         state.getChildWithProperty ("id", "band.0.gain").setProperty ("value", 20.0, nullptr);
@@ -101,6 +103,21 @@ TEST_CASE ("Eight independent band slots survive recall and reject incomplete st
                 break;
             case 9:
                 state.setProperty ("schemaVersion", 2, nullptr);
+                break;
+            case 11:
+                state.setProperty ("schemaVersion", 3, nullptr);
+                break;
+            case 12:
+                state.setProperty ("shelfDesign", "unknown", nullptr);
+                break;
+            case 13:
+                state.getChildWithProperty ("id", "band.7.type").setProperty ("value", 1.5, nullptr);
+                break;
+            case 14:
+                state.getChildWithProperty ("id", "band.7.type").setProperty ("value", 3, nullptr);
+                break;
+            case 15:
+                state.removeChild (state.getChildWithProperty ("id", "band.7.type"), nullptr);
                 break;
             case 10:
                 last.setProperty ("value", 1.5, nullptr);
@@ -195,7 +212,7 @@ TEST_CASE ("Host tail allowance covers eight cascaded ringing bells", "[multiban
 
 TEST_CASE ("Disabled bells settle new settings and resume with fresh coefficients and no stale ringing", "[multiband][automation]")
 {
-    openq::BellFilter filter;
+    openq::BandFilter filter;
     filter.prepare (48000.0, 20.0, 24.0, 10.0);
     juce::AudioBuffer<float> sample (1, 1);
     float previous = 0.0f;
@@ -246,7 +263,7 @@ TEST_CASE ("Bypass tracks the live signal and parameter automation before fading
     setBand (processor, 1, "q", 5.0f);
     setBand (processor, 1, "status", 1.0f);
     processor.prepareToPlay (48000.0, 1);
-    openq::BellFilter reference;
+    openq::BandFilter reference;
     reference.prepare (48000.0, 80.0, 18.0, 5.0);
     juce::AudioBuffer<float> actual (2, 1), filtered (2, 1);
     juce::MidiBuffer midi;
@@ -287,7 +304,7 @@ TEST_CASE ("Bypass tracks the live signal and parameter automation before fading
 
 TEST_CASE ("Off to Bypass refreshes settled coefficients and retains new ringing for On", "[multiband][automation]")
 {
-    openq::BellFilter dormant, reference;
+    openq::BandFilter dormant, reference;
     dormant.prepare (48000.0, 1000.0, 6.0, 1.0, openq::BandStatus::Off);
     dormant.setParameters (20.0, 24.0, 10.0, openq::BandStatus::Off);
     juce::AudioBuffer<float> silence (1, 2048);
@@ -316,7 +333,7 @@ TEST_CASE ("Off to Bypass refreshes settled coefficients and retains new ringing
 
 TEST_CASE ("Rapid band status automation stays finite and independent of block boundaries", "[multiband][automation]")
 {
-    openq::BellFilter whole, split;
+    openq::BandFilter whole, split;
     whole.prepare (48000.0, 80.0, 18.0, 5.0);
     split.prepare (48000.0, 80.0, 18.0, 5.0);
     float previous = 0.0f;
@@ -357,6 +374,8 @@ TEST_CASE ("Shared controls select all eight slots without overwriting other ban
     auto* power = dynamic_cast<juce::DrawableButton*> (editor->findChildWithID ("band.card")->findChildWithID ("band.power"));
     REQUIRE (gain != nullptr);
     REQUIRE (power != nullptr);
+    auto* type = dynamic_cast<juce::ComboBox*> (editor->findChildWithID ("band.card")->findChildWithID ("band.type"));
+    REQUIRE (type != nullptr);
     auto* graph = dynamic_cast<openq::ResponseGraph*> (editor->findChildWithID ("response.graph"));
     REQUIRE (graph != nullptr);
     for (size_t band = 0; band < openq::bandCount; ++band)
@@ -365,6 +384,12 @@ TEST_CASE ("Shared controls select all eight slots without overwriting other ban
         REQUIRE (button != nullptr);
         button->onClick();
         CHECK (button->getToggleState());
+        CHECK (type->getSelectedItemIndex() == 0);
+        type->setSelectedItemIndex (2, juce::sendNotificationSync);
+        CHECK (openq::getBandParameterPointers (processor.parameters, band).load().type == openq::FilterType::HighShelf);
+        setBand (processor, band, "type", 1.0f);
+        CHECK (type->getSelectedItemIndex() == 1);
+        type->setSelectedItemIndex (0, juce::sendNotificationSync);
         CHECK_THAT (gain->getValue(), Catch::Matchers::WithinAbs (static_cast<double> (band), 0.001));
         gain->setValue (-static_cast<double> (band), juce::sendNotificationSync);
         for (const bool on : { false, true })
@@ -394,4 +419,56 @@ TEST_CASE ("Shared controls select all eight slots without overwriting other ban
     editor.reset();
     processor.prepareToPlay (48000.0, 128);
     CHECK_THAT (renderGain (processor, 2), Catch::Matchers::WithinAbs (-28.0, 0.05));
+}
+
+TEST_CASE ("Mixed bell and shelf bands cascade through processor audio", "[shelf][multiband]")
+{
+    PluginProcessor processor;
+    for (size_t band = 0; band < openq::bandCount; ++band)
+    {
+        setBand (processor, band, "frequency", 500.0f + static_cast<float> (band) * 700.0f);
+        setBand (processor, band, "gain", band % 2 == 0 ? 3.0f : -3.0f);
+        setBand (processor, band, "type", static_cast<float> (band % 3));
+        setBand (processor, band, "status", 2.0f);
+    }
+    processor.prepareToPlay (48000.0, 128);
+    for (double probe : { 100.0, 1000.0, 10000.0 })
+    {
+        double expected = 0.0;
+        for (size_t band = 0; band < openq::bandCount; ++band)
+        {
+            const auto s = openq::getBandParameterPointers (processor.parameters, band).load();
+            expected += openq::responseMagnitudeDb (openq::DigitalResponse { openq::makeFilterCoefficients (s.type, 48000.0, s.frequency, s.gain, s.q), 48000.0 }, probe);
+        }
+        CHECK_THAT (renderGain (processor, 2, probe), Catch::Matchers::WithinAbs (expected, 0.03));
+    }
+}
+
+TEST_CASE ("Host tail allowance covers eight resonant shelves", "[shelf][tail]")
+{
+    for (auto type : { openq::FilterType::LowShelf, openq::FilterType::HighShelf })
+    {
+        PluginProcessor processor;
+        for (size_t band = 0; band < openq::bandCount; ++band)
+        {
+            setBand (processor, band, "frequency", 20.0f);
+            setBand (processor, band, "gain", type == openq::FilterType::LowShelf ? 24.0f : -24.0f);
+            setBand (processor, band, "q", 10.0f);
+            setBand (processor, band, "type", static_cast<float> (type));
+            setBand (processor, band, "status", 2.0f);
+        }
+        processor.prepareToPlay (8000.0, 128);
+        juce::AudioBuffer<float> buffer (1, 128);
+        juce::MidiBuffer midi;
+        const auto blocks = static_cast<int> (processor.getTailLengthSeconds() * 8000.0 / 128.0);
+        for (int block = 0; block < blocks; ++block)
+        {
+            buffer.clear();
+            if (block == 0)
+                buffer.setSample (0, 0, 1e-5f);
+            processor.processBlock (buffer, midi);
+            REQUIRE (std::isfinite (buffer.getMagnitude (0, 128)));
+        }
+        CHECK (buffer.getMagnitude (0, 128) < 1e-6f);
+    }
 }

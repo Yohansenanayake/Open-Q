@@ -1,7 +1,7 @@
 // Copyright (C) 2026 - zsliu98
-// Adapted for Open-Q by Yohan Senanayake, 26 October 2026.
-// Extracted bell design from ZLEqualizer commit 3ce598ee065b3d3847121e76e196feda7ed8f56d.
-// Changes: bell-only extraction, named coefficients, input validation and an identity path.
+// Adapted for Open-Q by Yohan Senanayake, 26–27 October 2026.
+// Extracted bell and second-order shelf designs from ZLEqualizer commit 3ce598ee065b3d3847121e76e196feda7ed8f56d.
+// Changes: named normalized coefficients, response-type dispatch, input validation and an identity path.
 //
 // ZLEqualizer is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License Version 3 as published by the Free Software Foundation.
 //
@@ -9,7 +9,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License along with ZLEqualizer. If not, see <https://www.gnu.org/licenses/>.
 
-#include "BellCoefficients.h"
+#include "FilterCoefficients.h"
 #include <algorithm>
 #include <cmath>
 
@@ -73,7 +73,7 @@ namespace openq
         }
     }
 
-    BiquadCoefficients makeBellCoefficients (double sampleRate, double frequencyHz, double gainDb, double q)
+    BiquadCoefficients makeFilterCoefficients (FilterType type, double sampleRate, double frequencyHz, double gainDb, double q)
     {
         if (!std::isfinite (sampleRate) || sampleRate < 1000.0
             || !std::isfinite (frequencyHz) || !std::isfinite (gainDb) || !std::isfinite (q))
@@ -87,10 +87,27 @@ namespace openq
 
         const auto w2 = get_wrapping_w2 (frequencyHz / sampleRate);
         const auto zeta2 = 1.0 / (4.0 * q * q);
-        const auto g_linear = std::exp2 (gainDb * 0.16609640474436813);
-        const auto alpha = get_phi_sq (w2, zeta2 * g_linear);
-        const auto beta = get_phi_sq (w2, zeta2 / g_linear);
-        const auto factor = alpha.d / beta.d;
+        PhiPair alpha {}, beta {};
+        double factor = 1.0;
+        if (type == FilterType::Bell)
+        {
+            const auto g_linear = std::exp2 (gainDb * 0.16609640474436813);
+            alpha = get_phi_sq (w2, zeta2 * g_linear);
+            beta = get_phi_sq (w2, zeta2 / g_linear);
+            factor = alpha.d / beta.d;
+        }
+        else if (type == FilterType::LowShelf || type == FilterType::HighShelf)
+        {
+            const auto g_half = std::exp2 (gainDb * (0.16609640474436813 * 0.5));
+            const bool low = type == FilterType::LowShelf;
+            alpha = get_phi_sq (low ? w2 / g_half : w2 * g_half, zeta2);
+            beta = get_phi_sq (low ? w2 * g_half : w2 / g_half, zeta2);
+            factor = alpha.d / beta.d;
+            if (low)
+                factor = (g_half * g_half) * (alpha.d / beta.d);
+        }
+        else
+            return {};
         const BiquadCoefficients result { factor, factor * alpha.p1, factor * alpha.p2, beta.p1, beta.p2 };
         if (!std::isfinite (result.b0) || !std::isfinite (result.b1) || !std::isfinite (result.b2)
             || !std::isfinite (result.a1) || !std::isfinite (result.a2)

@@ -149,14 +149,16 @@ namespace openq
         const auto plot = plotBounds().toFloat();
         const auto frequency = std::clamp (settings.frequency, 20.0, std::min (20000.0, displaySampleRate * 0.49));
         return { plot.getX() + static_cast<float> (std::log (frequency / 20.0) / std::log (maximumFrequency() / 20.0)) * plot.getWidth(),
-            plot.getY() + static_cast<float> ((24.0 - settings.gain) / 48.0) * plot.getHeight() };
+            plot.getY() + static_cast<float> ((24.0 - settings.gain * (settings.type == FilterType::Bell ? 1.0 : 0.5)) / 48.0) * plot.getHeight() };
     }
 
-    juce::Point<float> ResponseGraph::constrainPosition (juce::Point<float> position) const
+    juce::Point<float> ResponseGraph::constrainPosition (juce::Point<float> position, FilterType type) const
     {
         auto plot = plotBounds().toFloat();
         const auto max = std::min (20000.0, displaySampleRate * 0.49);
         plot.setWidth (plot.getWidth() * static_cast<float> (std::log (max / 20.0) / std::log (maximumFrequency() / 20.0)));
+        if (type != FilterType::Bell)
+            plot = plot.withSizeKeepingCentre (plot.getWidth(), plot.getHeight() * 0.5f);
         return plot.getConstrainedPoint (position);
     }
 
@@ -165,7 +167,7 @@ namespace openq
         const auto previousBounds = getSelectedNodeBounds();
         displaySampleRate = sampleRate.load (std::memory_order_relaxed);
         const bool valid = maximumFrequency() > 20.0 && !plotBounds().isEmpty();
-        if (draggedBand < bandCount && (!valid || !juce::exactlyEqual (dragSampleRate, displaySampleRate) || bandParameters[draggedBand].load().status == BandStatus::Off))
+        if (draggedBand < bandCount && (!valid || !juce::exactlyEqual (dragSampleRate, displaySampleRate) || bandParameters[draggedBand].load().status == BandStatus::Off || bandParameters[draggedBand].load().type != dragType))
             cancelDrag();
         for (size_t band = 0; band < bandCount; ++band)
         {
@@ -233,6 +235,7 @@ namespace openq
             return;
         draggedBand = band;
         dragPosition = nodePosition (bandParameters[band].load());
+        dragType = bandParameters[band].load().type;
         lastPointer = event.position;
         dragSampleRate = displaySampleRate;
         dragParameters = { parameters.getParameter (bandParameterId (band, "frequency")), parameters.getParameter (bandParameterId (band, "gain")) };
@@ -266,7 +269,7 @@ namespace openq
         const auto scale = event.mods.isShiftDown() ? 0.15f : 1.0f;
         const bool lockX = event.mods.isCommandDown() && event.mods.isLeftButtonDown();
         const bool lockY = event.mods.isCommandDown() && !event.mods.isLeftButtonDown();
-        dragPosition = constrainPosition (dragPosition + juce::Point<float> (lockX ? 0.0f : motion.x * scale, lockY ? 0.0f : motion.y * scale));
+        dragPosition = constrainPosition (dragPosition + juce::Point<float> (lockX ? 0.0f : motion.x * scale, lockY ? 0.0f : motion.y * scale), dragType);
         const auto plot = plotBounds().toFloat();
         if (!lockX && !juce::exactlyEqual (motion.x, 0.0f))
         {
@@ -275,7 +278,7 @@ namespace openq
             dragParameters[0]->setValueNotifyingHost (dragParameters[0]->convertTo0to1 (static_cast<float> (target)));
         }
         if (!lockY && !juce::exactlyEqual (motion.y, 0.0f))
-            dragParameters[1]->setValueNotifyingHost (dragParameters[1]->convertTo0to1 (static_cast<float> ((1.0 - (dragPosition.y - plot.getY()) / plot.getHeight()) * 48.0 - 24.0)));
+            dragParameters[1]->setValueNotifyingHost (dragParameters[1]->convertTo0to1 (static_cast<float> (((1.0 - (dragPosition.y - plot.getY()) / plot.getHeight()) * 48.0 - 24.0) * (dragType == FilterType::Bell ? 1.0 : 2.0))));
         updateNodes();
         repaint();
     }
@@ -342,6 +345,7 @@ namespace openq
             setParameter (band, "frequency", static_cast<float> (20.0 * std::pow (maximumFrequency() / 20.0, (point.x - plot.getX()) / plot.getWidth())));
             setParameter (band, "gain", (1.0f - (point.y - plot.getY()) / plot.getHeight()) * 48.0f - 24.0f);
             setParameter (band, "q", 1.0f);
+            setParameter (band, "type", static_cast<float> (FilterType::Bell));
             setParameter (band, "status", static_cast<float> (BandStatus::On));
             chooseBand (band);
             break;

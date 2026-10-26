@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
 #include "../BandParameters.h"
-#include "../dsp/BellCoefficients.h"
+#include "../dsp/FilterCoefficients.h"
 #include "../utility/TripleBuffer.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>

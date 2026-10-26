@@ -62,10 +62,10 @@ TEST_CASE ("Triple buffer publishes complete latest values without tearing", "[r
 
 TEST_CASE ("Target response uses the digital DSP coefficient design", "[response]")
 {
-    openq::DigitalResponse response { openq::makeBellCoefficients (48000.0, 20000.0, 6.0, 1.0), 48000.0 };
+    openq::DigitalResponse response { openq::makeFilterCoefficients (openq::FilterType::Bell, 48000.0, 20000.0, 6.0, 1.0), 48000.0 };
     CHECK_THAT (openq::responseMagnitudeDb (response, 20000.0), Catch::Matchers::WithinAbs (6.0, 1e-9));
     CHECK_THAT (openq::responseMagnitudeDb (response, 24000.0), Catch::Matchers::WithinAbs (5.83299135367, 1e-9));
-    response.coefficients = openq::makeBellCoefficients (48000.0, 1000.0, 0.0, 1.0);
+    response.coefficients = openq::makeFilterCoefficients (openq::FilterType::Bell, 48000.0, 1000.0, 0.0, 1.0);
     CHECK_THAT (openq::responseMagnitudeDb (response, 1000.0), Catch::Matchers::WithinAbs (0.0, 0.0));
 }
 
@@ -92,7 +92,7 @@ TEST_CASE ("Target response follows all controls with no audio processing", "[re
         set ("band.0.gain", target.gain);
         set ("band.0.q", target.q);
         const auto probeFrequency = static_cast<double> (target.frequency) * 0.8;
-        const openq::DigitalResponse expected { openq::makeBellCoefficients (48000.0, target.frequency, target.gain, target.q), 48000.0 };
+        const openq::DigitalResponse expected { openq::makeFilterCoefficients (openq::FilterType::Bell, 48000.0, target.frequency, target.gain, target.q), 48000.0 };
         const auto expectedDb = openq::responseMagnitudeDb (expected, probeFrequency);
         worker.requestUpdate();
         REQUIRE (awaitFrame (worker, [&] (const auto& frame) {
@@ -103,7 +103,7 @@ TEST_CASE ("Target response follows all controls with no audio processing", "[re
     processor.prepareToPlay (8000.0, 64);
     worker.requestUpdate();
     REQUIRE (awaitFrame (worker, [] (const auto& frame) { return frame.valid && juce::exactlyEqual (frame.response.sampleRate, 8000.0); }));
-    const openq::DigitalResponse clamped { openq::makeBellCoefficients (8000.0, 3920.0, 24.0, 0.1), 8000.0 };
+    const openq::DigitalResponse clamped { openq::makeFilterCoefficients (openq::FilterType::Bell, 8000.0, 3920.0, 24.0, 0.1), 8000.0 };
     CHECK_THAT (openq::responseMagnitudeDb (worker.getFrame().response, 3000.0),
         Catch::Matchers::WithinAbs (openq::responseMagnitudeDb (clamped, 3000.0), 1e-4));
     worker.stop();
@@ -131,7 +131,9 @@ TEST_CASE ("Response follows every slot and sums enabled bands before clipping w
         set (band, "gain", gain);
         set (band, "q", q);
         set (band, "status", 2.0f);
-        const openq::DigitalResponse expected { openq::makeBellCoefficients (48000.0, frequency, gain, q), 48000.0 };
+        const auto type = static_cast<openq::FilterType> (band % 3);
+        set (band, "type", static_cast<float> (type));
+        const openq::DigitalResponse expected { openq::makeFilterCoefficients (type, 48000.0, frequency, gain, q), 48000.0 };
         const auto probe = frequency * 0.8;
         worker.requestUpdate();
         REQUIRE (awaitFrame (worker, [&] (const auto& frame) {
@@ -140,6 +142,7 @@ TEST_CASE ("Response follows every slot and sums enabled bands before clipping w
     }
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
+        set (band, "type", 0.0f);
         set (band, "frequency", 20000.0f);
         set (band, "gain", 24.0f);
         set (band, "q", 1.0f);

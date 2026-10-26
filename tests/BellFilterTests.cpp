@@ -1,5 +1,5 @@
 #include "PluginProcessor.h"
-#include "dsp/BellFilter.h"
+#include "dsp/BandFilter.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <complex>
@@ -16,7 +16,7 @@ namespace
 
     double measuredGain (double sampleRate, double frequency, double gainDb)
     {
-        openq::BellFilter filter;
+        openq::BandFilter filter;
         filter.prepare (sampleRate, frequency, gainDb, 1.0);
         juce::AudioBuffer<float> buffer (1, 128);
         double inputEnergy = 0.0, outputEnergy = 0.0;
@@ -51,16 +51,16 @@ TEST_CASE ("Bell renders the requested center gain", "[bell][response]")
 
 TEST_CASE ("Bell coefficients retain the probed ZLE response", "[bell][response]")
 {
-    const auto c = openq::makeBellCoefficients (48000.0, 20000.0, 6.0, 1.0);
+    const auto c = openq::makeFilterCoefficients (openq::FilterType::Bell, 48000.0, 20000.0, 6.0, 1.0);
     const auto nyquistDb = 20.0 * std::log10 (std::abs ((c.b0 - c.b1 + c.b2) / (1.0 - c.a1 + c.a2)));
     CHECK_THAT (nyquistDb, Catch::Matchers::WithinAbs (5.83299135367, 1e-9));
 
-    const auto clamped = openq::makeBellCoefficients (8000.0, 20000.0, 6.0, 1.0);
-    const auto expected = openq::makeBellCoefficients (8000.0, 3920.0, 6.0, 1.0);
+    const auto clamped = openq::makeFilterCoefficients (openq::FilterType::Bell, 8000.0, 20000.0, 6.0, 1.0);
+    const auto expected = openq::makeFilterCoefficients (openq::FilterType::Bell, 8000.0, 3920.0, 6.0, 1.0);
     CHECK_THAT (clamped.b0, Catch::Matchers::WithinAbs (expected.b0, 1e-12));
     for (const auto invalid : { std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity() })
     {
-        const auto safe = openq::makeBellCoefficients (48000.0, invalid, 6.0, 1.0);
+        const auto safe = openq::makeFilterCoefficients (openq::FilterType::Bell, 48000.0, invalid, 6.0, 1.0);
         CHECK_THAT (safe.b0, Catch::Matchers::WithinAbs (1.0, 0.0));
         CHECK_THAT (safe.a1, Catch::Matchers::WithinAbs (0.0, 0.0));
     }
@@ -68,7 +68,7 @@ TEST_CASE ("Bell coefficients retain the probed ZLE response", "[bell][response]
 
 TEST_CASE ("Flat bell is transparent and channel states are independent", "[bell]")
 {
-    openq::BellFilter filter;
+    openq::BandFilter filter;
     filter.prepare (48000.0, 1000.0, 0.0, 1.0);
     juce::AudioBuffer<float> buffer (2, 257);
     for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
@@ -95,7 +95,7 @@ TEST_CASE ("Flat bell is transparent and channel states are independent", "[bell
 
 TEST_CASE ("Bell smoothing is independent of audio block sizes", "[bell][automation]")
 {
-    openq::BellFilter whole, split;
+    openq::BandFilter whole, split;
     whole.prepare (48000.0, 200.0, -12.0, 0.5);
     split.prepare (48000.0, 200.0, -12.0, 0.5);
     whole.setParameters (18000.0, 12.0, 8.0);
@@ -126,7 +126,7 @@ TEST_CASE ("Bell remains bounded through extreme parameter changes and returns t
     for (const auto sampleRate : { 8000.0, 44100.0, 48000.0, 96000.0, 192000.0 })
     {
         CAPTURE (sampleRate);
-        openq::BellFilter filter;
+        openq::BandFilter filter;
         filter.prepare (sampleRate, 1000.0, 0.0, 1.0);
         juce::AudioBuffer<float> buffer (2, 64);
         float peak = 0.0f;
@@ -163,7 +163,7 @@ TEST_CASE ("Bell remains bounded through extreme parameter changes and returns t
 
 TEST_CASE ("Bell impulse decays at low frequency and high Q", "[bell][response]")
 {
-    openq::BellFilter filter;
+    openq::BandFilter filter;
     filter.prepare (48000.0, 20.0, 24.0, 10.0);
     juce::AudioBuffer<float> buffer (1, 256);
     buffer.clear();
@@ -243,7 +243,7 @@ TEST_CASE ("Processor applies host automation to rendered audio", "[bell][automa
 
 TEST_CASE ("Gain automation begins with a ramp instead of a coefficient jump", "[bell][automation]")
 {
-    openq::BellFilter filter;
+    openq::BandFilter filter;
     filter.prepare (48000.0, 1000.0, 0.0, 1.0);
     filter.setParameters (1000.0, 24.0, 1.0);
     juce::AudioBuffer<float> buffer (1, 1);
@@ -254,7 +254,7 @@ TEST_CASE ("Gain automation begins with a ramp instead of a coefficient jump", "
 
 TEST_CASE ("Returning a ringing low bell to zero gain has no final reset jump", "[bell][automation]")
 {
-    openq::BellFilter filter;
+    openq::BandFilter filter;
     filter.prepare (48000.0, 20.0, 24.0, 10.0);
     juce::AudioBuffer<float> buffer (1, 1);
     float previous = 0.0f;

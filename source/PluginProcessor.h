@@ -1,7 +1,7 @@
 #pragma once
 
 #include "BandParameters.h"
-#include "dsp/BellFilter.h"
+#include "dsp/BandFilter.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
 class PluginProcessor : public juce::AudioProcessor
@@ -44,7 +44,7 @@ public:
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     std::array<openq::BandParameterPointers, openq::bandCount> bandParameters;
-    std::array<openq::BellFilter, openq::bandCount> bands;
+    std::array<openq::BandFilter, openq::bandCount> bands;
     std::atomic<double> responseSampleRate { 0.0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)

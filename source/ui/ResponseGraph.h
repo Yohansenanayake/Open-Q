@@ -39,7 +39,7 @@ namespace openq
         void deleteBand (size_t band);
         void setParameter (size_t band, const char* name, float value);
         juce::Point<float> nodePosition (const BandSettings&) const;
-        juce::Point<float> constrainPosition (juce::Point<float>) const;
+        juce::Point<float> constrainPosition (juce::Point<float>, FilterType type = FilterType::Bell) const;
         double maximumFrequency() const;
         juce::Rectangle<int> plotBounds() const;
         juce::AudioProcessorValueTreeState& parameters;
@@ -50,6 +50,7 @@ namespace openq
         std::array<juce::RangedAudioParameter*, 2> dragParameters {};
         juce::Point<float> dragPosition, lastPointer;
         double dragSampleRate = 0.0;
+        FilterType dragType = FilterType::Bell;
         double displaySampleRate = 0.0;
         ResponseWorker worker;
         std::unique_ptr<juce::VBlankAttachment> vblank;

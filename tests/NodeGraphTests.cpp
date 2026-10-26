@@ -54,7 +54,7 @@ namespace
             return sum;
         }
         PluginProcessor& processor;
-        std::array<int, 32> depth {};
+        std::array<int, 40> depth {};
         std::vector<int> changes;
     };
 }
@@ -172,6 +172,7 @@ TEST_CASE ("Node creation initializes before On, bypass retains settings, and de
     openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
     graph.setSize (720, 280);
     set (processor, 1, "q", 9.0f);
+    set (processor, 1, "type", 2.0f);
     gestures.changes.clear();
     graph.mouseDoubleClick (mouse (graph, { 500.0f, 80.0f }));
     CHECK (graph.getSelectedBand() == 1);
@@ -180,6 +181,7 @@ TEST_CASE ("Node creation initializes before On, bypass retains settings, and de
     CHECK_THAT (settings (processor, 1).q, Catch::Matchers::WithinAbs (1.0, 0.001));
     REQUIRE_FALSE (gestures.changes.empty());
     CHECK (gestures.changes.back() == processor.parameters.getParameter ("band.1.status")->getParameterIndex());
+    CHECK (settings (processor, 1).type == openq::FilterType::Bell);
     const auto original = settings (processor, 1);
     auto& second = node (graph, 1);
     second.mouseDown (mouse (second, { 12.0f, 12.0f }, juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::altModifier));
@@ -352,4 +354,34 @@ TEST_CASE ("Band card retains a clear position after knob release and node motio
 
     editor->setSize (820, 640);
     CHECK (graph->getBounds().reduced (18, 44).contains (card->getBounds()));
+}
+
+TEST_CASE ("Shelf nodes use half-gain placement and cancel drags on host type changes", "[shelf][nodes][ui]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    Gestures gestures (processor);
+    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    graph.setSize (720, 280);
+    auto& first = node (graph, 0);
+    const auto zeroY = first.getBounds().getCentreY();
+    set (processor, 0, "gain", 12.0f);
+    graph.setSelectedBand (0);
+    const auto bellY = first.getBounds().getCentreY();
+    for (float type : { 1.0f, 2.0f })
+    {
+        set (processor, 0, "type", type);
+        graph.setSelectedBand (0);
+        CHECK_THAT (first.getBounds().getCentreY(), Catch::Matchers::WithinAbs ((bellY + zeroY) * 0.5, 1.0));
+        first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+        first.mouseDrag (mouse (first, { 12.0f, -10000.0f }));
+        CHECK_THAT (settings (processor, 0).gain, Catch::Matchers::WithinAbs (24.0, 0.001));
+        first.mouseDrag (mouse (first, { 12.0f, 10000.0f }));
+        CHECK_THAT (settings (processor, 0).gain, Catch::Matchers::WithinAbs (-24.0, 0.001));
+        REQUIRE (gestures.active() == 2);
+        set (processor, 0, "type", 0.0f);
+        graph.setSelectedBand (0);
+        CHECK (gestures.active() == 0);
+        set (processor, 0, "gain", 12.0f);
+    }
 }

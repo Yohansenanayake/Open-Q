@@ -10,6 +10,10 @@ namespace openq
         setTitle ("Selected band controls");
         title.setJustificationType (juce::Justification::centredLeft);
         addAndMakeVisible (title);
+        typeSelector.setComponentID ("band.type");
+        typeSelector.addItemList ({ "Bell", "Low Shelf", "High Shelf" }, 1);
+        typeSelector.setTooltip ("Filter response type");
+        addAndMakeVisible (typeSelector);
         auto power = juce::Drawable::createFromImageData (BinaryData::bypass_svg, BinaryData::bypass_svgSize);
         auto close = juce::Drawable::createFromImageData (BinaryData::close_svg, BinaryData::close_svgSize);
         auto trash = juce::Drawable::createFromImageData (BinaryData::trash_svg, BinaryData::trash_svgSize);
@@ -67,9 +71,9 @@ namespace openq
         }
         controls[0].setTextValueSuffix (" Hz");
         controls[1].setTextValueSuffix (" dB");
-        controls[0].setTooltip ("Bell center frequency; the DSP limits it below Nyquist.");
+        controls[0].setTooltip ("Bell center or shelf midpoint frequency; limited below Nyquist.");
         controls[1].setTooltip ("Boost or cut. Zero dB leaves the signal unchanged.");
-        controls[2].setTooltip ("Bandwidth: lower Q is wider; higher Q is narrower.");
+        controls[2].setTooltip ("Bell bandwidth or shelf resonance. High Q can produce large resonant peaks.");
     }
 
     void BandControlCard::setBand (size_t band)
@@ -77,12 +81,15 @@ namespace openq
         for (auto& control : controls)
             control.hideTextBox (false);
         statusAttachment.reset();
+        typeAttachment.reset();
         for (auto& attachment : attachments)
             attachment.reset();
         setVisible (band < bandCount);
         if (band >= bandCount)
             return;
-        title.setText ("Band " + juce::String (band + 1) + "  /  Bell", juce::dontSendNotification);
+        title.setText ("Band " + juce::String (band + 1), juce::dontSendNotification);
+        typeSelector.setTitle ("Band " + juce::String (band + 1) + " filter type");
+        typeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, bandParameterId (band, "type"), typeSelector);
         powerButton.setTitle ("Band " + juce::String (band + 1) + " power");
         const std::array<const char*, 3> names { "frequency", "gain", "q" };
         for (size_t i = 0; i < controls.size(); ++i)
@@ -118,6 +125,7 @@ namespace openq
         header.removeFromRight (6);
         powerButton.setBounds (header.removeFromLeft (26));
         header.removeFromLeft (6);
+        typeSelector.setBounds (header.removeFromRight (140));
         title.setBounds (header);
         area.removeFromTop (6);
         const auto width = area.getWidth() / 3;

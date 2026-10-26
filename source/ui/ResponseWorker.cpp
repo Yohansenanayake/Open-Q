@@ -84,7 +84,7 @@ namespace openq
             for (size_t i = 0; i < bandCount; ++i)
             {
                 const auto& band = target.bands[i];
-                individualResponses[i] = { makeBellCoefficients (target.sampleRate, band.frequency, band.gain, band.q), target.sampleRate };
+                individualResponses[i] = { makeFilterCoefficients (band.type, target.sampleRate, band.frequency, band.gain, band.q), target.sampleRate };
                 frame.response.bands[i] = band.status == BandStatus::On ? individualResponses[i] : DigitalResponse { {}, target.sampleRate };
                 frame.bandCurves[i].clear();
             }
