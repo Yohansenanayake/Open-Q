@@ -272,3 +272,46 @@ TEST_CASE ("Graph mappings retain frequency endpoints and shelf midpoint behavio
         CHECK_THAT (responseMapping::proportionToDb (height) / responseMapping::nodeGainScale (type), Catch::Matchers::WithinAbs (12.0, 0.0));
     }
 }
+
+TEST_CASE ("Cut target curves follow type slope and recall without processBlock", "[cuts][response][threading]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    openq::ResponseWorker worker (processor.parameters, processor.getResponseSampleRate());
+    worker.setGeometry ({ 400, 200 });
+    REQUIRE (worker.start());
+    auto set = [&] (const char* name, float value) {
+        auto* parameter = processor.parameters.getParameter (openq::bandParameterId (0, name));
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (value));
+    };
+    for (auto type : { openq::FilterType::LowCut, openq::FilterType::HighCut })
+        for (size_t index = 0; index < openq::cutOrders.size(); ++index)
+        {
+            set ("type", static_cast<float> (type));
+            set ("slope", static_cast<float> (index));
+            set ("q", static_cast<float> (openq::bandLimits::defaultCutQ));
+            const auto settings = openq::getBandParameterPointers (processor.parameters, 0).load();
+            const openq::BandResponse expected { openq::makeBandCoefficients (type, 48000.0, settings.frequency, settings.gain, settings.q, settings.slope), 48000.0 };
+            const double probe = 800.0;
+            worker.requestUpdate();
+            REQUIRE (awaitFrame (worker, [&] (const auto& frame) {
+                return frame.valid && frame.settings[0] == settings
+                       && std::abs (openq::responseMagnitudeDb (frame.response, probe) - openq::responseMagnitudeDb (expected, probe)) < 1e-6;
+            }));
+        }
+    juce::MemoryBlock saved;
+    processor.getStateInformation (saved);
+    set ("slope", 0.0f);
+    worker.requestUpdate();
+    REQUIRE (awaitFrame (worker, [] (const auto& frame) { return frame.valid && frame.settings[0].slope == openq::CutSlope::Db6; }));
+    processor.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
+    worker.requestUpdate();
+    REQUIRE (awaitFrame (worker, [] (const auto& frame) { return frame.valid && frame.settings[0].slope == openq::CutSlope::Db96; }));
+    set ("status", 1.0f);
+    worker.requestUpdate();
+    REQUIRE (awaitFrame (worker, [] (const auto& frame) {
+        return frame.valid && frame.settings[0].status == openq::BandStatus::Bypass
+               && std::abs (openq::responseMagnitudeDb (frame.response, 800.0)) < 1e-9 && !frame.bandCurves[0].isEmpty();
+    }));
+    worker.stop();
+}

@@ -6,6 +6,13 @@ namespace openq
     enum class FilterType {
         Bell = 0,
         LowShelf = 1,
-        HighShelf = 2
+        HighShelf = 2,
+        LowCut = 3,
+        HighCut = 4
     };
+
+    constexpr bool isCut (FilterType type)
+    {
+        return type == FilterType::LowCut || type == FilterType::HighCut;
+    }
 }

@@ -16,9 +16,17 @@ namespace openq
 
     double responseMagnitudeDb (const DigitalResponse& response, double frequencyHz);
 
+    struct BandResponse
+    {
+        BandCoefficients coefficients;
+        double sampleRate = 0.0;
+    };
+
+    double responseMagnitudeDb (const BandResponse& response, double frequencyHz);
+
     struct BankResponse
     {
-        std::array<DigitalResponse, bandCount> bands;
+        std::array<BandResponse, bandCount> bands;
         double sampleRate = 0.0;
     };
 

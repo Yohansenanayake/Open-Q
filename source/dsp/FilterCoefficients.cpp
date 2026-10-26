@@ -1,6 +1,6 @@
 // Copyright (C) 2026 - zsliu98
 // Adapted for Open-Q by Yohan Senanayake, 26–27 October 2026.
-// Extracted bell and second-order shelf designs from ZLEqualizer commit 3ce598ee065b3d3847121e76e196feda7ed8f56d.
+// Extracted bell, shelf, cut sections and even-order cut assembly from ZLEqualizer commit 3ce598ee065b3d3847121e76e196feda7ed8f56d.
 // Changes: named normalized coefficients, response-type dispatch, input validation and an identity path.
 //
 // ZLEqualizer is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License Version 3 as published by the Free Software Foundation.
@@ -35,6 +35,12 @@ namespace openq
         constexpr double kSplineB = -2.5538880428234330;
         constexpr double kSplineC = -0.0064417990487326;
         constexpr double kSplineD = 4.0057345308722958;
+
+        constexpr double kPhi0 = (kPi - kSigma) / (kPi + kSigma);
+        constexpr double kLpA1 = 2.0 * kPhi0;
+        constexpr double kLpA2 = kPhi0 * kPhi0;
+        constexpr double kLpGScalar = 1.0 / (1.0 + kLpA1 + kLpA2);
+        constexpr double kSqrt2 = 1.4142135623730951;
 
         struct PhiPair
         {
@@ -72,6 +78,29 @@ namespace openq
             const auto d = kPiSq + pi_sq_term + v;
             const auto d_inv = 1.0 / d;
             return { (kTwoPiSq - 2.0 * v) * d_inv, (kPiSq - pi_sq_term + v) * d_inv, d };
+        }
+
+        bool valid (const BiquadCoefficients& result)
+        {
+            return std::isfinite (result.b0) && std::isfinite (result.b1) && std::isfinite (result.b2)
+                   && std::isfinite (result.a1) && std::isfinite (result.a2)
+                   && std::abs (result.a2) < 1.0 && 1.0 + result.a1 + result.a2 > 0.0 && 1.0 - result.a1 + result.a2 > 0.0;
+        }
+
+        BiquadCoefficients firstOrderCut (bool highPass, double w2)
+        {
+            const auto root = std::sqrt (w2 + kSigmaSq);
+            const auto beta = (kPi - root) / (kPi + root);
+            const auto factor = highPass ? (std::sqrt (w2) / (2.0 * kPi)) * (1.0 + beta)
+                                         : (1.0 / (1.0 + kPhi0)) * (1.0 + beta);
+            return { factor, highPass ? -factor : factor * kPhi0, 0.0, beta, 0.0 };
+        }
+
+        BiquadCoefficients secondOrderCut (bool highPass, double w2, double q)
+        {
+            const auto phi = get_phi_sq (w2, 1.0 / (4.0 * q * q));
+            const auto factor = highPass ? w2 / phi.d : kLpGScalar * (1.0 + phi.p1 + phi.p2);
+            return { factor, factor * (highPass ? -2.0 : kLpA1), factor * (highPass ? 1.0 : kLpA2), phi.p1, phi.p2 };
         }
     }
 
@@ -111,10 +140,57 @@ namespace openq
         else
             return {};
         const BiquadCoefficients result { factor, factor * alpha.p1, factor * alpha.p2, beta.p1, beta.p2 };
-        if (!std::isfinite (result.b0) || !std::isfinite (result.b1) || !std::isfinite (result.b2)
-            || !std::isfinite (result.a1) || !std::isfinite (result.a2)
-            || std::abs (result.a2) >= 1.0 || 1.0 + result.a1 + result.a2 <= 0.0 || 1.0 - result.a1 + result.a2 <= 0.0)
+        if (!valid (result))
             return {};
         return result;
     }
+
+    BandCoefficients makeBandCoefficients (FilterType type, double sampleRate, double frequencyHz, double gainDb, double q, CutSlope slope)
+    {
+        BandCoefficients result;
+        if (!isCut (type))
+        {
+            result.sections[0] = makeFilterCoefficients (type, sampleRate, frequencyHz, gainDb, q);
+            return result;
+        }
+        const auto slopeIndex = static_cast<size_t> (slope);
+        if (!std::isfinite (sampleRate) || sampleRate < bandLimits::minimumSampleRateHz
+            || !std::isfinite (frequencyHz) || !std::isfinite (q) || slopeIndex >= cutOrders.size())
+            return {};
+        frequencyHz = std::clamp (frequencyHz, bandLimits::minimumFrequencyHz, bandLimits::effectiveMaximumFrequency (sampleRate));
+        q = std::clamp (q, bandLimits::minimumQ, bandLimits::maximumQ);
+        const auto w2 = get_wrapping_w2 (frequencyHz / sampleRate);
+        const auto order = cutOrders[slopeIndex];
+        const bool highPass = type == FilterType::LowCut;
+        if (order == 1 || order == 3)
+        {
+            result.sections[0] = firstOrderCut (highPass, w2);
+            if (order == 3)
+            {
+                // Third-order Butterworth layout; retain ZLE's user-Q cutoff-gain convention.
+                result.sections[1] = secondOrderCut (highPass, w2, kSqrt2 * q);
+                result.count = 2;
+            }
+        }
+        else
+        {
+            // ZLE even-order assembly: derive section Q without applying the user-Q clamp again.
+            result.count = order / 2;
+            const auto theta0 = kPi / static_cast<double> (result.count) / 4;
+            const auto scale = std::pow (kSqrt2 * q, 1 / static_cast<double> (result.count));
+            const auto rescaleBase = std::log10 (kSqrt2 * q) / std::pow (static_cast<double> (order), 1.5) * 12;
+            for (size_t i = 0; i < result.count; ++i)
+            {
+                const auto centered = static_cast<double> (i) - static_cast<double> (result.count) / 2 + 0.5;
+                const auto theta = theta0 * static_cast<double> (2 * i + 1);
+                const auto sectionQ = 1.0 / 2.0 / std::cos (theta) * scale * std::pow (2, centered * rescaleBase);
+                result.sections[i] = secondOrderCut (highPass, w2, sectionQ);
+            }
+        }
+        for (size_t i = 0; i < result.count; ++i)
+            if (!valid (result.sections[i]))
+                return {};
+        return result;
+    }
+
 }

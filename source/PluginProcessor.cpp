@@ -6,10 +6,11 @@
 
 namespace
 {
-    constexpr int stateSchemaVersion = 4;
+    constexpr int stateSchemaVersion = 5;
     constexpr double tailSecondsPerBand = 5.0;
     constexpr auto bellDesignRevision = "zle-ivantsov-v1";
     constexpr auto shelfDesignRevision = "zle-ivantsov-shelf-v1";
+    constexpr auto cutDesignRevision = "zle-ivantsov-cut-v1";
 }
 
 //==============================================================================
@@ -30,6 +31,7 @@ PluginProcessor::PluginProcessor()
         bandParameters[i] = openq::getBandParameterPointers (parameters, i);
     parameters.state.setProperty ("bellDesign", bellDesignRevision, nullptr);
     parameters.state.setProperty ("shelfDesign", shelfDesignRevision, nullptr);
+    parameters.state.setProperty ("cutDesign", cutDesignRevision, nullptr);
 }
 
 PluginProcessor::~PluginProcessor()
@@ -110,7 +112,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     for (size_t i = 0; i < bands.size(); ++i)
     {
         const auto target = bandParameters[i].load();
-        bands[i].prepare (sampleRate, target.frequency, target.gain, target.q, target.status, target.type);
+        bands[i].prepare (sampleRate, target.frequency, target.gain, target.q, target.status, target.type, target.slope);
     }
     responseSampleRate.store (sampleRate, std::memory_order_relaxed);
 }
@@ -155,7 +157,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (size_t i = 0; i < bands.size(); ++i)
     {
         const auto target = bandParameters[i].load();
-        bands[i].setParameters (target.frequency, target.gain, target.q, target.status, target.type);
+        bands[i].setParameters (target.frequency, target.gain, target.q, target.status, target.type, target.slope);
         bands[i].process (buffer, inputs);
     }
 }
@@ -191,6 +193,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         || static_cast<int> (state.getProperty ("bandCount")) != static_cast<int> (openq::bandCount)
         || state.getProperty ("bellDesign").toString() != bellDesignRevision
         || state.getProperty ("shelfDesign").toString() != shelfDesignRevision
+        || state.getProperty ("cutDesign").toString() != cutDesignRevision
         || state.getNumChildren() != static_cast<int> (openq::bandCount * openq::bandParameterNames.size()))
         return;
 
@@ -211,7 +214,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             const auto range = parameters.getParameter (id)->getNormalisableRange();
             if (input.fail() || !input.eof()
                 || !std::isfinite (value) || value < range.start || value > range.end
-                || ((juce::String (name) == "status" || juce::String (name) == "type") && !juce::exactlyEqual (value, std::round (value))))
+                || ((juce::String (name) == "status" || juce::String (name) == "type" || juce::String (name) == "slope") && !juce::exactlyEqual (value, std::round (value))))
                 return;
         }
     }
@@ -239,7 +242,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParam
         layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "gain"), 1 }, prefix + "Gain", juce::NormalisableRange<float> (static_cast<float> (openq::bandLimits::minimumGainDb), static_cast<float> (openq::bandLimits::maximumGainDb)), static_cast<float> (openq::bandLimits::defaultGainDb)));
         layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "q"), 1 }, prefix + "Q", qRange, static_cast<float> (openq::bandLimits::defaultQ)));
         layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { openq::bandParameterId (band, "status"), 1 }, prefix + "Status", juce::StringArray { "Off", "Bypass", "On" }, static_cast<int> (band == 0 ? openq::BandStatus::On : openq::BandStatus::Off)));
-        layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { openq::bandParameterId (band, "type"), 1 }, prefix + "Type", juce::StringArray { "Bell", "Low Shelf", "High Shelf" }, static_cast<int> (openq::FilterType::Bell)));
+        layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { openq::bandParameterId (band, "type"), 1 }, prefix + "Type", juce::StringArray { "Bell", "Low Shelf", "High Shelf", "Low Cut", "High Cut" }, static_cast<int> (openq::FilterType::Bell)));
     }
+    // Append new parameters so existing band parameter indices remain stable.
+    juce::StringArray slopeNames;
+    for (const auto* name : openq::cutSlopeNames)
+        slopeNames.add (name);
+    for (size_t band = 0; band < openq::bandCount; ++band)
+        layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { openq::bandParameterId (band, "slope"), 1 }, "Band " + juce::String (band + 1) + " Slope", slopeNames, static_cast<int> (openq::defaultCutSlope)));
     return layout;
 }

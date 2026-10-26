@@ -2,17 +2,17 @@
 
 Open-Q is licensed under **AGPL-3.0-only**. Copyright (c) 2026 Yohan Senanayake for Open-Q contributions. Third-party material retains its original notices and applicable licenses.
 
-## ZLEqualizer bell and shelf coefficient designs
+## ZLEqualizer bell, shelf and cut coefficient designs
 
 - Author/copyright: **Copyright (C) 2026 zsliu98**.
 - Project: [ZLEqualizer](https://github.com/ZL-Audio/ZLEqualizer).
 - Imported revision: `3ce598ee065b3d3847121e76e196feda7ed8f56d`.
-- Original file: `source/dsp/filter/iir_filter/coeff/ivantsov_coeff.cpp`.
+- Original files: `source/dsp/filter/iir_filter/coeff/ivantsov_coeff.cpp` and the cut assembly in `source/dsp/filter/filter_design/filter_design.hpp`.
 - Open-Q adaptation: `source/dsp/FilterCoefficients.cpp`.
 - License: GNU Affero General Public License, **version 3 only**; see [LICENSE](LICENSE).
 - Research: Yuriy Ivantsov, [On the Ideal Bilinear and Biquadratic Digital Filter](https://ivantsovy.com/research/paper1.pdf).
 
-The adaptation extracts the bell and second-order low/high shelf calculations and their shared frequency-wrapping/Phi helpers, retains ZLE's sigma and spline constants, and changes the surrounding API to named normalized biquad coefficients. Yohan Senanayake added input limits, invalid-input handling, coefficient validation, and a zero-gain identity path on 26 October 2026. On 27 October 2026, the second-order `get2LowShelf`/`get2HighShelf` formulas from the same pinned revision were added with response-type dispatch; the bell calculation is unchanged. Other ZLE responses, dynamic-EQ machinery, logos, and GUI assets were not imported. The smoothing and channel-state implementation in Open-Q is separate from ZLE's processing classes.
+The adaptation extracts the bell and second-order low/high shelf calculations and their shared frequency-wrapping/Phi helpers, retains ZLE's sigma and spline constants, and changes the surrounding API to named normalized biquad coefficients. Yohan Senanayake added input limits, invalid-input handling, coefficient validation, and a zero-gain identity path on 26 October 2026. On 27 October 2026, the second-order `get2LowShelf`/`get2HighShelf` formulas from the same pinned revision were added with response-type dispatch; the bell calculation is unchanged. Also on 27 October 2026, first/second-order low/high-pass sections and the even-order pass-filter assembly were adapted from the same revision. Open-Q adds fixed-capacity named section storage, section validation, and a separately validated third-order cascade using the established odd-order Butterworth section arrangement with internal Q=sqrt(2)*user Q. The third-order branch is not present in ZLE. Existing bell/shelf formulas and their revisions are preserved. Other ZLE responses, dynamic-EQ machinery, logos, and GUI assets were not imported. The smoothing and channel-state implementation in Open-Q is separate from ZLE's processing classes.
 
 ## ZLEqualizer triple-buffer handoff
 

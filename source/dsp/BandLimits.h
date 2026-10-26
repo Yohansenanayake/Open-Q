@@ -14,6 +14,7 @@ namespace openq::bandLimits
     inline constexpr double minimumQ = 0.1;
     inline constexpr double maximumQ = 10.0;
     inline constexpr double defaultQ = 1.0;
+    inline constexpr double defaultCutQ = 0.7071067811865476;
     inline constexpr double qSkewCentre = 1.0;
     inline constexpr double minimumSampleRateHz = 1000.0;
     // Leave a margin below Nyquist for coefficient design.

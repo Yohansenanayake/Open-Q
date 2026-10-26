@@ -417,3 +417,90 @@ TEST_CASE ("Graph fills the configured bank and reuses the final deleted slot", 
     CHECK (settings (processor, lastBand).status == openq::BandStatus::On);
     CHECK (gestures.active() == 0);
 }
+
+TEST_CASE ("Cut card controls follow type slope automation and retain inactive settings", "[cuts][nodes][ui]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    auto editor = std::unique_ptr<juce::AudioProcessorEditor> (processor.createEditor());
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor->findChildWithID ("response.graph"));
+    REQUIRE (graph != nullptr);
+    auto& first = node (*graph, 0);
+    first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+    first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+    auto* card = editor->findChildWithID ("band.card");
+    auto* slope = dynamic_cast<juce::ComboBox*> (card->findChildWithID ("band.slope"));
+    auto* type = dynamic_cast<juce::ComboBox*> (card->findChildWithID ("band.type"));
+    auto* gain = dynamic_cast<juce::Slider*> (card->findChildWithID ("band.gain"));
+    auto* q = dynamic_cast<juce::Slider*> (card->findChildWithID ("band.q"));
+    REQUIRE (slope != nullptr);
+    REQUIRE (type != nullptr);
+    REQUIRE (gain != nullptr);
+    REQUIRE (q != nullptr);
+    CHECK_FALSE (slope->isEnabled());
+    set (processor, 0, "gain", 12.0f);
+    set (processor, 0, "q", 3.0f);
+    type->setSelectedItemIndex (static_cast<int> (openq::FilterType::LowCut), juce::sendNotificationSync);
+    CHECK (slope->isEnabled());
+    CHECK_FALSE (gain->isEnabled());
+    CHECK (q->isEnabled());
+    CHECK_THAT (settings (processor, 0).gain, Catch::Matchers::WithinAbs (12.0, 0.001));
+    CHECK_THAT (settings (processor, 0).q, Catch::Matchers::WithinAbs (3.0, 0.001));
+    CHECK_THAT (q->getDoubleClickReturnValue(), Catch::Matchers::WithinAbs (openq::bandLimits::defaultCutQ, 0.0));
+    slope->setSelectedItemIndex (static_cast<int> (openq::CutSlope::Db6), juce::sendNotificationSync);
+    CHECK (settings (processor, 0).slope == openq::CutSlope::Db6);
+    CHECK_FALSE (q->isEnabled());
+    set (processor, 0, "slope", static_cast<float> (openq::CutSlope::Db96));
+    CHECK (q->isEnabled());
+    CHECK (slope->getSelectedItemIndex() == static_cast<int> (openq::CutSlope::Db96));
+    juce::MemoryBlock saved;
+    processor.getStateInformation (saved);
+    set (processor, 0, "type", static_cast<float> (openq::FilterType::Bell));
+    CHECK (gain->isEnabled());
+    CHECK_FALSE (slope->isEnabled());
+    processor.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
+    CHECK (type->getSelectedItemIndex() == static_cast<int> (openq::FilterType::LowCut));
+    CHECK_FALSE (gain->isEnabled());
+    CHECK (slope->isEnabled());
+    const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
+    juce::FileOutputStream output (juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("openq-cut-card.png"));
+    output.setPosition (0);
+    output.truncate();
+    REQUIRE (juce::PNGImageFormat().writeImageToStream (image, output));
+}
+
+TEST_CASE ("Cut nodes stay at zero dB ignore vertical edits and disable first-order Q wheel", "[cuts][nodes][ui]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    Gestures gestures (processor);
+    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    graph.setSize (720, 280);
+    const auto zeroY = node (graph, 0).getBounds().getCentreY();
+    for (auto type : { openq::FilterType::LowCut, openq::FilterType::HighCut })
+    {
+        set (processor, 0, "type", static_cast<float> (type));
+        set (processor, 0, "gain", 18.0f);
+        set (processor, 0, "frequency", 1000.0f);
+        graph.setSelectedBand (0);
+        auto& first = node (graph, 0);
+        CHECK (first.getBounds().getCentreY() == zeroY);
+        first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+        CHECK (gestures.active() == 1);
+        first.mouseDrag (mouse (first, { 100.0f, -10000.0f }));
+        CHECK (settings (processor, 0).frequency > 1000.0);
+        CHECK_THAT (settings (processor, 0).gain, Catch::Matchers::WithinAbs (18.0, 0.001));
+        CHECK (first.getBounds().getCentreY() == zeroY);
+        first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+        CHECK (gestures.active() == 0);
+        set (processor, 0, "slope", static_cast<float> (openq::CutSlope::Db6));
+        const auto qBefore = settings (processor, 0).q;
+        juce::MouseWheelDetails wheel;
+        wheel.deltaY = 0.25f;
+        first.mouseWheelMove (mouse (first, { 12.0f, 12.0f }, 0), wheel);
+        CHECK_THAT (settings (processor, 0).q, Catch::Matchers::WithinAbs (qBefore, 0.0));
+        set (processor, 0, "slope", static_cast<float> (openq::CutSlope::Db18));
+        first.mouseWheelMove (mouse (first, { 12.0f, 12.0f }, 0), wheel);
+        CHECK (settings (processor, 0).q > qBefore);
+    }
+}

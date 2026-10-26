@@ -11,7 +11,7 @@ namespace openq
         constexpr double wetDryFadeSeconds = 0.02;
     }
 
-    void BandFilter::prepare (double newSampleRate, double frequencyHz, double gainDb, double q, BandStatus newStatus, FilterType newType)
+    void BandFilter::prepare (double newSampleRate, double frequencyHz, double gainDb, double q, BandStatus newStatus, FilterType newType, CutSlope newSlope)
     {
         sampleRate = std::isfinite (newSampleRate) && newSampleRate >= bandLimits::minimumSampleRateHz ? newSampleRate : 0.0;
         reset();
@@ -23,16 +23,17 @@ namespace openq
         gain.reset (sampleRate, parameterSmoothingSeconds);
         wet.reset (sampleRate, wetDryFadeSeconds);
         type = targetType = newType;
-        setParameters (frequencyHz, gainDb, q, newStatus, newType);
+        slope = targetSlope = isCut (newType) ? newSlope : defaultCutSlope;
+        setParameters (frequencyHz, gainDb, q, newStatus, newType, newSlope);
         frequency.setCurrentAndTargetValue (frequency.getTargetValue());
         quality.setCurrentAndTargetValue (quality.getTargetValue());
         gain.setCurrentAndTargetValue (gain.getTargetValue());
         wet.setCurrentAndTargetValue (wet.getTargetValue());
-        coefficients = makeFilterCoefficients (type, sampleRate, frequency.getCurrentValue(), gain.getCurrentValue(), quality.getCurrentValue());
+        coefficients = makeBandCoefficients (type, sampleRate, frequency.getCurrentValue(), gain.getCurrentValue(), quality.getCurrentValue(), slope);
         needsCoefficientRefresh = false;
     }
 
-    void BandFilter::setParameters (double frequencyHz, double gainDb, double q, BandStatus newStatus, FilterType newType)
+    void BandFilter::setParameters (double frequencyHz, double gainDb, double q, BandStatus newStatus, FilterType newType, CutSlope newSlope)
     {
         if (sampleRate < bandLimits::minimumSampleRateHz)
             return;
@@ -41,19 +42,21 @@ namespace openq
         gain.setTargetValue (std::isfinite (gainDb) ? juce::jlimit (bandLimits::minimumGainDb, bandLimits::maximumGainDb, gainDb) : bandLimits::defaultGainDb);
         status = newStatus;
         targetType = newType;
-        wet.setTargetValue (type == targetType && status == BandStatus::On && !juce::exactlyEqual (gain.getTargetValue(), 0.0) ? 1.0 : 0.0);
+        targetSlope = isCut (newType) ? newSlope : defaultCutSlope;
+        wet.setTargetValue (type == targetType && slope == targetSlope && status == BandStatus::On && (isCut (type) || !juce::exactlyEqual (gain.getTargetValue(), 0.0)) ? 1.0 : 0.0);
     }
 
     void BandFilter::applyPendingType()
     {
-        if (type == targetType || !juce::exactlyEqual (wet.getCurrentValue(), 0.0))
+        if ((type == targetType && slope == targetSlope) || !juce::exactlyEqual (wet.getCurrentValue(), 0.0))
             return;
         // Change topology only while inaudible, then fade the new response back in.
         type = targetType;
+        slope = targetSlope;
         reset();
-        coefficients = makeFilterCoefficients (type, sampleRate, frequency.getCurrentValue(), gain.getCurrentValue(), quality.getCurrentValue());
+        coefficients = makeBandCoefficients (type, sampleRate, frequency.getCurrentValue(), gain.getCurrentValue(), quality.getCurrentValue(), slope);
         needsCoefficientRefresh = false;
-        wet.setTargetValue (status == BandStatus::On && !juce::exactlyEqual (gain.getTargetValue(), 0.0) ? 1.0 : 0.0);
+        wet.setTargetValue (status == BandStatus::On && (isCut (type) || !juce::exactlyEqual (gain.getTargetValue(), 0.0)) ? 1.0 : 0.0);
     }
 
     void BandFilter::reset()
@@ -81,14 +84,14 @@ namespace openq
         // Targets may have settled while dry without updating the coefficients.
         if (needsCoefficientRefresh)
         {
-            coefficients = makeFilterCoefficients (type, sampleRate, frequency.getCurrentValue(), gain.getCurrentValue(), quality.getCurrentValue());
+            coefficients = makeBandCoefficients (type, sampleRate, frequency.getCurrentValue(), gain.getCurrentValue(), quality.getCurrentValue(), slope);
             needsCoefficientRefresh = false;
         }
 
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
         {
             if (frequency.isSmoothing() || quality.isSmoothing() || gain.isSmoothing())
-                coefficients = makeFilterCoefficients (type, sampleRate, frequency.getNextValue(), gain.getNextValue(), quality.getNextValue());
+                coefficients = makeBandCoefficients (type, sampleRate, frequency.getNextValue(), gain.getNextValue(), quality.getNextValue(), slope);
 
             const auto mix = wet.getNextValue();
             applyPendingType();
@@ -105,11 +108,17 @@ namespace openq
 
             for (int channel = 0; channel < numChannels; ++channel)
             {
-                auto& state = states[static_cast<size_t> (channel)];
                 const auto input = static_cast<double> (buffer.getSample (channel, sample));
-                const auto output = coefficients.b0 * input + state.s1;
-                state.s1 = coefficients.b1 * input - coefficients.a1 * output + state.s2;
-                state.s2 = coefficients.b2 * input - coefficients.a2 * output;
+                auto output = input;
+                for (size_t section = 0; section < coefficients.count; ++section)
+                {
+                    auto& state = states[static_cast<size_t> (channel)][section];
+                    const auto& c = coefficients.sections[section];
+                    const auto next = c.b0 * output + state.s1;
+                    state.s1 = c.b1 * output - c.a1 * next + state.s2;
+                    state.s2 = c.b2 * output - c.a2 * next;
+                    output = next;
+                }
                 if (mix > 0.0)
                     buffer.setSample (channel, sample, static_cast<float> (input + mix * (output - input)));
             }

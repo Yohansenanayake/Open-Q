@@ -11,8 +11,8 @@ namespace openq
     class BandFilter
     {
     public:
-        void prepare (double sampleRate, double frequencyHz, double gainDb, double q, BandStatus status = BandStatus::On, FilterType type = FilterType::Bell);
-        void setParameters (double frequencyHz, double gainDb, double q, BandStatus status = BandStatus::On, FilterType type = FilterType::Bell);
+        void prepare (double sampleRate, double frequencyHz, double gainDb, double q, BandStatus status = BandStatus::On, FilterType type = FilterType::Bell, CutSlope slope = defaultCutSlope);
+        void setParameters (double frequencyHz, double gainDb, double q, BandStatus status = BandStatus::On, FilterType type = FilterType::Bell, CutSlope slope = defaultCutSlope);
         void process (juce::AudioBuffer<float>& buffer, int numChannels);
         void reset();
 
@@ -24,10 +24,11 @@ namespace openq
         };
 
         double sampleRate = 0.0;
-        std::array<State, 2> states {};
-        BiquadCoefficients coefficients;
+        std::array<std::array<State, maximumFilterSections>, 2> states {};
+        BandCoefficients coefficients;
         BandStatus status = BandStatus::On;
         FilterType type = FilterType::Bell, targetType = FilterType::Bell;
+        CutSlope slope = defaultCutSlope, targetSlope = defaultCutSlope;
         bool needsCoefficientRefresh = false;
         juce::SmoothedValue<double, juce::ValueSmoothingTypes::Multiplicative> frequency { bandLimits::defaultFrequencyHz }, quality { bandLimits::defaultQ };
         juce::SmoothedValue<double> gain { bandLimits::defaultGainDb };

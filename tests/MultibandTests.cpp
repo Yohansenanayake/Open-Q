@@ -50,7 +50,8 @@ TEST_CASE ("All configured band slots survive recall and reject incomplete state
         setBand (processor, band, "gain", -4.0f + 8.0f * static_cast<float> (band) / static_cast<float> (openq::bandCount));
         setBand (processor, band, "q", 0.5f + 8.0f * static_cast<float> (band) / static_cast<float> (openq::bandCount));
         setBand (processor, band, "status", static_cast<float> (band % 3));
-        setBand (processor, band, "type", static_cast<float> (band % 3));
+        setBand (processor, band, "type", static_cast<float> (band % 5));
+        setBand (processor, band, "slope", static_cast<float> (band % openq::cutOrders.size()));
     }
     juce::MemoryBlock saved;
     processor.getStateInformation (saved);
@@ -65,9 +66,10 @@ TEST_CASE ("All configured band slots survive recall and reject incomplete state
         CHECK_THAT (actual.q, Catch::Matchers::WithinAbs (expected.q, 0.001));
         CHECK (actual.status == expected.status);
         CHECK (actual.type == expected.type);
+        CHECK (actual.slope == expected.slope);
     }
 
-    for (int corruption = 0; corruption < 17; ++corruption)
+    for (int corruption = 0; corruption < 22; ++corruption)
     {
         auto state = processor.parameters.copyState();
         state.getChildWithProperty ("id", "band.0.gain").setProperty ("value", 20.0, nullptr);
@@ -114,7 +116,7 @@ TEST_CASE ("All configured band slots survive recall and reject incomplete state
                 state.getChildWithProperty ("id", openq::bandParameterId (openq::bandCount - 1, "type")).setProperty ("value", 1.5, nullptr);
                 break;
             case 14:
-                state.getChildWithProperty ("id", openq::bandParameterId (openq::bandCount - 1, "type")).setProperty ("value", 3, nullptr);
+                state.getChildWithProperty ("id", openq::bandParameterId (openq::bandCount - 1, "type")).setProperty ("value", 999, nullptr);
                 break;
             case 15:
                 state.removeChild (state.getChildWithProperty ("id", openq::bandParameterId (openq::bandCount - 1, "type")), nullptr);
@@ -124,6 +126,21 @@ TEST_CASE ("All configured band slots survive recall and reject incomplete state
                 state.setProperty ("bandCount", static_cast<int> (openq::bandCount - 1), nullptr);
                 for (const auto* name : openq::bandParameterNames)
                     state.removeChild (state.getChildWithProperty ("id", openq::bandParameterId (openq::bandCount - 1, name)), nullptr);
+                break;
+            case 17:
+                state.setProperty ("schemaVersion", 4, nullptr);
+                break;
+            case 18:
+                state.setProperty ("cutDesign", "unknown", nullptr);
+                break;
+            case 19:
+                state.getChildWithProperty ("id", "band.0.slope").setProperty ("value", 1.5, nullptr);
+                break;
+            case 20:
+                state.getChildWithProperty ("id", "band.0.slope").setProperty ("value", static_cast<int> (openq::cutOrders.size()), nullptr);
+                break;
+            case 21:
+                state.removeChild (state.getChildWithProperty ("id", "band.0.slope"), nullptr);
                 break;
             case 10:
                 last.setProperty ("value", 1.5, nullptr);
@@ -503,7 +520,7 @@ TEST_CASE ("Shared band constants preserve registered parameter ranges defaults 
         CHECK_THAT (q.convertFrom0to1 (0.5f), Catch::Matchers::WithinAbs (1.0, 1e-6));
     }
     const auto state = processor.parameters.copyState();
-    CHECK (static_cast<int> (state.getProperty ("schemaVersion")) == 4);
+    CHECK (static_cast<int> (state.getProperty ("schemaVersion")) == 5);
     CHECK (state.getProperty ("bellDesign").toString() == "zle-ivantsov-v1");
     CHECK (state.getProperty ("shelfDesign").toString() == "zle-ivantsov-shelf-v1");
     CHECK (state.getNumChildren() == static_cast<int> (openq::bandCount * openq::bandParameterNames.size()));

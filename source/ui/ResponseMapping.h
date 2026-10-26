@@ -39,6 +39,7 @@ namespace openq::responseMapping
 
     inline double nodeGainScale (FilterType type)
     {
-        return type == FilterType::Bell ? 1.0 : 0.5;
+        return isCut (type) ? 0.0 : type == FilterType::Bell ? 1.0
+                                                             : 0.5;
     }
 }

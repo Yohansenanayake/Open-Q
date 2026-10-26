@@ -252,8 +252,11 @@ namespace openq
         lastPointer = event.position;
         dragSampleRate = displaySampleRate;
         dragParameters = { parameters.getParameter (bandParameterId (band, "frequency")), parameters.getParameter (bandParameterId (band, "gain")) };
+        if (isCut (dragType))
+            dragParameters[1] = nullptr;
         for (auto* parameter : dragParameters)
-            parameter->beginChangeGesture();
+            if (parameter != nullptr)
+                parameter->beginChangeGesture();
         if (onDragStateChanged)
             onDragStateChanged (true);
     }
@@ -266,7 +269,8 @@ namespace openq
         for (auto*& parameter : dragParameters)
         {
             auto* previous = std::exchange (parameter, nullptr);
-            previous->endChangeGesture();
+            if (previous != nullptr)
+                previous->endChangeGesture();
         }
         if (onDragStateChanged)
             onDragStateChanged (false);
@@ -290,7 +294,7 @@ namespace openq
             const auto target = std::clamp (responseMapping::proportionToFrequency ((dragPosition.x - plot.getX()) / plot.getWidth(), maximumFrequency()), bandLimits::minimumFrequencyHz, frequency);
             dragParameters[0]->setValueNotifyingHost (dragParameters[0]->convertTo0to1 (static_cast<float> (target)));
         }
-        if (!lockY && !juce::exactlyEqual (motion.y, 0.0f))
+        if (!isCut (dragType) && !lockY && !juce::exactlyEqual (motion.y, 0.0f))
             dragParameters[1]->setValueNotifyingHost (dragParameters[1]->convertTo0to1 (static_cast<float> (responseMapping::proportionToDb (static_cast<double> ((dragPosition.y - plot.getY()) / plot.getHeight())) / responseMapping::nodeGainScale (dragType))));
         updateNodes();
         repaint();
@@ -333,7 +337,10 @@ namespace openq
         const auto delta = !juce::exactlyEqual (details.deltaY, 0.0f) ? details.deltaY : details.deltaX;
         if (!std::isfinite (delta) || juce::exactlyEqual (delta, 0.0f))
             return;
-        const auto q = bandParameters[band].load().q;
+        const auto settings = bandParameters[band].load();
+        if (isCut (settings.type) && settings.slope == CutSlope::Db6)
+            return;
+        const auto q = settings.q;
         setParameter (band, "q", static_cast<float> (std::clamp (q * std::exp2 (delta * (modifiers.isShiftDown() ? fineQWheelSensitivity : qWheelSensitivity)), bandLimits::minimumQ, bandLimits::maximumQ)));
         repaint();
     }
@@ -359,6 +366,7 @@ namespace openq
             setParameter (band, "gain", responseMapping::proportionToDb ((point.y - plot.getY()) / plot.getHeight()));
             setParameter (band, "q", static_cast<float> (bandLimits::defaultQ));
             setParameter (band, "type", static_cast<float> (FilterType::Bell));
+            setParameter (band, "slope", static_cast<float> (defaultCutSlope));
             setParameter (band, "status", static_cast<float> (BandStatus::On));
             chooseBand (band);
             break;

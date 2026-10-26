@@ -30,6 +30,14 @@ namespace openq
         return std::isfinite (magnitude) ? 20.0 * std::log10 (std::max (magnitude, minimumResponseMagnitude)) : 0.0;
     }
 
+    double responseMagnitudeDb (const BandResponse& response, double frequencyHz)
+    {
+        double db = 0.0;
+        for (size_t i = 0; i < response.coefficients.count; ++i)
+            db += responseMagnitudeDb (DigitalResponse { response.coefficients.sections[i], response.sampleRate }, frequencyHz);
+        return db;
+    }
+
     double responseMagnitudeDb (const BankResponse& response, double frequencyHz)
     {
         double db = 0.0;
@@ -83,12 +91,12 @@ namespace openq
             frame.geometry = geometry.getReader();
             frame.response.sampleRate = target.sampleRate;
             frame.settings = target.bands;
-            std::array<DigitalResponse, bandCount> individualResponses;
+            std::array<BandResponse, bandCount> individualResponses;
             for (size_t i = 0; i < bandCount; ++i)
             {
                 const auto& band = target.bands[i];
-                individualResponses[i] = { makeFilterCoefficients (band.type, target.sampleRate, band.frequency, band.gain, band.q), target.sampleRate };
-                frame.response.bands[i] = band.status == BandStatus::On ? individualResponses[i] : DigitalResponse { {}, target.sampleRate };
+                individualResponses[i] = { makeBandCoefficients (band.type, target.sampleRate, band.frequency, band.gain, band.q, band.slope), target.sampleRate };
+                frame.response.bands[i] = band.status == BandStatus::On ? individualResponses[i] : BandResponse { {}, target.sampleRate };
                 frame.bandCurves[i].clear();
             }
             frame.curve.clear();

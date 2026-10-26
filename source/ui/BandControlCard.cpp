@@ -12,9 +12,18 @@ namespace openq
         title.setJustificationType (juce::Justification::centredLeft);
         addAndMakeVisible (title);
         typeSelector.setComponentID ("band.type");
-        typeSelector.addItemList ({ "Bell", "Low Shelf", "High Shelf" }, 1);
+        typeSelector.addItemList ({ "Bell", "Low Shelf", "High Shelf", "Low Cut", "High Cut" }, 1);
         typeSelector.setTooltip ("Filter response type");
         addAndMakeVisible (typeSelector);
+        typeSelector.onChange = [this] { updateControlEnablement(); };
+        slopeSelector.setComponentID ("band.slope");
+        for (size_t i = 0; i < cutSlopeNames.size(); ++i)
+            slopeSelector.addItem (cutSlopeNames[i], static_cast<int> (i + 1));
+        slopeSelector.setTooltip ("Cut slope. Bell and shelf responses retain their existing design.");
+        slopeSelector.onChange = [this] { updateControlEnablement(); };
+        addAndMakeVisible (slopeSelector);
+        slopeLabel.setText ("Slope", juce::dontSendNotification);
+        addAndMakeVisible (slopeLabel);
         auto power = juce::Drawable::createFromImageData (BinaryData::bypass_svg, BinaryData::bypass_svgSize);
         auto close = juce::Drawable::createFromImageData (BinaryData::close_svg, BinaryData::close_svgSize);
         auto trash = juce::Drawable::createFromImageData (BinaryData::trash_svg, BinaryData::trash_svgSize);
@@ -72,7 +81,7 @@ namespace openq
         }
         controls[0].setTextValueSuffix (" Hz");
         controls[1].setTextValueSuffix (" dB");
-        controls[0].setTooltip ("Bell center or shelf midpoint frequency; limited below Nyquist.");
+        controls[0].setTooltip ("Bell center, shelf midpoint or cut cutoff frequency; limited below Nyquist.");
         controls[1].setTooltip ("Boost or cut. Zero dB leaves the signal unchanged.");
         controls[2].setTooltip ("Bell bandwidth or shelf resonance. High Q can produce large resonant peaks.");
     }
@@ -83,6 +92,7 @@ namespace openq
             control.hideTextBox (false);
         statusAttachment.reset();
         typeAttachment.reset();
+        slopeAttachment.reset();
         for (auto& attachment : attachments)
             attachment.reset();
         setVisible (band < bandCount);
@@ -91,6 +101,8 @@ namespace openq
         title.setText ("Band " + juce::String (band + 1), juce::dontSendNotification);
         typeSelector.setTitle ("Band " + juce::String (band + 1) + " filter type");
         typeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, bandParameterId (band, "type"), typeSelector);
+        slopeSelector.setTitle ("Band " + juce::String (band + 1) + " cut slope");
+        slopeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, bandParameterId (band, "slope"), slopeSelector);
         powerButton.setTitle ("Band " + juce::String (band + 1) + " power");
         const std::array<const char*, 3> names { "frequency", "gain", "q" };
         for (size_t i = 0; i < controls.size(); ++i)
@@ -105,6 +117,23 @@ namespace openq
             powerButton.setEnabled (bandStatus != BandStatus::Off);
             powerButton.setTooltip (bandStatus == BandStatus::On ? "Bypass this band" : bandStatus == BandStatus::Bypass ? "Enable this band" : "Band deleted. Double-click empty graph space to create a band."); }, nullptr);
         statusAttachment->sendInitialUpdate();
+        updateControlEnablement();
+    }
+
+    void BandControlCard::updateControlEnablement()
+    {
+        const auto type = static_cast<FilterType> (typeSelector.getSelectedItemIndex());
+        const bool cut = isCut (type);
+        const bool qEnabled = !cut || slopeSelector.getSelectedItemIndex() != static_cast<int> (CutSlope::Db6);
+        slopeSelector.setEnabled (cut);
+        slopeLabel.setAlpha (cut ? 1.0f : 0.5f);
+        controls[1].setEnabled (!cut);
+        labels[1].setAlpha (cut ? 0.5f : 1.0f);
+        controls[2].setEnabled (qEnabled);
+        labels[2].setAlpha (qEnabled ? 1.0f : 0.5f);
+        controls[2].setDoubleClickReturnValue (true, cut ? bandLimits::defaultCutQ : bandLimits::defaultQ);
+        controls[1].setTooltip (cut ? "Gain is retained but does not affect cut filters." : "Boost or cut. Zero dB leaves the signal unchanged.");
+        controls[2].setTooltip (qEnabled ? "Bandwidth or resonance. High Q can produce large resonant peaks." : "6 dB/oct cuts have no adjustable Q. The stored value is retained.");
     }
 
     void BandControlCard::paint (juce::Graphics& g)
@@ -131,6 +160,9 @@ namespace openq
         typeSelector.setBounds (header.removeFromRight (140));
         title.setBounds (header);
         area.removeFromTop (spacing);
+        auto slopeRow = area.removeFromTop (buttonSize);
+        slopeSelector.setBounds (slopeRow.removeFromRight (140));
+        slopeLabel.setBounds (slopeRow);
         const auto width = area.getWidth() / static_cast<int> (controls.size());
         for (size_t i = 0; i < controls.size(); ++i)
         {
