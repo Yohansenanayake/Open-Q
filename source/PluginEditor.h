@@ -3,6 +3,7 @@
 #include "BinaryData.h"
 #include "PluginProcessor.h"
 #include "melatonin_inspector/melatonin_inspector.h"
+#include "ui/BandControlCard.h"
 #include "ui/ResponseGraph.h"
 
 //==============================================================================
@@ -18,14 +19,10 @@ public:
 
 private:
     void selectBand (size_t band);
-    PluginProcessor& processor;
+    void positionBandCard();
     openq::ResponseGraph responseGraph;
-    std::array<juce::TextButton, openq::bandCount> bandButtons;
-    juce::ComboBox statusSelector;
-    std::array<juce::Slider, 3> controls;
-    std::array<juce::Label, 3> labels;
-    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 3> controlAttachments;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> statusAttachment;
+    openq::BandControlCard bandCard;
+    bool knobDragging = false;
     std::unique_ptr<melatonin::Inspector> inspector;
     juce::TextButton inspectButton { "Inspect the UI" };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginEditor)

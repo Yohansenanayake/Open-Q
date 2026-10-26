@@ -347,15 +347,21 @@ TEST_CASE ("Shared controls select all eight slots without overwriting other ban
 {
     PluginProcessor processor;
     for (size_t band = 0; band < openq::bandCount; ++band)
+    {
         setBand (processor, band, "gain", static_cast<float> (band));
+        setBand (processor, band, "status", 2.0f);
+    }
+    processor.prepareToPlay (48000.0, 128);
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
-    auto* gain = dynamic_cast<juce::Slider*> (editor->findChildWithID ("band.gain"));
-    auto* status = dynamic_cast<juce::ComboBox*> (editor->findChildWithID ("band.status"));
+    auto* gain = dynamic_cast<juce::Slider*> (editor->findChildWithID ("band.card")->findChildWithID ("band.gain"));
+    auto* status = dynamic_cast<juce::ComboBox*> (editor->findChildWithID ("band.card")->findChildWithID ("band.status"));
     REQUIRE (gain != nullptr);
     REQUIRE (status != nullptr);
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor->findChildWithID ("response.graph"));
+    REQUIRE (graph != nullptr);
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
-        auto* button = dynamic_cast<juce::TextButton*> (editor->findChildWithID ("select.band." + juce::String (band)));
+        auto* button = dynamic_cast<juce::TextButton*> (graph->findChildWithID ("node." + juce::String (band)));
         REQUIRE (button != nullptr);
         button->onClick();
         CHECK (button->getToggleState());

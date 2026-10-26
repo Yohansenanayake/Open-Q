@@ -162,6 +162,7 @@ namespace openq
 
     void ResponseGraph::updateNodes()
     {
+        const auto previousBounds = getSelectedNodeBounds();
         displaySampleRate = sampleRate.load (std::memory_order_relaxed);
         const bool valid = maximumFrequency() > 20.0 && !plotBounds().isEmpty();
         if (draggedBand < bandCount && (!valid || !juce::exactlyEqual (dragSampleRate, displaySampleRate) || bandParameters[draggedBand].load().status == BandStatus::Off))
@@ -180,6 +181,19 @@ namespace openq
         }
         if (selectedBand < bandCount)
             nodes[selectedBand]->toFront (false);
+        if (getSelectedNodeBounds() != previousBounds && onNodeLayoutChanged)
+            onNodeLayoutChanged();
+    }
+
+    juce::Rectangle<int> ResponseGraph::getSelectedNodeBounds() const
+    {
+        return selectedBand < bandCount && nodes[selectedBand] != nullptr && nodes[selectedBand]->isVisible() ? nodes[selectedBand]->getBounds() : juce::Rectangle<int>();
+    }
+
+    void ResponseGraph::deleteSelectedBand()
+    {
+        if (selectedBand < bandCount)
+            deleteBand (selectedBand);
     }
 
     void ResponseGraph::setSelectedBand (size_t band)

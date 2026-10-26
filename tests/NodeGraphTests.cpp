@@ -113,7 +113,7 @@ TEST_CASE ("Dragging a newly selected overlapping node edits only its band and b
     CHECK (graph->getSelectedBand() == 1);
     CHECK (graph->getComponentAt (center.roundToInt()) == &second);
     CHECK (gestures.active() == 2);
-    auto* frequency = dynamic_cast<juce::Slider*> (editor->findChildWithID ("band.frequency"));
+    auto* frequency = dynamic_cast<juce::Slider*> (editor->findChildWithID ("band.card")->findChildWithID ("band.frequency"));
     REQUIRE (frequency != nullptr);
     CHECK_FALSE (frequency->isEnabled());
     second.mouseDrag (mouse (second, second.getLocalPoint (graph, center + juce::Point<float> (63.0f, -20.0f))));
@@ -232,4 +232,103 @@ TEST_CASE ("Interrupted node drags end host gestures", "[nodes][ui]")
         }
         CHECK (gestures.active() == 0);
     }
+}
+
+TEST_CASE ("Band card opens on selection, preserves settings when hidden and deletes through graph selection", "[nodes][ui][card]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    Gestures gestures (processor);
+    auto editor = std::unique_ptr<juce::AudioProcessorEditor> (processor.createEditor());
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor->findChildWithID ("response.graph"));
+    auto* card = editor->findChildWithID ("band.card");
+    REQUIRE (graph != nullptr);
+    REQUIRE (card != nullptr);
+    CHECK_FALSE (card->isVisible());
+    CHECK (graph->getSelectedBand() == openq::bandCount);
+    auto& first = node (*graph, 0);
+    first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+    first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+    REQUIRE (card->isVisible());
+    const auto selectedNode = first.getBounds().translated (graph->getX(), graph->getY());
+    CHECK_FALSE (card->getBounds().intersects (selectedNode));
+    auto* gain = dynamic_cast<juce::Slider*> (card->findChildWithID ("band.gain"));
+    auto* status = dynamic_cast<juce::ComboBox*> (card->findChildWithID ("band.status"));
+    REQUIRE (gain != nullptr);
+    REQUIRE (status != nullptr);
+    gain->setValue (6.0, juce::sendNotificationSync);
+    status->setSelectedItemIndex (1, juce::sendNotificationSync);
+    const auto saved = settings (processor, 0);
+    CHECK (saved.status == openq::BandStatus::Bypass);
+    CHECK_THAT (saved.gain, Catch::Matchers::WithinAbs (6.0, 0.001));
+    graph->mouseDown (mouse (*graph, { 100.0f, 60.0f }));
+    CHECK_FALSE (card->isVisible());
+    CHECK (settings (processor, 0) == saved);
+    first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+    first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+    CHECK (card->isVisible());
+    CHECK (status->getSelectedItemIndex() == 1);
+    CHECK_THAT (gain->getValue(), Catch::Matchers::WithinAbs (6.0, 0.001));
+    gain->onDragStart();
+    const auto cardBounds = card->getBounds();
+    set (processor, 0, "gain", -24.0f);
+    graph->setSelectedBand (0);
+    CHECK (card->getBounds() == cardBounds);
+    gain->onDragEnd();
+    CHECK_FALSE (card->getBounds().intersects (first.getBounds().translated (graph->getX(), graph->getY())));
+    const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
+    juce::MemoryOutputStream png;
+    REQUIRE (juce::PNGImageFormat().writeImageToStream (image, png));
+    REQUIRE (juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("openq-band-card.png").replaceWithData (png.getData(), png.getDataSize()));
+    auto* remove = dynamic_cast<juce::TextButton*> (card->findChildWithID ("band.delete"));
+    REQUIRE (remove != nullptr);
+    remove->onClick();
+    CHECK (settings (processor, 0).status == openq::BandStatus::Off);
+    CHECK_FALSE (card->isVisible());
+    CHECK (graph->getSelectedBand() == openq::bandCount);
+    CHECK (gestures.active() == 0);
+}
+
+TEST_CASE ("Band card retains a clear position after knob release and node motion", "[nodes][ui][card]")
+{
+    PluginProcessor processor;
+    set (processor, 0, "frequency", 200.0f);
+    set (processor, 0, "gain", -12.0f);
+    processor.prepareToPlay (44100.0, 64);
+    auto editor = std::unique_ptr<juce::AudioProcessorEditor> (processor.createEditor());
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor->findChildWithID ("response.graph"));
+    auto* card = editor->findChildWithID ("band.card");
+    REQUIRE (graph != nullptr);
+    REQUIRE (card != nullptr);
+    auto& selected = node (*graph, 0);
+    selected.mouseDown (mouse (selected, { 12.0f, 12.0f }));
+    selected.mouseUp (mouse (selected, { 12.0f, 12.0f }, 0));
+    const auto rightPosition = card->getBounds();
+    REQUIRE (rightPosition.getCentreX() > editor->getWidth() / 2);
+    auto* gain = dynamic_cast<juce::Slider*> (card->findChildWithID ("band.gain"));
+    REQUIRE (gain != nullptr);
+    gain->onDragStart();
+    gain->setValue (14.0, juce::sendNotificationSync);
+    graph->setSelectedBand (0);
+    CHECK (card->getBounds() == rightPosition);
+    gain->onDragEnd();
+    CHECK (card->getBounds() == rightPosition);
+
+    auto& first = node (*graph, 0);
+    first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+    first.mouseDrag (mouse (first, { 32.0f, 12.0f }));
+    first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+    CHECK (card->getBounds() == rightPosition);
+
+    first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+    const auto blockedPoint = rightPosition.getCentre().toFloat() - graph->getPosition().toFloat();
+    first.mouseDrag (mouse (first, first.getLocalPoint (graph, blockedPoint)));
+    const auto clearPosition = card->getBounds();
+    CHECK (clearPosition != rightPosition);
+    CHECK_FALSE (clearPosition.intersects (first.getBounds().translated (graph->getX(), graph->getY()).expanded (12)));
+    first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+    CHECK (card->getBounds() == clearPosition);
+
+    editor->setSize (820, 640);
+    CHECK (graph->getBounds().reduced (18, 44).contains (card->getBounds()));
 }

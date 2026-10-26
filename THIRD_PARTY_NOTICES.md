@@ -27,7 +27,7 @@ Open-Q's eight-slot bank and shared selected-band controls are also informed by 
 
 ## ZLEqualizer node interaction reference
 
-Open-Q's node interaction follows the source study of ZLEqualizer commit `3ce598ee065b3d3847121e76e196feda7ed8f56d`, copyright (C) 2026 zsliu98, under AGPL-3.0-only. Relevant sources are `source/gui/dragger/dragger_component.cpp`, `dragger_attachment.hpp`, and `source/panel/curve_panel/response_panel/dragger_panel/`. Open-Q implements relative dragging, display-to-host parameter conversion, three-state node visibility, and host gesture handling in `source/ui/ResponseGraph.cpp`. It uses its own bell-only creation defaults, digital response paths, parameter-polling node positions, and fixed shortcuts. No ZLE icons, logos, or other UI assets are imported.
+Open-Q's node interaction follows the source study of ZLEqualizer commit `3ce598ee065b3d3847121e76e196feda7ed8f56d`, copyright (C) 2026 zsliu98, under AGPL-3.0-only. Relevant sources are `source/gui/dragger/dragger_component.cpp`, `dragger_attachment.hpp`, and `source/panel/curve_panel/response_panel/dragger_panel/`. Open-Q implements relative dragging, display-to-host parameter conversion, three-state node visibility, and host gesture handling in `source/ui/ResponseGraph.cpp`. It uses its own bell-only creation defaults, digital response paths, parameter-polling node positions, and fixed shortcuts. The selection-driven band card also follows the studied `panel/control_panel/` and floating-popup pattern, with Open-Q’s existing parameter attachments and three-state selector. No ZLE icons, logos, or other UI assets are imported.
 
 ## Pamplejuce template
 

@@ -20,8 +20,11 @@ namespace openq
         void setSelectedBand (size_t band);
         size_t getSelectedBand() const { return selectedBand; }
         void cancelDrag();
+        void deleteSelectedBand();
+        juce::Rectangle<int> getSelectedNodeBounds() const;
         std::function<void (size_t)> onBandSelected;
         std::function<void (bool)> onDragStateChanged;
+        std::function<void()> onNodeLayoutChanged;
 
     private:
         class Node;
