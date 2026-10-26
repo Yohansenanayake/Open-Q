@@ -30,7 +30,7 @@ namespace
 
     struct Gestures : juce::AudioProcessorParameter::Listener
     {
-        explicit Gestures (PluginProcessor& p) : processor (p)
+        explicit Gestures (PluginProcessor& p) : processor (p), depth (static_cast<size_t> (p.getParameters().size()))
         {
             for (auto* parameter : processor.getParameters())
                 parameter->addListener (this);
@@ -54,7 +54,7 @@ namespace
             return sum;
         }
         PluginProcessor& processor;
-        std::array<int, 40> depth {};
+        std::vector<int> depth;
         std::vector<int> changes;
     };
 }

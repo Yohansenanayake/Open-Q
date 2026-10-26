@@ -7,6 +7,7 @@ namespace openq
     class BandControlCard final : public juce::Component
     {
     public:
+        static constexpr int preferredWidth = 350, preferredHeight = 170;
         explicit BandControlCard (juce::AudioProcessorValueTreeState& parameters);
         void setBand (size_t band);
         void paint (juce::Graphics&) override;

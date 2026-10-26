@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "BandControlCard.h"
 #include "BinaryData.h"
+#include "Palette.h"
 
 namespace openq
 {
@@ -24,13 +25,13 @@ namespace openq
             auto powerHover = power->createCopy();
             auto closeHover = close->createCopy();
             auto trashHover = trash->createCopy();
-            power->replaceColour (juce::Colours::black, juce::Colour (0xff8996a5));
-            close->replaceColour (juce::Colours::black, juce::Colour (0xff8996a5));
-            trash->replaceColour (juce::Colours::black, juce::Colour (0xff8996a5));
-            powerOn->replaceColour (juce::Colours::black, juce::Colour (0xff6edbd4));
-            powerHover->replaceColour (juce::Colours::black, juce::Colour (0xffe0e7ef));
-            closeHover->replaceColour (juce::Colours::black, juce::Colour (0xffe0e7ef));
-            trashHover->replaceColour (juce::Colours::black, juce::Colour (0xffe0e7ef));
+            power->replaceColour (juce::Colours::black, palette::inactiveIcon);
+            close->replaceColour (juce::Colours::black, palette::inactiveIcon);
+            trash->replaceColour (juce::Colours::black, palette::inactiveIcon);
+            powerOn->replaceColour (juce::Colours::black, palette::accent);
+            powerHover->replaceColour (juce::Colours::black, palette::text);
+            closeHover->replaceColour (juce::Colours::black, palette::text);
+            trashHover->replaceColour (juce::Colours::black, palette::text);
             powerButton.setImages (power.get(), powerHover.get(), powerOn.get(), nullptr, powerOn.get(), powerHover.get(), powerOn.get());
             deleteButton.setImages (trash.get(), trashHover.get(), trashHover.get());
             closeButton.setImages (close.get(), closeHover.get(), closeHover.get());
@@ -62,8 +63,8 @@ namespace openq
             control.setComponentID ("band." + names[i].toLowerCase());
             control.onDragStart = [this] { if (onDragStateChanged) onDragStateChanged (true); };
             control.onDragEnd = [this] { if (onDragStateChanged) onDragStateChanged (false); };
-            control.setDoubleClickReturnValue (true, i == 0 ? 1000.0 : i == 1 ? 0.0
-                                                                              : 1.0);
+            control.setDoubleClickReturnValue (true, i == 0 ? bandLimits::defaultFrequencyHz : i == 1 ? bandLimits::defaultGainDb
+                                                                                                      : bandLimits::defaultQ);
             addAndMakeVisible (control);
             labels[i].setText (names[i], juce::dontSendNotification);
             labels[i].setJustificationType (juce::Justification::centred);
@@ -109,26 +110,28 @@ namespace openq
     void BandControlCard::paint (juce::Graphics& g)
     {
         const auto bounds = getLocalBounds().toFloat().reduced (0.5f);
-        g.setColour (juce::Colour (0xff222b35));
+        g.setColour (palette::cardBackground);
         g.fillRoundedRectangle (bounds, 8.0f);
-        g.setColour (juce::Colour (0xff6edbd4).withAlpha (0.65f));
+        g.setColour (palette::accent.withAlpha (0.65f));
         g.drawRoundedRectangle (bounds, 8.0f, 1.0f);
     }
 
     void BandControlCard::resized()
     {
         auto area = getLocalBounds().reduced (10);
-        auto header = area.removeFromTop (26);
-        closeButton.setBounds (header.removeFromRight (26));
-        header.removeFromRight (6);
-        deleteButton.setBounds (header.removeFromRight (26));
-        header.removeFromRight (6);
-        powerButton.setBounds (header.removeFromLeft (26));
-        header.removeFromLeft (6);
+        constexpr int buttonSize = 26;
+        constexpr int spacing = 6;
+        auto header = area.removeFromTop (buttonSize);
+        closeButton.setBounds (header.removeFromRight (buttonSize));
+        header.removeFromRight (spacing);
+        deleteButton.setBounds (header.removeFromRight (buttonSize));
+        header.removeFromRight (spacing);
+        powerButton.setBounds (header.removeFromLeft (buttonSize));
+        header.removeFromLeft (spacing);
         typeSelector.setBounds (header.removeFromRight (140));
         title.setBounds (header);
-        area.removeFromTop (6);
-        const auto width = area.getWidth() / 3;
+        area.removeFromTop (spacing);
+        const auto width = area.getWidth() / static_cast<int> (controls.size());
         for (size_t i = 0; i < controls.size(); ++i)
         {
             auto column = area.removeFromLeft (width).reduced (3, 0);

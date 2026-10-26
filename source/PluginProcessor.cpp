@@ -4,6 +4,14 @@
 #include <locale>
 #include <sstream>
 
+namespace
+{
+    constexpr int stateSchemaVersion = 4;
+    constexpr double tailSecondsPerBand = 5.0;
+    constexpr auto bellDesignRevision = "zle-ivantsov-v1";
+    constexpr auto shelfDesignRevision = "zle-ivantsov-shelf-v1";
+}
+
 //==============================================================================
 PluginProcessor::PluginProcessor()
     : AudioProcessor (BusesProperties()
@@ -16,12 +24,12 @@ PluginProcessor::PluginProcessor()
               ),
       parameters (*this, nullptr, "OpenQState", createParameterLayout())
 {
-    parameters.state.setProperty ("schemaVersion", 4, nullptr);
+    parameters.state.setProperty ("schemaVersion", stateSchemaVersion, nullptr);
     parameters.state.setProperty ("bandCount", static_cast<int> (openq::bandCount), nullptr);
     for (size_t i = 0; i < openq::bandCount; ++i)
         bandParameters[i] = openq::getBandParameterPointers (parameters, i);
-    parameters.state.setProperty ("bellDesign", "zle-ivantsov-v1", nullptr);
-    parameters.state.setProperty ("shelfDesign", "zle-ivantsov-shelf-v1", nullptr);
+    parameters.state.setProperty ("bellDesign", bellDesignRevision, nullptr);
+    parameters.state.setProperty ("shelfDesign", shelfDesignRevision, nullptr);
 }
 
 PluginProcessor::~PluginProcessor()
@@ -64,7 +72,7 @@ bool PluginProcessor::isMidiEffect() const
 double PluginProcessor::getTailLengthSeconds() const
 {
     // Cascaded low-frequency, high-Q boosts can ring far longer than a single band.
-    return 5.0 * static_cast<double> (openq::bandCount);
+    return tailSecondsPerBand * static_cast<double> (openq::bandCount);
 }
 
 int PluginProcessor::getNumPrograms()
@@ -179,16 +187,16 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     if (xml == nullptr || !xml->hasTagName ("OpenQState"))
         return;
     const auto state = juce::ValueTree::fromXml (*xml);
-    if (static_cast<int> (state.getProperty ("schemaVersion")) != 4
+    if (static_cast<int> (state.getProperty ("schemaVersion")) != stateSchemaVersion
         || static_cast<int> (state.getProperty ("bandCount")) != static_cast<int> (openq::bandCount)
-        || state.getProperty ("bellDesign").toString() != "zle-ivantsov-v1"
-        || state.getProperty ("shelfDesign").toString() != "zle-ivantsov-shelf-v1"
-        || state.getNumChildren() != static_cast<int> (openq::bandCount * 5))
+        || state.getProperty ("bellDesign").toString() != bellDesignRevision
+        || state.getProperty ("shelfDesign").toString() != shelfDesignRevision
+        || state.getNumChildren() != static_cast<int> (openq::bandCount * openq::bandParameterNames.size()))
         return;
 
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
-        for (const auto* name : { "frequency", "gain", "q", "status", "type" })
+        for (const auto* name : openq::bandParameterNames)
         {
             const auto id = openq::bandParameterId (band, name);
             const auto child = state.getChildWithProperty ("id", id);
@@ -219,19 +227,19 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 
 juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParameterLayout()
 {
-    juce::NormalisableRange<float> frequencyRange (20.0f, 20000.0f);
-    frequencyRange.setSkewForCentre (1000.0f);
-    juce::NormalisableRange<float> qRange (0.1f, 10.0f);
-    qRange.setSkewForCentre (1.0f);
+    juce::NormalisableRange<float> frequencyRange (static_cast<float> (openq::bandLimits::minimumFrequencyHz), static_cast<float> (openq::bandLimits::maximumFrequencyHz));
+    frequencyRange.setSkewForCentre (static_cast<float> (openq::bandLimits::frequencySkewCentreHz));
+    juce::NormalisableRange<float> qRange (static_cast<float> (openq::bandLimits::minimumQ), static_cast<float> (openq::bandLimits::maximumQ));
+    qRange.setSkewForCentre (static_cast<float> (openq::bandLimits::qSkewCentre));
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
         const auto prefix = "Band " + juce::String (band + 1) + " ";
-        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "frequency"), 1 }, prefix + "Frequency", frequencyRange, 1000.0f));
-        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "gain"), 1 }, prefix + "Gain", juce::NormalisableRange<float> (-24.0f, 24.0f), 0.0f));
-        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "q"), 1 }, prefix + "Q", qRange, 1.0f));
+        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "frequency"), 1 }, prefix + "Frequency", frequencyRange, static_cast<float> (openq::bandLimits::defaultFrequencyHz)));
+        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "gain"), 1 }, prefix + "Gain", juce::NormalisableRange<float> (static_cast<float> (openq::bandLimits::minimumGainDb), static_cast<float> (openq::bandLimits::maximumGainDb)), static_cast<float> (openq::bandLimits::defaultGainDb)));
+        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::bandParameterId (band, "q"), 1 }, prefix + "Q", qRange, static_cast<float> (openq::bandLimits::defaultQ)));
         layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { openq::bandParameterId (band, "status"), 1 }, prefix + "Status", juce::StringArray { "Off", "Bypass", "On" }, static_cast<int> (band == 0 ? openq::BandStatus::On : openq::BandStatus::Off)));
-        layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { openq::bandParameterId (band, "type"), 1 }, prefix + "Type", juce::StringArray { "Bell", "Low Shelf", "High Shelf" }, 0));
+        layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { openq::bandParameterId (band, "type"), 1 }, prefix + "Type", juce::StringArray { "Bell", "Low Shelf", "High Shelf" }, static_cast<int> (openq::FilterType::Bell)));
     }
     return layout;
 }

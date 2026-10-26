@@ -472,3 +472,32 @@ TEST_CASE ("Host tail allowance covers eight resonant shelves", "[shelf][tail]")
         CHECK (buffer.getMagnitude (0, 128) < 1e-6f);
     }
 }
+
+TEST_CASE ("Shared band constants preserve registered parameter ranges defaults and state schema", "[multiband][state]")
+{
+    PluginProcessor processor;
+    for (size_t band = 0; band < openq::bandCount; ++band)
+    {
+        const auto settings = openq::getBandParameterPointers (processor.parameters, band).load();
+        // APVTS normalizes float defaults, introducing a small round-trip error.
+        CHECK_THAT (settings.frequency, Catch::Matchers::WithinAbs (1000.0, 0.001));
+        CHECK_THAT (settings.gain, Catch::Matchers::WithinAbs (0.0, 0.0));
+        CHECK_THAT (settings.q, Catch::Matchers::WithinAbs (1.0, 1e-6));
+        const auto& frequency = processor.parameters.getParameter (openq::bandParameterId (band, "frequency"))->getNormalisableRange();
+        const auto& gain = processor.parameters.getParameter (openq::bandParameterId (band, "gain"))->getNormalisableRange();
+        const auto& q = processor.parameters.getParameter (openq::bandParameterId (band, "q"))->getNormalisableRange();
+        CHECK_THAT (frequency.start, Catch::Matchers::WithinAbs (20.0, 0.0));
+        CHECK_THAT (frequency.end, Catch::Matchers::WithinAbs (20000.0, 0.0));
+        CHECK_THAT (frequency.convertFrom0to1 (0.5f), Catch::Matchers::WithinAbs (1000.0, 0.001));
+        CHECK_THAT (gain.start, Catch::Matchers::WithinAbs (-24.0, 0.0));
+        CHECK_THAT (gain.end, Catch::Matchers::WithinAbs (24.0, 0.0));
+        CHECK_THAT (q.start, Catch::Matchers::WithinAbs (0.1, 1e-7));
+        CHECK_THAT (q.end, Catch::Matchers::WithinAbs (10.0, 0.0));
+        CHECK_THAT (q.convertFrom0to1 (0.5f), Catch::Matchers::WithinAbs (1.0, 1e-6));
+    }
+    const auto state = processor.parameters.copyState();
+    CHECK (static_cast<int> (state.getProperty ("schemaVersion")) == 4);
+    CHECK (state.getProperty ("bellDesign").toString() == "zle-ivantsov-v1");
+    CHECK (state.getProperty ("shelfDesign").toString() == "zle-ivantsov-shelf-v1");
+    CHECK (state.getNumChildren() == 40);
+}

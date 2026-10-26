@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "ui/Palette.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
     : AudioProcessorEditor (&p), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
@@ -28,7 +29,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         }
         inspector->setVisible (true);
     };
-    setSize (720, 580);
+    constexpr int initialWidth = 720, initialHeight = 580;
+    setSize (initialWidth, initialHeight);
 }
 
 void PluginEditor::selectBand (size_t band)
@@ -44,9 +46,11 @@ void PluginEditor::positionBandCard()
 {
     if (!bandCard.isVisible() || knobDragging)
         return;
-    const auto graph = responseGraph.getBounds().reduced (18, 44);
-    const auto node = responseGraph.getSelectedNodeBounds().translated (responseGraph.getX(), responseGraph.getY()).expanded (12);
-    const int width = 350, height = 170;
+    constexpr int cardAreaHorizontalInset = 18, cardAreaVerticalInset = 44;
+    constexpr int nodeClearance = 12;
+    const auto graph = responseGraph.getBounds().reduced (cardAreaHorizontalInset, cardAreaVerticalInset);
+    const auto node = responseGraph.getSelectedNodeBounds().translated (responseGraph.getX(), responseGraph.getY()).expanded (nodeClearance);
+    constexpr int width = openq::BandControlCard::preferredWidth, height = openq::BandControlCard::preferredHeight;
     const std::array<juce::Rectangle<int>, 5> positions {
         bandCard.getBounds(),
         juce::Rectangle<int> (graph.getX(), graph.getBottom() - height, width, height),
@@ -78,8 +82,8 @@ PluginEditor::~PluginEditor()
 
 void PluginEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xff161b23));
-    g.setColour (juce::Colour (0xffe0e7ef));
+    g.fillAll (openq::palette::background);
+    g.setColour (openq::palette::text);
     g.setFont (24.0f);
     g.drawText ("Open-Q", 20, 8, 200, 32, juce::Justification::centredLeft);
 }

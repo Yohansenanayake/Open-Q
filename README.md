@@ -26,6 +26,8 @@ cmake --build Builds --target Tests Benchmarks --parallel 2
 ctest --test-dir Builds --verbose --output-on-failure
 ```
 
+Shared band limits and defaults live in `source/dsp/BandLimits.h`; graph scales and coordinate conversions live in `source/ui/ResponseMapping.h`; shared UI colors live in `source/ui/Palette.h`. Parameter smoothing and wet/dry fade durations are named locally in `BandFilter.cpp`. Changing these values changes product behavior and should be validated separately from refactoring.
+
 The card uses SVG icons embedded as JUCE BinaryData and recolored in C++. To normalize multiline icons with the imported ZL helper, run `python3 ../../tools/format_svg_icons.py` from `assets/icons/`. It processes SVGs in the current directory only; it is not a general XML formatter.
 
 VS Code **Run Build Task** offers `Build plugin binaries (Debug)` and `Build plugin binaries (Release)`. **F5** uses `VST3: JUCE AudioPluginHost (Linux)`, builds the VST3 and host, then launches the host under GDB. In AudioPluginHost, scan/load `Builds/OpenQ_artefacts/Debug/VST3/Open-Q.vst3`; breakpoints become active when the plugin loads.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
 
+#include "BandLimits.h"
 #include "BandStatus.h"
 #include "FilterCoefficients.h"
 #include <juce_audio_basics/juce_audio_basics.h>
@@ -28,8 +29,8 @@ namespace openq
         BandStatus status = BandStatus::On;
         FilterType type = FilterType::Bell, targetType = FilterType::Bell;
         bool needsCoefficientRefresh = false;
-        juce::SmoothedValue<double, juce::ValueSmoothingTypes::Multiplicative> frequency { 1000.0 }, quality { 1.0 };
-        juce::SmoothedValue<double> gain { 0.0 };
+        juce::SmoothedValue<double, juce::ValueSmoothingTypes::Multiplicative> frequency { bandLimits::defaultFrequencyHz }, quality { bandLimits::defaultQ };
+        juce::SmoothedValue<double> gain { bandLimits::defaultGainDb };
         juce::SmoothedValue<double> wet { 0.0 };
     };
 }

@@ -76,6 +76,7 @@ namespace openq
 
         std::array<C, 3> buffer_ {};
 
+        // Separate producer/consumer metadata on typical 64-byte cache lines.
         alignas (64) std::atomic<State> middle_state_ { 2 };
 
         alignas (64) State read_idx_ { 0 };

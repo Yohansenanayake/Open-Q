@@ -10,6 +10,7 @@
 // You should have received a copy of the GNU Affero General Public License along with ZLEqualizer. If not, see <https://www.gnu.org/licenses/>.
 
 #include "FilterCoefficients.h"
+#include "BandLimits.h"
 #include <algorithm>
 #include <cmath>
 
@@ -19,6 +20,7 @@ namespace openq
     {
         constexpr double kPi = 3.14159265358979323846;
         constexpr double kSigma = 2.00143;
+        constexpr double kDbToLog2Amplitude = 0.16609640474436813; // log2(10) / 20, pinned to ZLE.
 
         constexpr double kPiSq = kPi * kPi;
         constexpr double kTwoPiSq = 2.0 * kPiSq;
@@ -75,13 +77,13 @@ namespace openq
 
     BiquadCoefficients makeFilterCoefficients (FilterType type, double sampleRate, double frequencyHz, double gainDb, double q)
     {
-        if (!std::isfinite (sampleRate) || sampleRate < 1000.0
+        if (!std::isfinite (sampleRate) || sampleRate < bandLimits::minimumSampleRateHz
             || !std::isfinite (frequencyHz) || !std::isfinite (gainDb) || !std::isfinite (q))
             return {};
 
-        frequencyHz = std::clamp (frequencyHz, 20.0, std::min (20000.0, sampleRate * 0.49));
-        gainDb = std::clamp (gainDb, -24.0, 24.0);
-        q = std::clamp (q, 0.1, 10.0);
+        frequencyHz = std::clamp (frequencyHz, bandLimits::minimumFrequencyHz, bandLimits::effectiveMaximumFrequency (sampleRate));
+        gainDb = std::clamp (gainDb, bandLimits::minimumGainDb, bandLimits::maximumGainDb);
+        q = std::clamp (q, bandLimits::minimumQ, bandLimits::maximumQ);
         if (std::fpclassify (gainDb) == FP_ZERO)
             return {};
 
@@ -91,14 +93,14 @@ namespace openq
         double factor = 1.0;
         if (type == FilterType::Bell)
         {
-            const auto g_linear = std::exp2 (gainDb * 0.16609640474436813);
+            const auto g_linear = std::exp2 (gainDb * kDbToLog2Amplitude);
             alpha = get_phi_sq (w2, zeta2 * g_linear);
             beta = get_phi_sq (w2, zeta2 / g_linear);
             factor = alpha.d / beta.d;
         }
         else if (type == FilterType::LowShelf || type == FilterType::HighShelf)
         {
-            const auto g_half = std::exp2 (gainDb * (0.16609640474436813 * 0.5));
+            const auto g_half = std::exp2 (gainDb * (kDbToLog2Amplitude * 0.5));
             const bool low = type == FilterType::LowShelf;
             alpha = get_phi_sq (low ? w2 / g_half : w2 * g_half, zeta2);
             beta = get_phi_sq (low ? w2 * g_half : w2 / g_half, zeta2);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
+#include "dsp/BandLimits.h"
 #include "dsp/BandStatus.h"
 #include "dsp/FilterType.h"
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -7,6 +8,7 @@
 namespace openq
 {
     inline constexpr size_t bandCount = 8;
+    inline constexpr std::array<const char*, 5> bandParameterNames { "frequency", "gain", "q", "status", "type" };
 
     inline juce::String bandParameterId (size_t band, const char* name)
     {
@@ -15,7 +17,7 @@ namespace openq
 
     struct BandSettings
     {
-        double frequency = 1000.0, gain = 0.0, q = 1.0;
+        double frequency = bandLimits::defaultFrequencyHz, gain = bandLimits::defaultGainDb, q = bandLimits::defaultQ;
         BandStatus status = BandStatus::Off;
         FilterType type = FilterType::Bell;
         bool operator== (const BandSettings&) const = default;

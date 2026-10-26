@@ -1,20 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "BandFilter.h"
+#include "BandLimits.h"
 #include <cmath>
 
 namespace openq
 {
+    namespace
+    {
+        constexpr double parameterSmoothingSeconds = 0.02;
+        constexpr double wetDryFadeSeconds = 0.02;
+    }
+
     void BandFilter::prepare (double newSampleRate, double frequencyHz, double gainDb, double q, BandStatus newStatus, FilterType newType)
     {
-        sampleRate = std::isfinite (newSampleRate) && newSampleRate >= 1000.0 ? newSampleRate : 0.0;
+        sampleRate = std::isfinite (newSampleRate) && newSampleRate >= bandLimits::minimumSampleRateHz ? newSampleRate : 0.0;
         reset();
-        if (sampleRate < 1000.0)
+        if (sampleRate < bandLimits::minimumSampleRateHz)
             return;
 
-        frequency.reset (sampleRate, 0.02);
-        quality.reset (sampleRate, 0.02);
-        gain.reset (sampleRate, 0.02);
-        wet.reset (sampleRate, 0.02);
+        frequency.reset (sampleRate, parameterSmoothingSeconds);
+        quality.reset (sampleRate, parameterSmoothingSeconds);
+        gain.reset (sampleRate, parameterSmoothingSeconds);
+        wet.reset (sampleRate, wetDryFadeSeconds);
         type = targetType = newType;
         setParameters (frequencyHz, gainDb, q, newStatus, newType);
         frequency.setCurrentAndTargetValue (frequency.getTargetValue());
@@ -27,11 +34,11 @@ namespace openq
 
     void BandFilter::setParameters (double frequencyHz, double gainDb, double q, BandStatus newStatus, FilterType newType)
     {
-        if (sampleRate < 1000.0)
+        if (sampleRate < bandLimits::minimumSampleRateHz)
             return;
-        frequency.setTargetValue (juce::jlimit (20.0, std::min (20000.0, sampleRate * 0.49), std::isfinite (frequencyHz) ? frequencyHz : 1000.0));
-        quality.setTargetValue (std::isfinite (q) ? juce::jlimit (0.1, 10.0, q) : 1.0);
-        gain.setTargetValue (std::isfinite (gainDb) ? juce::jlimit (-24.0, 24.0, gainDb) : 0.0);
+        frequency.setTargetValue (juce::jlimit (bandLimits::minimumFrequencyHz, bandLimits::effectiveMaximumFrequency (sampleRate), std::isfinite (frequencyHz) ? frequencyHz : bandLimits::defaultFrequencyHz));
+        quality.setTargetValue (std::isfinite (q) ? juce::jlimit (bandLimits::minimumQ, bandLimits::maximumQ, q) : bandLimits::defaultQ);
+        gain.setTargetValue (std::isfinite (gainDb) ? juce::jlimit (bandLimits::minimumGainDb, bandLimits::maximumGainDb, gainDb) : bandLimits::defaultGainDb);
         status = newStatus;
         targetType = newType;
         wet.setTargetValue (type == targetType && status == BandStatus::On && !juce::exactlyEqual (gain.getTargetValue(), 0.0) ? 1.0 : 0.0);
@@ -56,9 +63,9 @@ namespace openq
 
     void BandFilter::process (juce::AudioBuffer<float>& buffer, int numChannels)
     {
-        if (sampleRate < 1000.0)
+        if (sampleRate < bandLimits::minimumSampleRateHz)
             return;
-        numChannels = juce::jlimit (0, std::min (2, buffer.getNumChannels()), numChannels);
+        numChannels = juce::jlimit (0, std::min (static_cast<int> (states.size()), buffer.getNumChannels()), numChannels);
         applyPendingType();
         const bool keepWarm = status == BandStatus::Bypass;
         if (!keepWarm && !wet.isSmoothing() && juce::exactlyEqual (wet.getCurrentValue(), 0.0))

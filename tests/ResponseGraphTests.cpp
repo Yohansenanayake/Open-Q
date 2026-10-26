@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "ui/ResponseMapping.h"
 #include "ui/ResponseWorker.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -242,4 +243,23 @@ TEST_CASE ("Response editor can paint before audio starts", "[response][ui]")
     REQUIRE (juce::PNGImageFormat().writeImageToStream (image, png));
     const auto file = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("openq-response-editor.png");
     REQUIRE (file.replaceWithData (png.getData(), png.getDataSize()));
+}
+
+TEST_CASE ("Graph mappings retain frequency endpoints and shelf midpoint behavior", "[response][mapping]")
+{
+    using namespace openq;
+    CHECK_THAT (responseMapping::proportionToFrequency (0.0, 20000.0), Catch::Matchers::WithinAbs (20.0, 1e-12));
+    CHECK_THAT (responseMapping::proportionToFrequency (1.0, 20000.0), Catch::Matchers::WithinAbs (20000.0, 1e-9));
+    CHECK_THAT (responseMapping::frequencyToProportion (200.0, 20000.0), Catch::Matchers::WithinAbs (1.0 / 3.0, 1e-12));
+    CHECK_THAT (responseMapping::maximumFrequency (8000.0), Catch::Matchers::WithinAbs (4000.0, 0.0));
+    CHECK_THAT (bandLimits::effectiveMaximumFrequency (8000.0), Catch::Matchers::WithinAbs (3920.0, 0.0));
+    CHECK_THAT (responseMapping::dbToProportion (24.0), Catch::Matchers::WithinAbs (0.0, 0.0));
+    CHECK_THAT (responseMapping::dbToProportion (-24.0), Catch::Matchers::WithinAbs (1.0, 0.0));
+    CHECK_THAT (responseMapping::proportionToDb (0.5f), Catch::Matchers::WithinAbs (0.0, 0.0));
+    for (auto type : { FilterType::Bell, FilterType::LowShelf, FilterType::HighShelf })
+    {
+        const auto height = responseMapping::dbToProportion (12.0 * responseMapping::nodeGainScale (type));
+        CHECK_THAT (height, Catch::Matchers::WithinAbs (type == FilterType::Bell ? 0.25 : 0.375, 0.0));
+        CHECK_THAT (responseMapping::proportionToDb (height) / responseMapping::nodeGainScale (type), Catch::Matchers::WithinAbs (12.0, 0.0));
+    }
 }
