@@ -38,17 +38,17 @@ namespace
     }
 }
 
-TEST_CASE ("Eight independent band slots survive recall and reject incomplete states", "[multiband][state]")
+TEST_CASE ("All configured band slots survive recall and reject incomplete states", "[multiband][state]")
 {
     PluginProcessor processor;
-    REQUIRE (processor.getParameters().size() == 40);
+    REQUIRE (processor.getParameters().size() == static_cast<int> (openq::bandCount * openq::bandParameterNames.size()));
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
         const auto initial = openq::getBandParameterPointers (processor.parameters, band).load();
         CHECK (initial.status == (band == 0 ? openq::BandStatus::On : openq::BandStatus::Off));
-        setBand (processor, band, "frequency", 100.0f + static_cast<float> (band) * 1300.0f);
-        setBand (processor, band, "gain", static_cast<float> (band) - 4.0f);
-        setBand (processor, band, "q", 0.5f + static_cast<float> (band));
+        setBand (processor, band, "frequency", 100.0f + 13000.0f * static_cast<float> (band) / static_cast<float> (openq::bandCount));
+        setBand (processor, band, "gain", -4.0f + 8.0f * static_cast<float> (band) / static_cast<float> (openq::bandCount));
+        setBand (processor, band, "q", 0.5f + 8.0f * static_cast<float> (band) / static_cast<float> (openq::bandCount));
         setBand (processor, band, "status", static_cast<float> (band % 3));
         setBand (processor, band, "type", static_cast<float> (band % 3));
     }
@@ -67,11 +67,11 @@ TEST_CASE ("Eight independent band slots survive recall and reject incomplete st
         CHECK (actual.type == expected.type);
     }
 
-    for (int corruption = 0; corruption < 16; ++corruption)
+    for (int corruption = 0; corruption < 17; ++corruption)
     {
         auto state = processor.parameters.copyState();
         state.getChildWithProperty ("id", "band.0.gain").setProperty ("value", 20.0, nullptr);
-        auto last = state.getChildWithProperty ("id", "band.7.status");
+        auto last = state.getChildWithProperty ("id", openq::bandParameterId (openq::bandCount - 1, "status"));
         switch (corruption)
         {
             case 0:
@@ -90,7 +90,7 @@ TEST_CASE ("Eight independent band slots survive recall and reject incomplete st
                 state.setProperty ("schemaVersion", 1, nullptr);
                 break;
             case 5:
-                state.setProperty ("bandCount", 4, nullptr);
+                state.setProperty ("bandCount", static_cast<int> (openq::bandCount - 1), nullptr);
                 break;
             case 6:
                 state.setProperty ("bellDesign", "unknown", nullptr);
@@ -111,13 +111,19 @@ TEST_CASE ("Eight independent band slots survive recall and reject incomplete st
                 state.setProperty ("shelfDesign", "unknown", nullptr);
                 break;
             case 13:
-                state.getChildWithProperty ("id", "band.7.type").setProperty ("value", 1.5, nullptr);
+                state.getChildWithProperty ("id", openq::bandParameterId (openq::bandCount - 1, "type")).setProperty ("value", 1.5, nullptr);
                 break;
             case 14:
-                state.getChildWithProperty ("id", "band.7.type").setProperty ("value", 3, nullptr);
+                state.getChildWithProperty ("id", openq::bandParameterId (openq::bandCount - 1, "type")).setProperty ("value", 3, nullptr);
                 break;
             case 15:
-                state.removeChild (state.getChildWithProperty ("id", "band.7.type"), nullptr);
+                state.removeChild (state.getChildWithProperty ("id", openq::bandParameterId (openq::bandCount - 1, "type")), nullptr);
+                break;
+            case 16:
+                // A complete state from a differently sized bank must not partially load.
+                state.setProperty ("bandCount", static_cast<int> (openq::bandCount - 1), nullptr);
+                for (const auto* name : openq::bandParameterNames)
+                    state.removeChild (state.getChildWithProperty ("id", openq::bandParameterId (openq::bandCount - 1, name)), nullptr);
                 break;
             case 10:
                 last.setProperty ("value", 1.5, nullptr);
@@ -130,7 +136,7 @@ TEST_CASE ("Eight independent band slots survive recall and reject incomplete st
     }
 }
 
-TEST_CASE ("All eight bells cascade in mono and stereo with independent channel histories", "[multiband][response]")
+TEST_CASE ("All configured bells cascade in mono and stereo with independent channel histories", "[multiband][response]")
 {
     for (const int channels : { 1, 2 })
     {
@@ -145,17 +151,17 @@ TEST_CASE ("All eight bells cascade in mono and stereo with independent channel 
             setBand (processor, band, "gain", 3.0f);
         }
         processor.prepareToPlay (48000.0, 128);
-        CHECK_THAT (renderGain (processor, channels), Catch::Matchers::WithinAbs (24.0, 0.02));
+        CHECK_THAT (renderGain (processor, channels), Catch::Matchers::WithinAbs (3.0 * static_cast<double> (openq::bandCount), 0.02));
 
         for (size_t band = 0; band < openq::bandCount; ++band)
             setBand (processor, band, "gain", band % 2 == 0 ? 12.0f : -12.0f);
-        CHECK_THAT (renderGain (processor, channels), Catch::Matchers::WithinAbs (0.0, 0.02));
+        CHECK_THAT (renderGain (processor, channels), Catch::Matchers::WithinAbs (openq::bandCount % 2 == 0 ? 0.0 : 12.0, 0.02));
 
         for (size_t band = 0; band < openq::bandCount; ++band)
             setBand (processor, band, "status", 0.0f);
         CHECK_THAT (renderGain (processor, channels), Catch::Matchers::WithinAbs (0.0, 1e-9));
-        setBand (processor, 7, "gain", 6.0f);
-        setBand (processor, 7, "status", 2.0f);
+        setBand (processor, openq::bandCount - 1, "gain", 6.0f);
+        setBand (processor, openq::bandCount - 1, "status", 2.0f);
         CHECK_THAT (renderGain (processor, channels), Catch::Matchers::WithinAbs (6.0, 0.02));
         processor.releaseResources();
     }
@@ -181,7 +187,7 @@ TEST_CASE ("All band status transitions retain settings and only On applies EQ",
     }
 }
 
-TEST_CASE ("Host tail allowance covers eight cascaded ringing bells", "[multiband][tail]")
+TEST_CASE ("Host tail allowance covers the configured cascade of ringing bells", "[multiband][tail]")
 {
     PluginProcessor processor;
     for (size_t band = 0; band < openq::bandCount; ++band)
@@ -203,7 +209,7 @@ TEST_CASE ("Host tail allowance covers eight cascaded ringing bells", "[multiban
             buffer.setSample (0, 0, 1e-5f);
         processor.processBlock (buffer, midi);
         REQUIRE (std::isfinite (buffer.getMagnitude (0, buffer.getNumSamples())));
-        if (block == 312)
+        if (block == static_cast<int> (5.0 * 8000.0 / buffer.getNumSamples()))
             peakAtFiveSeconds = buffer.getMagnitude (0, buffer.getNumSamples());
     }
     CHECK (peakAtFiveSeconds > 0.001f);
@@ -360,12 +366,12 @@ TEST_CASE ("Rapid band status automation stays finite and independent of block b
     }
 }
 
-TEST_CASE ("Shared controls select all eight slots without overwriting other bands", "[multiband][ui]")
+TEST_CASE ("Shared controls select all configured slots without overwriting other bands", "[multiband][ui]")
 {
     PluginProcessor processor;
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
-        setBand (processor, band, "gain", static_cast<float> (band));
+        setBand (processor, band, "gain", static_cast<float> (band) / static_cast<float> (openq::bandCount));
         setBand (processor, band, "status", 2.0f);
     }
     processor.prepareToPlay (48000.0, 128);
@@ -390,35 +396,35 @@ TEST_CASE ("Shared controls select all eight slots without overwriting other ban
         setBand (processor, band, "type", 1.0f);
         CHECK (type->getSelectedItemIndex() == 1);
         type->setSelectedItemIndex (0, juce::sendNotificationSync);
-        CHECK_THAT (gain->getValue(), Catch::Matchers::WithinAbs (static_cast<double> (band), 0.001));
-        gain->setValue (-static_cast<double> (band), juce::sendNotificationSync);
+        CHECK_THAT (gain->getValue(), Catch::Matchers::WithinAbs ((static_cast<double> (band) / static_cast<double> (openq::bandCount)), 0.001));
+        gain->setValue (-(static_cast<double> (band) / static_cast<double> (openq::bandCount)), juce::sendNotificationSync);
         for (const bool on : { false, true })
         {
             power->setToggleState (on, juce::sendNotificationSync);
             const auto settings = openq::getBandParameterPointers (processor.parameters, band).load();
             CHECK (settings.status == (on ? openq::BandStatus::On : openq::BandStatus::Bypass));
-            CHECK_THAT (settings.gain, Catch::Matchers::WithinAbs (-static_cast<double> (band), 0.001));
+            CHECK_THAT (settings.gain, Catch::Matchers::WithinAbs (-(static_cast<double> (band) / static_cast<double> (openq::bandCount)), 0.001));
         }
     }
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
         const auto target = openq::getBandParameterPointers (processor.parameters, band).load();
-        CHECK_THAT (target.gain, Catch::Matchers::WithinAbs (-static_cast<double> (band), 0.001));
+        CHECK_THAT (target.gain, Catch::Matchers::WithinAbs (-(static_cast<double> (band) / static_cast<double> (openq::bandCount)), 0.001));
         CHECK (target.status == openq::BandStatus::On);
     }
-    setBand (processor, 7, "status", 1.0f);
+    setBand (processor, openq::bandCount - 1, "status", 1.0f);
     CHECK_FALSE (power->getToggleState());
-    setBand (processor, 7, "status", 0.0f);
+    setBand (processor, openq::bandCount - 1, "status", 0.0f);
     CHECK_FALSE (power->getToggleState());
     CHECK_FALSE (power->isEnabled());
     power->onClick();
-    CHECK (openq::getBandParameterPointers (processor.parameters, 7).load().status == openq::BandStatus::Off);
-    setBand (processor, 7, "status", 2.0f);
+    CHECK (openq::getBandParameterPointers (processor.parameters, openq::bandCount - 1).load().status == openq::BandStatus::Off);
+    setBand (processor, openq::bandCount - 1, "status", 2.0f);
     CHECK (power->getToggleState());
     CHECK (power->isEnabled());
     editor.reset();
     processor.prepareToPlay (48000.0, 128);
-    CHECK_THAT (renderGain (processor, 2), Catch::Matchers::WithinAbs (-28.0, 0.05));
+    CHECK_THAT (renderGain (processor, 2), Catch::Matchers::WithinAbs (-static_cast<double> (openq::bandCount - 1) / 2.0, 0.05));
 }
 
 TEST_CASE ("Mixed bell and shelf bands cascade through processor audio", "[shelf][multiband]")
@@ -426,7 +432,7 @@ TEST_CASE ("Mixed bell and shelf bands cascade through processor audio", "[shelf
     PluginProcessor processor;
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
-        setBand (processor, band, "frequency", 500.0f + static_cast<float> (band) * 700.0f);
+        setBand (processor, band, "frequency", 500.0f + 10000.0f * static_cast<float> (band) / static_cast<float> (openq::bandCount));
         setBand (processor, band, "gain", band % 2 == 0 ? 3.0f : -3.0f);
         setBand (processor, band, "type", static_cast<float> (band % 3));
         setBand (processor, band, "status", 2.0f);
@@ -444,7 +450,7 @@ TEST_CASE ("Mixed bell and shelf bands cascade through processor audio", "[shelf
     }
 }
 
-TEST_CASE ("Host tail allowance covers eight resonant shelves", "[shelf][tail]")
+TEST_CASE ("Host tail allowance covers the configured cascade of resonant shelves", "[shelf][tail]")
 {
     for (auto type : { openq::FilterType::LowShelf, openq::FilterType::HighShelf })
     {
@@ -460,16 +466,17 @@ TEST_CASE ("Host tail allowance covers eight resonant shelves", "[shelf][tail]")
         processor.prepareToPlay (8000.0, 128);
         juce::AudioBuffer<float> buffer (1, 128);
         juce::MidiBuffer midi;
+        constexpr float impulseAmplitude = 1e-20f; // Headroom for stacked high-Q shelf resonance.
         const auto blocks = static_cast<int> (processor.getTailLengthSeconds() * 8000.0 / 128.0);
         for (int block = 0; block < blocks; ++block)
         {
             buffer.clear();
             if (block == 0)
-                buffer.setSample (0, 0, 1e-5f);
+                buffer.setSample (0, 0, impulseAmplitude);
             processor.processBlock (buffer, midi);
             REQUIRE (std::isfinite (buffer.getMagnitude (0, 128)));
         }
-        CHECK (buffer.getMagnitude (0, 128) < 1e-6f);
+        CHECK (buffer.getMagnitude (0, 128) < impulseAmplitude * 0.1f);
     }
 }
 
@@ -499,5 +506,5 @@ TEST_CASE ("Shared band constants preserve registered parameter ranges defaults 
     CHECK (static_cast<int> (state.getProperty ("schemaVersion")) == 4);
     CHECK (state.getProperty ("bellDesign").toString() == "zle-ivantsov-v1");
     CHECK (state.getProperty ("shelfDesign").toString() == "zle-ivantsov-shelf-v1");
-    CHECK (state.getNumChildren() == 40);
+    CHECK (state.getNumChildren() == static_cast<int> (openq::bandCount * openq::bandParameterNames.size()));
 }

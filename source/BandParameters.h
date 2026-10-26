@@ -7,7 +7,7 @@
 
 namespace openq
 {
-    inline constexpr size_t bandCount = 8;
+    inline constexpr size_t bandCount = 24;
     inline constexpr std::array<const char*, 5> bandParameterNames { "frequency", "gain", "q", "status", "type" };
 
     inline juce::String bandParameterId (size_t band, const char* name)

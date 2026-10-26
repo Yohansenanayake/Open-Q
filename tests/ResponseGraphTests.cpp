@@ -125,9 +125,9 @@ TEST_CASE ("Response follows every slot and sums enabled bands before clipping w
     {
         if (band > 0)
             set (band - 1, "status", 0.0f);
-        const auto frequency = 1000.0f + static_cast<float> (band) * 200.0f;
-        const auto gain = 3.0f + static_cast<float> (band);
-        const auto q = 1.0f + static_cast<float> (band) * 0.2f;
+        const auto frequency = 1000.0f + 10000.0f * static_cast<float> (band) / static_cast<float> (openq::bandCount);
+        const auto gain = 3.0f + 7.0f * static_cast<float> (band) / static_cast<float> (openq::bandCount);
+        const auto q = 1.0f + 4.0f * static_cast<float> (band) / static_cast<float> (openq::bandCount);
         set (band, "frequency", frequency);
         set (band, "gain", gain);
         set (band, "q", q);
@@ -151,24 +151,30 @@ TEST_CASE ("Response follows every slot and sums enabled bands before clipping w
     }
     worker.requestUpdate();
     REQUIRE (awaitFrame (worker, [] (const auto& frame) {
-        return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0) - 192.0) < 1e-4;
+        return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0) - 24.0 * static_cast<double> (openq::bandCount)) < 1e-4;
     }));
     CHECK_THAT (worker.getFrame().curve.getPointAlongPath (worker.getFrame().curve.getLength()).y, Catch::Matchers::WithinAbs (0.0, 1e-4));
 
-    // Seven boosts exceed the display range before the final cut brings the endpoint to +18 dB.
+    // The positive subtotal exceeds the graph range, but the final cut brings it back inside.
+    // Distribute a fixed subtotal across the preceding slots so this works for different counts.
+    constexpr double positiveSubtotalDb = std::min (30.0, 6.0 * static_cast<double> (openq::bandCount - 1));
+    constexpr double finalCutDb = -24.0;
+    constexpr double combinedDb = positiveSubtotalDb + finalCutDb;
+    const auto boostPerBand = static_cast<float> (positiveSubtotalDb / static_cast<double> (openq::bandCount - 1));
     for (size_t band = 0; band < openq::bandCount; ++band)
-        set (band, "gain", band == 7 ? -24.0f : 6.0f);
+        set (band, "gain", band == openq::bandCount - 1 ? static_cast<float> (finalCutDb) : boostPerBand);
     worker.requestUpdate();
     REQUIRE (awaitFrame (worker, [] (const auto& frame) {
-        return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0) - 18.0) < 1e-4;
+        return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0) - combinedDb) < 1e-4;
     }));
-    CHECK_THAT (worker.getFrame().curve.getPointAlongPath (worker.getFrame().curve.getLength()).y, Catch::Matchers::WithinAbs (25.0, 0.001));
+    const auto expectedY = openq::responseMapping::dbToProportion (combinedDb) * worker.getFrame().geometry.height;
+    CHECK_THAT (worker.getFrame().curve.getPointAlongPath (worker.getFrame().curve.getLength()).y, Catch::Matchers::WithinAbs (expectedY, 0.001));
     for (const float status : { 1.0f, 0.0f, 2.0f })
     {
         for (size_t band = 0; band < openq::bandCount; ++band)
             set (band, "status", status);
         worker.requestUpdate();
-        const auto expectedDb = juce::exactlyEqual (status, 2.0f) ? 18.0 : 0.0;
+        const auto expectedDb = juce::exactlyEqual (status, 2.0f) ? combinedDb : 0.0;
         REQUIRE (awaitFrame (worker, [expectedDb, status] (const auto& frame) {
             return frame.valid && std::ranges::all_of (frame.settings, [status] (const auto& band) { return band.status == static_cast<openq::BandStatus> (static_cast<int> (status)); })
                    && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0) - expectedDb) < 1e-4;
@@ -176,7 +182,10 @@ TEST_CASE ("Response follows every slot and sums enabled bands before clipping w
         if (juce::exactlyEqual (status, 0.0f))
             CHECK (worker.getFrame().bandCurves[0].isEmpty());
         else
-            CHECK_THAT (worker.getFrame().bandCurves[0].getPointAlongPath (worker.getFrame().bandCurves[0].getLength()).y, Catch::Matchers::WithinAbs (75.0, 0.001));
+        {
+            const auto bandY = openq::responseMapping::dbToProportion (boostPerBand) * worker.getFrame().geometry.height;
+            CHECK_THAT (worker.getFrame().bandCurves[0].getPointAlongPath (worker.getFrame().bandCurves[0].getLength()).y, Catch::Matchers::WithinAbs (bandY, 0.001));
+        }
     }
     worker.stop();
 }

@@ -23,7 +23,7 @@ The adaptation extracts the bell and second-order low/high shelf calculations an
 
 The response worker and frame-driven UI organization follow the studied ZLE pattern. Open-Q calculates its target response from parameter values using its DSP coefficient-design function, rather than importing ZLE's ideal-prototype response models or graph components. The graph worker reads parameter atomics independently of audio processing.
 
-Open-Q's eight-slot bank and shared selected-band controls are also informed by the same pinned ZLE revision (`zlp/controller.*`, `zlp/zlp_definitions.hpp`, and `panel/control_panel/left_control_panel.cpp`). The bank, parameter bindings, three-state band lifecycle (Off/Bypass/On), wet/dry fades, and combined digital response are implemented separately in Open-Q; no additional ZLE processing or UI source was imported for this feature.
+Open-Q's fixed-slot bank and shared selected-band controls are also informed by the same pinned ZLE revision (`zlp/controller.*`, `zlp/zlp_definitions.hpp`, and `panel/control_panel/left_control_panel.cpp`). The bank, parameter bindings, three-state band lifecycle (Off/Bypass/On), wet/dry fades, and combined digital response are implemented separately in Open-Q; no additional ZLE processing or UI source was imported for this feature.
 
 ## ZLEqualizer node interaction reference
 

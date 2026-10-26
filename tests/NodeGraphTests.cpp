@@ -385,3 +385,35 @@ TEST_CASE ("Shelf nodes use half-gain placement and cancel drags on host type ch
         set (processor, 0, "gain", 12.0f);
     }
 }
+
+TEST_CASE ("Graph fills the configured bank and reuses the final deleted slot", "[nodes][multiband][ui]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    Gestures gestures (processor);
+    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    graph.setSize (720, 280);
+    for (size_t band = 1; band < openq::bandCount; ++band)
+    {
+        CAPTURE (band);
+        const auto x = 100.0f + 500.0f * static_cast<float> (band) / static_cast<float> (openq::bandCount);
+        graph.mouseDoubleClick (mouse (graph, { x, 120.0f }));
+        CHECK (graph.getSelectedBand() == band);
+        CHECK (settings (processor, band).status == openq::BandStatus::On);
+        CHECK (node (graph, band).isVisible());
+    }
+    std::array<openq::BandSettings, openq::bandCount> fullBank;
+    for (size_t band = 0; band < openq::bandCount; ++band)
+        fullBank[band] = settings (processor, band);
+    graph.mouseDoubleClick (mouse (graph, { 400.0f, 100.0f }));
+    for (size_t band = 0; band < openq::bandCount; ++band)
+        CHECK (settings (processor, band) == fullBank[band]);
+    constexpr auto lastBand = openq::bandCount - 1;
+    node (graph, lastBand).keyPressed (juce::KeyPress (juce::KeyPress::deleteKey));
+    CHECK_FALSE (node (graph, lastBand).isVisible());
+    graph.mouseDoubleClick (mouse (graph, { 300.0f, 160.0f }));
+    CHECK (graph.getSelectedBand() == lastBand);
+    CHECK (node (graph, lastBand).isVisible());
+    CHECK (settings (processor, lastBand).status == openq::BandStatus::On);
+    CHECK (gestures.active() == 0);
+}
