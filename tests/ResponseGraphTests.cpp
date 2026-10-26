@@ -165,9 +165,14 @@ TEST_CASE ("Response follows every slot and sums enabled bands before clipping w
             set (band, "status", status);
         worker.requestUpdate();
         const auto expectedDb = juce::exactlyEqual (status, 2.0f) ? 18.0 : 0.0;
-        REQUIRE (awaitFrame (worker, [expectedDb] (const auto& frame) {
-            return frame.valid && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0) - expectedDb) < 1e-4;
+        REQUIRE (awaitFrame (worker, [expectedDb, status] (const auto& frame) {
+            return frame.valid && std::ranges::all_of (frame.settings, [status] (const auto& band) { return band.status == static_cast<openq::BandStatus> (static_cast<int> (status)); })
+                   && std::abs (openq::responseMagnitudeDb (frame.response, 20000.0) - expectedDb) < 1e-4;
         }));
+        if (juce::exactlyEqual (status, 0.0f))
+            CHECK (worker.getFrame().bandCurves[0].isEmpty());
+        else
+            CHECK_THAT (worker.getFrame().bandCurves[0].getPointAlongPath (worker.getFrame().bandCurves[0].getLength()).y, Catch::Matchers::WithinAbs (75.0, 0.001));
     }
     worker.stop();
 }

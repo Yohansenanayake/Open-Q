@@ -79,10 +79,14 @@ namespace openq
             auto& frame = frames.getWriter();
             frame.geometry = geometry.getReader();
             frame.response.sampleRate = target.sampleRate;
+            frame.settings = target.bands;
+            std::array<DigitalResponse, bandCount> individualResponses;
             for (size_t i = 0; i < bandCount; ++i)
             {
                 const auto& band = target.bands[i];
-                frame.response.bands[i] = { makeBellCoefficients (target.sampleRate, band.frequency, band.status == BandStatus::On ? band.gain : 0.0, band.q), target.sampleRate };
+                individualResponses[i] = { makeBellCoefficients (target.sampleRate, band.frequency, band.gain, band.q), target.sampleRate };
+                frame.response.bands[i] = band.status == BandStatus::On ? individualResponses[i] : DigitalResponse { {}, target.sampleRate };
+                frame.bandCurves[i].clear();
             }
             frame.curve.clear();
             frame.valid = frame.geometry.width > 0 && frame.geometry.height > 0
@@ -97,8 +101,22 @@ namespace openq
                         return;
                     const auto proportion = static_cast<double> (i) / static_cast<double> (points - 1);
                     const auto pointFrequency = 20.0 * std::pow (maxFrequency / 20.0, proportion);
-                    const auto db = std::clamp (responseMagnitudeDb (frame.response, std::min (pointFrequency, maxFrequency)), -24.0, 24.0);
                     const auto x = static_cast<float> (proportion * frame.geometry.width);
+                    double sumDb = 0.0;
+                    for (size_t band = 0; band < bandCount; ++band)
+                    {
+                        if (target.bands[band].status == BandStatus::Off)
+                            continue;
+                        const auto bandDb = responseMagnitudeDb (individualResponses[band], std::min (pointFrequency, maxFrequency));
+                        if (target.bands[band].status == BandStatus::On)
+                            sumDb += bandDb;
+                        const auto bandY = static_cast<float> ((24.0 - std::clamp (bandDb, -24.0, 24.0)) / 48.0 * frame.geometry.height);
+                        if (i == 0)
+                            frame.bandCurves[band].startNewSubPath (x, bandY);
+                        else
+                            frame.bandCurves[band].lineTo (x, bandY);
+                    }
+                    const auto db = std::clamp (sumDb, -24.0, 24.0);
                     const auto y = static_cast<float> ((24.0 - db) / 48.0 * frame.geometry.height);
                     if (i == 0)
                         frame.curve.startNewSubPath (x, y);

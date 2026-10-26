@@ -4,6 +4,14 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     : AudioProcessorEditor (&p), processor (p), responseGraph (p.parameters, p.getResponseSampleRate())
 {
     addAndMakeVisible (responseGraph);
+    responseGraph.onBandSelected = [this] (size_t band) { selectBand (band); };
+    responseGraph.onDragStateChanged = [this] (bool dragging) {
+        for (auto& button : bandButtons)
+            button.setEnabled (!dragging);
+        for (auto& control : controls)
+            control.setEnabled (!dragging && responseGraph.getSelectedBand() < openq::bandCount);
+        statusSelector.setEnabled (!dragging && responseGraph.getSelectedBand() < openq::bandCount);
+    };
     for (size_t band = 0; band < bandButtons.size(); ++band)
     {
         auto& button = bandButtons[band];
@@ -17,6 +25,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     }
     statusSelector.setComponentID ("band.status");
     statusSelector.addItemList ({ "Off", "Bypass", "On" }, 1);
+    statusSelector.setTextWhenNothingSelected ("No band selected");
     statusSelector.setTooltip ("Off: unused slot. Bypass: keep the band without applying EQ. On: apply EQ. All states retain frequency, gain, and Q.");
     addAndMakeVisible (statusSelector);
     const std::array<juce::String, 3> names { "Frequency", "Gain", "Q" };
@@ -28,10 +37,12 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         control.setTitle (names[i]);
         control.setComponentID ("band." + names[i].toLowerCase());
         control.onDragStart = [this] {
+            responseGraph.setEnabled (false);
             for (auto& button : bandButtons)
                 button.setEnabled (false);
         };
         control.onDragEnd = [this] {
+            responseGraph.setEnabled (true);
             for (auto& button : bandButtons)
                 button.setEnabled (true);
         };
@@ -69,14 +80,25 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 
 void PluginEditor::selectBand (size_t band)
 {
-    if (band >= openq::bandCount)
+    if (band > openq::bandCount)
         return;
+    responseGraph.setSelectedBand (band);
     // Commit text edits to the original band before replacing attachments.
     for (auto& control : controls)
         control.hideTextBox (false);
     statusAttachment.reset();
     for (auto& attachment : controlAttachments)
         attachment.reset();
+    for (auto& control : controls)
+        control.setEnabled (band < openq::bandCount);
+    statusSelector.setEnabled (band < openq::bandCount);
+    if (band == openq::bandCount)
+    {
+        for (auto& button : bandButtons)
+            button.setToggleState (false, juce::dontSendNotification);
+        statusSelector.setSelectedId (0, juce::dontSendNotification);
+        return;
+    }
     const std::array<const char*, 3> names { "frequency", "gain", "q" };
     for (size_t i = 0; i < controls.size(); ++i)
     {
@@ -91,6 +113,9 @@ void PluginEditor::selectBand (size_t band)
 
 PluginEditor::~PluginEditor()
 {
+    responseGraph.cancelDrag();
+    responseGraph.onBandSelected = nullptr;
+    responseGraph.onDragStateChanged = nullptr;
 }
 
 void PluginEditor::paint (juce::Graphics& g)

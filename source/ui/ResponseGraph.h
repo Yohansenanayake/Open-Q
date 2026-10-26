@@ -14,11 +14,40 @@ namespace openq
         void resized() override;
         void visibilityChanged() override;
         void parentHierarchyChanged() override;
+        void enablementChanged() override;
+        void mouseDown (const juce::MouseEvent&) override;
+        void mouseDoubleClick (const juce::MouseEvent&) override;
+        void setSelectedBand (size_t band);
+        size_t getSelectedBand() const { return selectedBand; }
+        void cancelDrag();
+        std::function<void (size_t)> onBandSelected;
+        std::function<void (bool)> onDragStateChanged;
 
     private:
+        class Node;
         void timerCallback() override;
         void updateVisibility();
+        void updateNodes();
+        void chooseBand (size_t band);
+        void beginDrag (size_t band, const juce::MouseEvent&);
+        void drag (const juce::MouseEvent&);
+        void wheel (size_t band, const juce::MouseWheelDetails&, const juce::ModifierKeys&);
+        void toggleBypass (size_t band);
+        void deleteBand (size_t band);
+        void setParameter (size_t band, const char* name, float value);
+        juce::Point<float> nodePosition (const BandSettings&) const;
+        juce::Point<float> constrainPosition (juce::Point<float>) const;
+        double maximumFrequency() const;
         juce::Rectangle<int> plotBounds() const;
+        juce::AudioProcessorValueTreeState& parameters;
+        const std::atomic<double>& sampleRate;
+        std::array<BandParameterPointers, bandCount> bandParameters;
+        std::array<std::unique_ptr<Node>, bandCount> nodes;
+        size_t selectedBand = 0, draggedBand = bandCount;
+        std::array<juce::RangedAudioParameter*, 2> dragParameters {};
+        juce::Point<float> dragPosition, lastPointer;
+        double dragSampleRate = 0.0;
+        double displaySampleRate = 0.0;
         ResponseWorker worker;
         std::unique_ptr<juce::VBlankAttachment> vblank;
     };

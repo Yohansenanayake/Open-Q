@@ -33,6 +33,8 @@ namespace openq
     struct ResponseFrame
     {
         juce::Path curve;
+        std::array<juce::Path, bandCount> bandCurves;
+        std::array<BandSettings, bandCount> settings;
         BankResponse response;
         ResponseGeometry geometry;
         bool valid = false;

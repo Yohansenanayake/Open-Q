@@ -25,6 +25,10 @@ The response worker and frame-driven UI organization follow the studied ZLE patt
 
 Open-Q's eight-slot bank and shared selected-band controls are also informed by the same pinned ZLE revision (`zlp/controller.*`, `zlp/zlp_definitions.hpp`, and `panel/control_panel/left_control_panel.cpp`). The bank, parameter bindings, three-state band lifecycle (Off/Bypass/On), wet/dry fades, and combined digital response are implemented separately in Open-Q; no additional ZLE processing or UI source was imported for this feature.
 
+## ZLEqualizer node interaction reference
+
+Open-Q's node interaction follows the source study of ZLEqualizer commit `3ce598ee065b3d3847121e76e196feda7ed8f56d`, copyright (C) 2026 zsliu98, under AGPL-3.0-only. Relevant sources are `source/gui/dragger/dragger_component.cpp`, `dragger_attachment.hpp`, and `source/panel/curve_panel/response_panel/dragger_panel/`. Open-Q implements relative dragging, display-to-host parameter conversion, three-state node visibility, and host gesture handling in `source/ui/ResponseGraph.cpp`. It uses its own bell-only creation defaults, digital response paths, parameter-polling node positions, and fixed shortcuts. No ZLE icons, logos, or other UI assets are imported.
+
 ## Pamplejuce template
 
 The original build system, plugin skeleton, and supporting template files are derived from [Pamplejuce](https://github.com/sudara/pamplejuce), copyright (c) 2022 Sudara Williams. Its complete MIT notice is retained in [licenses/Pamplejuce-MIT.txt](licenses/Pamplejuce-MIT.txt).
