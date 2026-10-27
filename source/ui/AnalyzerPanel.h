@@ -2,6 +2,8 @@
 #pragma once
 #include "../dsp/analyzer/AnalyzerTransport.h"
 #include "CompactComboBox.h"
+#include "IconButton.h"
+#include "BinaryData.h"
 
 namespace openq
 {
@@ -23,7 +25,7 @@ namespace openq
         AnalyzerTransport& transport;
         std::array<juce::Label, 4> labels;
         CompactComboBox quality, smoothing, amount, decay;
-        juce::DrawableButton close { "Close analyzer settings", juce::DrawableButton::ImageFitted };
+        IconButton close { "Close analyzer settings", BinaryData::close_svg, BinaryData::close_svgSize };
         AnalyzerSmoothing shownMode = AnalyzerSmoothing::Erb;
     };
 }

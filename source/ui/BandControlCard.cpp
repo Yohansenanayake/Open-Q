@@ -2,6 +2,7 @@
 #include "BandControlCard.h"
 #include "BinaryData.h"
 #include "Palette.h"
+#include "PanelDrawing.h"
 
 namespace openq
 {
@@ -22,27 +23,6 @@ namespace openq
         slopeSelector.setTooltip ("Cut slope. Bell and shelf responses retain their existing design.");
         slopeSelector.onChange = [this] { updateControlEnablement(); };
         addAndMakeVisible (slopeSelector);
-        auto power = juce::Drawable::createFromImageData (BinaryData::bypass_svg, BinaryData::bypass_svgSize);
-        auto close = juce::Drawable::createFromImageData (BinaryData::close_svg, BinaryData::close_svgSize);
-        auto trash = juce::Drawable::createFromImageData (BinaryData::trash_svg, BinaryData::trash_svgSize);
-        jassert (power != nullptr && close != nullptr && trash != nullptr);
-        if (power != nullptr && close != nullptr && trash != nullptr)
-        {
-            auto powerOn = power->createCopy();
-            auto powerHover = power->createCopy();
-            auto closeHover = close->createCopy();
-            auto trashHover = trash->createCopy();
-            power->replaceColour (juce::Colours::black, palette::inactiveIcon);
-            close->replaceColour (juce::Colours::black, palette::inactiveIcon);
-            trash->replaceColour (juce::Colours::black, palette::inactiveIcon);
-            powerOn->replaceColour (juce::Colours::black, palette::accent);
-            powerHover->replaceColour (juce::Colours::black, palette::text);
-            closeHover->replaceColour (juce::Colours::black, palette::text);
-            trashHover->replaceColour (juce::Colours::black, palette::text);
-            powerButton.setImages (power.get(), powerHover.get(), powerOn.get(), nullptr, powerOn.get(), powerHover.get(), powerOn.get());
-            deleteButton.setImages (trash.get(), trashHover.get(), trashHover.get());
-            closeButton.setImages (close.get(), closeHover.get(), closeHover.get());
-        }
         powerButton.setComponentID ("band.power");
         powerButton.setClickingTogglesState (true);
         powerButton.onClick = [this] {
@@ -138,11 +118,7 @@ namespace openq
     void BandControlCard::paint (juce::Graphics& g)
     {
         const auto scale = static_cast<float> (getWidth()) / static_cast<float> (preferredWidth);
-        const auto bounds = getLocalBounds().toFloat().reduced (0.5f * scale);
-        g.setColour (palette::cardBackground);
-        g.fillRoundedRectangle (bounds, 8.0f * scale);
-        g.setColour (palette::accent.withAlpha (0.65f));
-        g.drawRoundedRectangle (bounds, 8.0f * scale, scale);
+        drawPanelBackground (g, getLocalBounds().toFloat(), scale);
     }
 
     void BandControlCard::visibilityChanged()

@@ -2,6 +2,7 @@
 #include "AnalyzerPanel.h"
 #include "BinaryData.h"
 #include "Palette.h"
+#include "PanelDrawing.h"
 
 namespace openq
 {
@@ -50,15 +51,6 @@ namespace openq
             settings.decay = static_cast<AnalyzerDecay> (decay.getSelectedItemIndex());
             transport.setSettings (settings);
         };
-        auto cross = juce::Drawable::createFromImageData (BinaryData::close_svg, BinaryData::close_svgSize);
-        jassert (cross != nullptr);
-        if (cross != nullptr)
-        {
-            auto hover = cross->createCopy();
-            cross->replaceColour (juce::Colours::black, palette::inactiveIcon);
-            hover->replaceColour (juce::Colours::black, palette::text);
-            close.setImages (cross.get(), hover.get(), hover.get());
-        }
         close.setComponentID ("analyzer.close");
         close.setTitle ("Close analyzer settings");
         close.setTooltip ("Hide analyzer settings");
@@ -111,10 +103,7 @@ namespace openq
     void AnalyzerPanel::paint (juce::Graphics& g)
     {
         const auto scale = static_cast<float> (getWidth()) / preferredWidth;
-        g.setColour (palette::cardBackground);
-        g.fillRoundedRectangle (getLocalBounds().toFloat(), 8.0f * scale);
-        g.setColour (palette::accent.withAlpha (0.65f));
-        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 8.0f * scale, 1.0f);
+        drawPanelBackground (g, getLocalBounds().toFloat(), scale);
         g.setColour (palette::text);
         g.setFont (16.0f * scale);
         g.drawText ("Analyzer", juce::Rectangle<float> (12.0f, 8.0f, 180.0f, 28.0f) * scale, juce::Justification::centredLeft);

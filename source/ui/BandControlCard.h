@@ -2,6 +2,8 @@
 #pragma once
 #include "../BandParameters.h"
 #include "CompactComboBox.h"
+#include "IconButton.h"
+#include "BinaryData.h"
 
 namespace openq
 {
@@ -24,9 +26,9 @@ namespace openq
         void updateControlEnablement();
         juce::Label title;
         CompactComboBox typeSelector, slopeSelector;
-        juce::DrawableButton powerButton { "Band power", juce::DrawableButton::ImageFitted };
-        juce::DrawableButton deleteButton { "Delete band", juce::DrawableButton::ImageFitted };
-        juce::DrawableButton closeButton { "Close band controls", juce::DrawableButton::ImageFitted };
+        IconButton powerButton { "Band power", BinaryData::bypass_svg, BinaryData::bypass_svgSize };
+        IconButton deleteButton { "Delete band", BinaryData::trash_svg, BinaryData::trash_svgSize };
+        IconButton closeButton { "Close band controls", BinaryData::close_svg, BinaryData::close_svgSize };
         std::array<juce::Slider, 3> controls;
         std::array<juce::Label, 3> labels;
         std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 3> attachments;

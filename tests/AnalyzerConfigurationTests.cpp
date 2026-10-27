@@ -77,7 +77,7 @@ TEST_CASE ("Analyzer panel remembers each smoothing amount and keeps preferences
     PluginEditor editor (processor);
     const auto before = processor.parameters.copyState();
     CHECK (editor.findChildWithID ("analyzer.panel") == nullptr);
-    auto* button = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("analyzer.settings"));
+    auto* button = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("editor.bottom")->findChildWithID ("analyzer.settings"));
     REQUIRE (button != nullptr);
     button->setToggleState (true, juce::dontSendNotification);
     button->onClick();
@@ -123,7 +123,7 @@ TEST_CASE ("Analyzer panel menus remain editor children and close safely on hide
     PluginProcessor processor;
     PluginEditor editor (processor);
     editor.setVisible (true);
-    auto* button = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("analyzer.settings"));
+    auto* button = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("editor.bottom")->findChildWithID ("analyzer.settings"));
     REQUIRE (button != nullptr);
     button->setToggleState (true, juce::dontSendNotification);
     button->onClick();
@@ -169,12 +169,12 @@ TEST_CASE ("Analyzer cross and outside clicks dismiss without changing preferenc
 {
     PluginProcessor processor;
     PluginEditor editor (processor);
-    auto* button = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("analyzer.settings"));
+    auto* button = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("editor.bottom")->findChildWithID ("analyzer.settings"));
     REQUIRE (button != nullptr);
     button->setToggleState (true, juce::dontSendNotification);
     button->onClick();
     auto* panel = dynamic_cast<openq::AnalyzerPanel*> (editor.findChildWithID ("analyzer.panel"));
-    auto* pre = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("analyzer.pre"));
+    auto* pre = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("editor.header")->findChildWithID ("analyzer.pre"));
     auto* graph = editor.findChildWithID ("response.graph");
     REQUIRE (panel != nullptr);
     REQUIRE (button != nullptr);
@@ -233,7 +233,7 @@ TEST_CASE ("Host editor probing defers analyzer controls and preserves configura
     {
         PluginEditor editor (processor);
         CHECK (editor.findChildWithID ("analyzer.panel") == nullptr);
-        CHECK (editor.findChildWithID ("analyzer.settings") != nullptr);
+        CHECK (editor.findChildWithID ("editor.bottom")->findChildWithID ("analyzer.settings") != nullptr);
         CHECK (processor.getAnalyzerTransport().getSettings().encode() == settings);
     }
 }

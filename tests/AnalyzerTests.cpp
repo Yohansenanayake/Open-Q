@@ -380,9 +380,9 @@ TEST_CASE ("Analyzer UI switches remain independent of band parameters", "[analy
     PluginProcessor processor;
     PluginEditor editor (processor);
     const auto before = processor.parameters.copyState();
-    auto* pre = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("analyzer.pre"));
-    auto* post = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("analyzer.post"));
-    auto* analyzerButton = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("analyzer.settings"));
+    auto* pre = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("editor.header")->findChildWithID ("analyzer.pre"));
+    auto* post = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("editor.header")->findChildWithID ("analyzer.post"));
+    auto* analyzerButton = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("editor.bottom")->findChildWithID ("analyzer.settings"));
     REQUIRE (analyzerButton != nullptr);
     analyzerButton->setToggleState (true, juce::dontSendNotification);
     analyzerButton->onClick();
@@ -411,7 +411,7 @@ TEST_CASE ("Spectrum fill is a saved display preference independent of analysis"
     auto& transport = processor.getAnalyzerTransport();
     CHECK (transport.getFillEnabled());
     PluginEditor editor (processor);
-    auto* fill = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("analyzer.fill"));
+    auto* fill = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("editor.header")->findChildWithID ("analyzer.fill"));
     REQUIRE (fill != nullptr);
     CHECK (fill->getToggleState());
     const auto settings = transport.getSettings().encode();
@@ -429,7 +429,7 @@ TEST_CASE ("Spectrum fill is a saved display preference independent of analysis"
     restored.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
     CHECK_FALSE (restored.getAnalyzerTransport().getFillEnabled());
     PluginEditor reopened (restored);
-    auto* reopenedFill = dynamic_cast<juce::ToggleButton*> (reopened.findChildWithID ("analyzer.fill"));
+    auto* reopenedFill = dynamic_cast<juce::ToggleButton*> (reopened.findChildWithID ("editor.header")->findChildWithID ("analyzer.fill"));
     REQUIRE (reopenedFill != nullptr);
     CHECK_FALSE (reopenedFill->getToggleState());
 

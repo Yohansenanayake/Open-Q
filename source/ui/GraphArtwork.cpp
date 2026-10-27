@@ -73,10 +73,12 @@ namespace openq
             }
             labelLayers[index++]->setLabel (std::move (text), area, font * uiScale, justification, opaque);
         };
-        label ("Frequency response", { scaled (52), scaled (6), scaled (200), scaled (24) }, 13.0f, juce::Justification::centredLeft);
-        label ("dB", { scaled (2), scaled (6), scaled (42), scaled (24) }, 13.0f, juce::Justification::centredRight);
+        const auto titleY = plot.getY() - scaled (30);
+        const auto axisX = plot.getX() - scaled (50);
+        label ("Frequency response", { plot.getX(), titleY, scaled (200), scaled (24) }, 13.0f, juce::Justification::centredLeft);
+        label ("dB", { axisX, titleY, scaled (42), scaled (24) }, 13.0f, juce::Justification::centredRight);
         if (rate > 0.0)
-            label (juce::String (rate / 1000.0, 1) + " kHz", { getWidth() - scaled (110), scaled (6), scaled (90), scaled (24) }, 13.0f, juce::Justification::centredRight);
+            label (juce::String (rate / 1000.0, 1) + " kHz", { plot.getRight() - scaled (86), titleY, scaled (90), scaled (24) }, 13.0f, juce::Justification::centredRight);
         if (!plot.isEmpty())
         {
             if (showAnalyzer)
@@ -93,7 +95,7 @@ namespace openq
             for (int db = responseMapping::minimumDb; db <= responseMapping::maximumDb; db += gridStepDb)
             {
                 const auto y = plot.getY() + (responseMapping::maximumDb - db) * plot.getHeight() / responseMapping::spanDb;
-                label (juce::String (db), { scaled (2), y - scaled (9), scaled (42), scaled (18) }, font, juce::Justification::centredRight);
+                label (juce::String (db), { axisX, y - scaled (9), scaled (42), scaled (18) }, font, juce::Justification::centredRight);
             }
             const auto maximum = rate > 0.0 ? responseMapping::maximumFrequency (rate) : bandLimits::maximumFrequencyHz;
             for (const auto frequency : { 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0, 20000.0 })

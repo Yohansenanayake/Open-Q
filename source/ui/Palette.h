@@ -5,6 +5,7 @@
 namespace openq::palette
 {
     inline const juce::Colour background { 0xff161b23 };
+    inline const juce::Colour bottomBarBackground { 0xff353638 };
     inline const juce::Colour cardBackground { 0xff222b35 };
     inline const juce::Colour accent { 0xff6edbd4 };
     inline const juce::Colour text { 0xffe0e7ef };

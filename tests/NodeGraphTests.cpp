@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "ui/UiScale.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
@@ -349,7 +350,7 @@ TEST_CASE ("Band card opens on selection, preserves settings when hidden and del
     const auto saved = settings (processor, 0);
     CHECK (saved.status == openq::BandStatus::Bypass);
     CHECK_THAT (saved.gain, Catch::Matchers::WithinAbs (6.0, 0.001));
-    graph->mouseDown (mouse (*graph, { 100.0f, 60.0f }));
+    graph->mouseDown (mouse (*graph, { 100.0f, static_cast<float> (graph->getHeight()) * 0.5f }));
     CHECK_FALSE (card->isVisible());
     CHECK (settings (processor, 0) == saved);
     first.mouseDown (mouse (first, { 12.0f, 12.0f }));
@@ -674,9 +675,11 @@ TEST_CASE ("Editor continuously scales cards and nodes with width while height a
         editor.setSize (width, juce::roundToInt (openq::EditorSize::defaultHeight * scale));
         CHECK_THAT (card->getWidth(), Catch::Matchers::WithinAbs (originalCard.getWidth() * scale, 1.0));
         CHECK_THAT (card->getHeight(), Catch::Matchers::WithinAbs (originalCard.getHeight() * scale, 1.0));
-        CHECK_THAT (first.getWidth(), Catch::Matchers::WithinAbs (originalNode.getWidth() * scale, 1.0));
+        CHECK_THAT (first.getWidth(), Catch::Matchers::WithinAbs (originalNode.getWidth() * openq::UiScale (width).graph(), 1.0));
         CHECK_THAT (selector->getLookAndFeel().getComboBoxFont (*selector).getHeight(), Catch::Matchers::WithinAbs (originalFont * scale, 0.5));
         CHECK (graph->getBounds().contains (card->getBounds()));
+        CHECK_FALSE (card->getBounds().intersects (editor.findChildWithID ("editor.header")->getBounds()));
+        CHECK_FALSE (card->getBounds().intersects (editor.findChildWithID ("editor.bottom")->getBounds()));
         CHECK_FALSE (card->getBounds().intersects (first.getBounds().translated (graph->getX(), graph->getY())));
         CHECK (editor.getTransform().isIdentity());
         CHECK (processor.getEditorSize() == openq::EditorSize { editor.getWidth(), editor.getHeight() });
@@ -725,6 +728,8 @@ TEST_CASE ("Resize ends graph gestures and preserves an ongoing knob gesture unt
         CHECK (gestures.active() == 1);
         CHECK_FALSE (graph->isEnabled());
         CHECK (graph->getBounds().contains (card->getBounds()));
+        CHECK_FALSE (card->getBounds().intersects (editor.findChildWithID ("editor.header")->getBounds()));
+        CHECK_FALSE (card->getBounds().intersects (editor.findChildWithID ("editor.bottom")->getBounds()));
     }
     CHECK (gestures.active() == 0);
     CHECK (graph->isEnabled());
@@ -745,7 +750,9 @@ TEST_CASE ("Widescreen resizing reserves space for the graph instead of oversize
     const auto initialCardWidth = card->getWidth();
     editor.setSize (1880, 1000);
     CHECK (editor.getHeight() == 1000);
-    CHECK (graph->getHeight() > editor.getHeight() * 0.88);
+    auto* bottom = editor.findChildWithID ("editor.bottom");
+    REQUIRE (bottom != nullptr);
+    CHECK (graph->getHeight() > (editor.getHeight() - bottom->getHeight()) * 0.88);
     CHECK (card->getWidth() > initialCardWidth);
     CHECK (card->getWidth() < editor.getWidth() * 0.34);
     CHECK (card->getHeight() < graph->getHeight() * 0.32);
@@ -760,4 +767,84 @@ TEST_CASE ("Widescreen resizing reserves space for the graph instead of oversize
     const auto image = editor.createComponentSnapshot (editor.getLocalBounds());
     juce::FileOutputStream output (juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("openq-widescreen-card.png"));
     REQUIRE (juce::PNGImageFormat().writeImageToStream (image, output));
+}
+
+TEST_CASE ("Closing focused overlays does not restore node focus or reopen a band card", "[nodes][ui][focus][card][analyzer]")
+{
+    if (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() == nullptr)
+        SKIP ("Focus restoration requires an editor peer.");
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    set (processor, 1, "status", static_cast<float> (openq::BandStatus::On));
+    PluginEditor editor (processor);
+    editor.addToDesktop (juce::ComponentPeer::windowIsTemporary);
+    editor.setVisible (true);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor.findChildWithID ("response.graph"));
+    auto* card = editor.findChildWithID ("band.card");
+    REQUIRE (graph != nullptr);
+    REQUIRE (card != nullptr);
+    auto* close = dynamic_cast<juce::Button*> (card->findChildWithID ("band.close"));
+    REQUIRE (close != nullptr);
+    const auto parameters = processor.parameters.copyState();
+    for (const size_t band : { size_t { 0 }, size_t { 1 } })
+    {
+        node (*graph, band).grabKeyboardFocus();
+        REQUIRE (graph->getSelectedBand() == band);
+        REQUIRE (card->isVisible());
+        close->grabKeyboardFocus();
+        REQUIRE (close->hasKeyboardFocus (false));
+        close->onClick();
+        CHECK_FALSE (card->isVisible());
+        CHECK (graph->getSelectedBand() == openq::bandCount);
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+        CHECK_FALSE (card->isVisible());
+        CHECK (graph->getSelectedBand() == openq::bandCount);
+    }
+    auto* analyzerButton = dynamic_cast<juce::Button*> (editor.findChildWithID ("editor.bottom")->findChildWithID ("analyzer.settings"));
+    REQUIRE (analyzerButton != nullptr);
+    const auto openAnalyzer = [&] {
+        analyzerButton->setToggleState (true, juce::dontSendNotification);
+        analyzerButton->onClick();
+    };
+    openAnalyzer();
+    auto* analyzer = editor.findChildWithID ("analyzer.panel");
+    REQUIRE (analyzer != nullptr);
+    auto* analyzerClose = dynamic_cast<juce::Button*> (analyzer->findChildWithID ("analyzer.close"));
+    REQUIRE (analyzerClose != nullptr);
+    analyzerClose->grabKeyboardFocus();
+    REQUIRE (analyzerClose->hasKeyboardFocus (false));
+    analyzerClose->onClick();
+    CHECK_FALSE (analyzer->isVisible());
+    CHECK_FALSE (card->isVisible());
+    CHECK (graph->getSelectedBand() == openq::bandCount);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    CHECK_FALSE (card->isVisible());
+    for (const bool escape : { false, true })
+    {
+        openAnalyzer();
+        auto* quality = analyzer->findChildWithID ("analyzer.quality");
+        REQUIRE (quality != nullptr);
+        quality->grabKeyboardFocus();
+        REQUIRE (analyzer->hasKeyboardFocus (true));
+        if (escape)
+            CHECK (analyzer->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey)));
+        else
+        {
+            analyzerButton->setToggleState (false, juce::dontSendNotification);
+            analyzerButton->onClick();
+        }
+        CHECK_FALSE (analyzer->isVisible());
+        CHECK_FALSE (card->isVisible());
+        CHECK (graph->getSelectedBand() == openq::bandCount);
+    }
+    // Closing settings also preserves an existing selection instead of jumping to another band.
+    node (*graph, 1).grabKeyboardFocus();
+    REQUIRE (graph->getSelectedBand() == 1);
+    openAnalyzer();
+    analyzerClose->grabKeyboardFocus();
+    analyzerClose->onClick();
+    CHECK (graph->getSelectedBand() == 1);
+    CHECK (card->isVisible());
+    CHECK (processor.parameters.copyState().isEquivalentTo (parameters));
 }

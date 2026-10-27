@@ -137,7 +137,16 @@ namespace openq
     juce::Rectangle<int> ResponseGraph::plotBounds() const
     {
         const auto scaled = [this] (int value) { return juce::roundToInt (static_cast<float> (value) * uiScale); };
-        return getLocalBounds().withTrimmedLeft (scaled (52)).withTrimmedRight (scaled (24)).withTrimmedTop (scaled (36)).withTrimmedBottom (scaled (32));
+        return contentInsets.subtractedFrom (getLocalBounds()).withTrimmedLeft (scaled (52)).withTrimmedRight (scaled (24)).withTrimmedTop (scaled (36)).withTrimmedBottom (scaled (32));
+    }
+
+    void ResponseGraph::setContentInsets (juce::BorderSize<int> insets)
+    {
+        if (contentInsets == insets)
+            return;
+        contentInsets = insets;
+        resized();
+        repaint();
     }
 
     void ResponseGraph::setUiScale (float scale)
