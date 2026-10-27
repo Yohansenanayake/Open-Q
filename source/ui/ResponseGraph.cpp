@@ -104,6 +104,17 @@ namespace openq
         stopTimer();
         vblank.reset();
         worker.stop();
+        if (analyzer)
+            analyzer->stop();
+    }
+
+    void ResponseGraph::setAnalyzerTransport (AnalyzerTransport& transport)
+    {
+        analyzer = std::make_unique<AnalyzerWorker> (transport);
+        analyzerTransport = &transport;
+        const auto bounds = plotBounds();
+        analyzer->setGeometry ({ std::max (0, bounds.getWidth()), std::max (0, bounds.getHeight()) });
+        updateVisibility();
     }
 
     juce::Rectangle<int> ResponseGraph::plotBounds() const
@@ -116,6 +127,8 @@ namespace openq
         cancelDrag();
         const auto bounds = plotBounds();
         worker.setGeometry ({ std::max (0, bounds.getWidth()), std::max (0, bounds.getHeight()) });
+        if (analyzer)
+            analyzer->setGeometry ({ std::max (0, bounds.getWidth()), std::max (0, bounds.getHeight()) });
         updateNodes();
     }
 
@@ -148,6 +161,13 @@ namespace openq
             cancelDrag();
             vblank.reset();
             worker.stop();
+        }
+        if (analyzer)
+        {
+            if (isShowing())
+                analyzer->start();
+            else
+                analyzer->stop();
         }
     }
 
@@ -392,6 +412,39 @@ namespace openq
             g.drawText (juce::String (frame.response.sampleRate / 1000.0, 1) + " kHz", getWidth() - 110, 6, 90, 24, juce::Justification::centredRight);
         if (plot.isEmpty())
             return;
+
+        if (analyzer)
+        {
+            analyzer->pullFrame();
+            const auto& spectrum = analyzer->getFrame();
+            if (spectrum.valid && spectrum.geometry == ResponseGeometry { plot.getWidth(), plot.getHeight() }
+                && spectrum.session == analyzerTransport->session()
+                && spectrum.settings.encode() == analyzerTransport->getSettings().encode()
+                && juce::exactlyEqual (spectrum.sampleRate, sampleRate.load (std::memory_order_relaxed)))
+            {
+                juce::Graphics::ScopedSaveState save (g);
+                g.reduceClipRegion (plot);
+                const auto translation = juce::AffineTransform::translation (static_cast<float> (plot.getX()), static_cast<float> (plot.getY()));
+                for (size_t trace = 0; trace < spectrum.fills.size(); ++trace)
+                {
+                    const auto color = trace == 0 ? palette::analyzerPre : palette::analyzerPost;
+                    g.setColour (color.withAlpha (0.16f));
+                    g.fillPath (spectrum.fills[trace], translation);
+                    g.setColour (color.withAlpha (0.6f));
+                    g.strokePath (spectrum.outlines[trace], juce::PathStrokeType (1.0f), translation);
+                }
+            }
+            g.setColour (palette::secondaryText);
+            g.setFont (10.0f);
+            // Analyzer levels have their own scale; the left scale remains EQ gain.
+            for (int db = static_cast<int> (analyzerDisplay::maximumDb); db >= static_cast<int> (analyzerDisplay::minimumDb); db -= 24)
+            {
+                const auto proportion = (analyzerDisplay::maximumDb - static_cast<float> (db)) / (analyzerDisplay::maximumDb - analyzerDisplay::minimumDb);
+                const auto y = plot.getY() + static_cast<int> (proportion * static_cast<float> (plot.getHeight()));
+                g.drawText (juce::String (db), plot.getRight() + 2, y - 7, 22, 14, juce::Justification::centredLeft);
+            }
+            g.drawText ("dBFS", plot.getRight() - 40, plot.getY() + 3, 36, 12, juce::Justification::centred);
+        }
 
         for (int db = responseMapping::minimumDb; db <= responseMapping::maximumDb; db += gridStepDb)
         {

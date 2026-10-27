@@ -12,4 +12,6 @@ namespace openq::palette
     inline const juce::Colour inactiveIcon { 0xff8996a5 };
     inline const juce::Colour grid { 0xff2b3441 };
     inline const juce::Colour zeroLine { 0xff566375 };
+    inline const juce::Colour analyzerPre { 0xffb4bfce };
+    inline const juce::Colour analyzerPost { 0xffc693df };
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
+#include "AnalyzerWorker.h"
 #include "ResponseWorker.h"
 
 namespace openq
@@ -21,6 +22,7 @@ namespace openq
         size_t getSelectedBand() const { return selectedBand; }
         void cancelDrag();
         void deleteSelectedBand();
+        void setAnalyzerTransport (AnalyzerTransport& transport);
         juce::Rectangle<int> getSelectedNodeBounds() const;
         std::function<void (size_t)> onBandSelected;
         std::function<void (bool)> onDragStateChanged;
@@ -53,6 +55,8 @@ namespace openq
         FilterType dragType = FilterType::Bell;
         double displaySampleRate = 0.0;
         ResponseWorker worker;
+        std::unique_ptr<AnalyzerWorker> analyzer;
+        AnalyzerTransport* analyzerTransport = nullptr;
         std::unique_ptr<juce::VBlankAttachment> vblank;
     };
 }

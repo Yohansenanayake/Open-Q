@@ -7,7 +7,7 @@
 #include "ui/ResponseGraph.h"
 
 //==============================================================================
-class PluginEditor : public juce::AudioProcessorEditor
+class PluginEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
     explicit PluginEditor (PluginProcessor&);
@@ -20,6 +20,10 @@ public:
 private:
     void selectBand (size_t band);
     void positionBandCard();
+    void timerCallback() override;
+    openq::AnalyzerTransport& analyzerTransport;
+    juce::ToggleButton preTrace { "Pre" }, postTrace { "Post" };
+    juce::ComboBox analyzerQuality;
     openq::ResponseGraph responseGraph;
     openq::BandControlCard bandCard;
     bool knobDragging = false;

@@ -40,6 +40,14 @@ Open-Q's node interaction follows the source study of ZLEqualizer commit `3ce598
 
 These files are used under AGPL-3.0-only; see [LICENSE](LICENSE). Button colors and interaction states are applied in C++ rather than altering the SVGs. The formatting helper is stored outside `assets/` so it is not embedded in plugin binaries. It adds a transparent bounds rectangle and normalizes `black` to `#000000` for multiline SVGs in the current directory. Neither `logo.svg` nor `zlaudio.svg` was copied, and no new dependencies were added.
 
+## ZLEqualizer spectrum analyzer and FFT dependencies
+
+- Reference: [ZLEqualizer](https://github.com/ZL-Audio/ZLEqualizer) commit `3ce598ee065b3d3847121e76e196feda7ed8f56d`, copyright (C) 2026 zsliu98, AGPL-3.0-only.
+- Imported unchanged on 27 October 2026: `source/dsp/analyzer/fft_analyzer/spectrum_smoother.hpp` and `spectrum_blender.hpp`, stored as `source/dsp/analyzer/reference/SpectrumSmoother.h` and `SpectrumBlender.h`. Original copyright and license headers are retained.
+- Open-Q's sample transport, history, FFT wrapper, worker and drawing integration are separate implementations informed by ZLE's sender/receiver/processor and FFTPanel. They use fixed packet capture, discontinuity/session tags, averaged channel powers, a sample-rate-aware analysis-only 5 Hz DC blocker, peak-sine Hann normalization, coherent pre/post frames and explicit stale-data decay. The High mode follows ZLE's resolution orders, noise-power normalization and blend ranges. These adaptations are by Yohan Senanayake, 27 October 2026.
+- [`zldsp_fft`](https://github.com/ZL-Audio/zldsp_fft), pinned to `dfc50e6c39680d9ee04fbb60fc6c935552630045`, is fetched through CPM and used unchanged. License: Apache-2.0; retained in [licenses/zldsp_fft-Apache-2.0.txt](licenses/zldsp_fft-Apache-2.0.txt).
+- [`Highway`](https://github.com/ZL-Audio/highway), pinned to `2607d3b5b0113992fe84d3848859eae13b3b52c1`, is fetched through CPM and used unchanged with static dispatch for the compiler's baseline SIMD target. Highway offers Apache-2.0 or BSD-3-Clause for its main code; Open-Q uses the Apache-2.0 option. The complete upstream license text, including its separately licensed random helper (not used here), is retained in [licenses/Highway-LICENSE.txt](licenses/Highway-LICENSE.txt). Upstream source notices remain in the fetched dependency sources.
+
 ## Pamplejuce template
 
 The original build system, plugin skeleton, and supporting template files are derived from [Pamplejuce](https://github.com/sudara/pamplejuce), copyright (c) 2022 Sudara Williams. Its complete MIT notice is retained in [licenses/Pamplejuce-MIT.txt](licenses/Pamplejuce-MIT.txt).

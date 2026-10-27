@@ -2,6 +2,7 @@
 
 #include "BandParameters.h"
 #include "dsp/BandFilter.h"
+#include "dsp/analyzer/AnalyzerTransport.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
 class PluginProcessor : public juce::AudioProcessor
@@ -40,12 +41,14 @@ public:
     juce::AudioProcessorValueTreeState parameters;
 
     const std::atomic<double>& getResponseSampleRate() const { return responseSampleRate; }
+    openq::AnalyzerTransport& getAnalyzerTransport() { return analyzer; }
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     std::array<openq::BandParameterPointers, openq::bandCount> bandParameters;
     std::array<openq::BandFilter, openq::bandCount> bands;
     std::atomic<double> responseSampleRate { 0.0 };
+    openq::AnalyzerTransport analyzer;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };

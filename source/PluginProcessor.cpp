@@ -115,6 +115,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
         bands[i].prepare (sampleRate, target.frequency, target.gain, target.q, target.status, target.type, target.slope);
     }
     responseSampleRate.store (sampleRate, std::memory_order_relaxed);
+    analyzer.prepare (sampleRate);
 }
 
 void PluginProcessor::releaseResources()
@@ -154,12 +155,15 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (int channel = inputs; channel < buffer.getNumChannels(); ++channel)
         buffer.clear (channel, 0, buffer.getNumSamples());
 
+    analyzer.beginBlock (buffer, inputs);
     for (size_t i = 0; i < bands.size(); ++i)
     {
         const auto target = bandParameters[i].load();
         bands[i].setParameters (target.frequency, target.gain, target.q, target.status, target.type, target.slope);
         bands[i].process (buffer, inputs);
     }
+    // Keep this tap after the eventual global warm-bypass output mix.
+    analyzer.endBlock (buffer);
 }
 
 //==============================================================================
@@ -176,7 +180,8 @@ juce::AudioProcessorEditor* PluginProcessor::createEditor()
 //==============================================================================
 void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    const auto state = parameters.copyState();
+    auto state = parameters.copyState();
+    state.setProperty ("analyzerSettings", static_cast<int> (analyzer.getSettings().encode()), nullptr);
     if (const auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -218,7 +223,16 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                 return;
         }
     }
+    // Optional display preferences preserve schema-5 sessions and are not host automation parameters.
+    double settings = 3.0;
+    std::istringstream settingsInput (state.getProperty ("analyzerSettings", 3).toString().trim().toStdString());
+    settingsInput.imbue (std::locale::classic());
+    settingsInput >> std::noskipws >> settings;
+    if (settingsInput.fail() || !settingsInput.eof() || !std::isfinite (settings)
+        || settings < 0.0 || settings > 7.0 || !juce::exactlyEqual (settings, std::round (settings)))
+        return;
     parameters.replaceState (state);
+    analyzer.setSettings (openq::AnalyzerSettings::decode (static_cast<unsigned> (settings)));
 }
 
 //==============================================================================

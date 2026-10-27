@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+#pragma once
+#include "../BandLimits.h"
+#include <atomic>
+#include <juce_audio_basics/juce_audio_basics.h>
+
+namespace openq
+{
+    inline constexpr double maximumAnalyzerSampleRate = 768000.0;
+    enum class AnalyzerQuality {
+        Normal,
+        High
+    };
+
+    struct AnalyzerSettings
+    {
+        bool pre = true, post = true;
+        AnalyzerQuality quality = AnalyzerQuality::Normal;
+        constexpr unsigned encode() const { return (pre ? 1u : 0u) | (post ? 2u : 0u) | (quality == AnalyzerQuality::High ? 4u : 0u); }
+        static AnalyzerSettings decode (unsigned bits) { return { (bits & 1u) != 0, (bits & 2u) != 0, (bits & 4u) != 0 ? AnalyzerQuality::High : AnalyzerQuality::Normal }; }
+    };
+
+    struct AnalyzerPacket
+    {
+        static constexpr int capacity = 256;
+        std::array<std::array<float, capacity>, 2> pre {}, post {};
+        double sampleRate = 0.0;
+        std::uint64_t sequence = 0;
+        unsigned session = 0;
+        int channels = 0, samples = 0;
+    };
+
+    // One audio producer, one editor-worker consumer. Storage never changes during preparation.
+    class AnalyzerTransport
+    {
+    public:
+        static constexpr int packetSlots = 257; // One spare slot: 65536 samples of usable capture.
+        static_assert (std::atomic<unsigned>::is_always_lock_free);
+        AnalyzerTransport();
+        void prepare (double rate);
+        void setActive (bool active);
+        unsigned session() const { return captureSession.load (std::memory_order_acquire); }
+        AnalyzerSettings getSettings() const { return AnalyzerSettings::decode (settings.load (std::memory_order_relaxed)); }
+        void setSettings (AnalyzerSettings value) { settings.store (value.encode(), std::memory_order_relaxed); }
+        void beginBlock (const juce::AudioBuffer<float>& buffer, int channels);
+        void endBlock (const juce::AudioBuffer<float>& buffer);
+        bool read (AnalyzerPacket& packet);
+
+    private:
+        std::unique_ptr<std::array<AnalyzerPacket, packetSlots>> packets;
+        juce::AbstractFifo fifo { packetSlots };
+        std::atomic<unsigned> captureSession { 0 }, settings { AnalyzerSettings {}.encode() };
+        double sampleRate = 0.0;
+        std::uint64_t sequence = 0;
+        int pendingStart = 0, pendingCount = 0;
+    };
+}

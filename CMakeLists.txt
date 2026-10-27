@@ -106,6 +106,28 @@ juce_add_plugin("${PROJECT_NAME}"
 # Without running into ODR violations
 add_library(SharedCode INTERFACE)
 
+# Analyzer dependencies match ZLEqualizer 3ce598ee065b3d3847121e76e196feda7ed8f56d.
+block(SCOPE_FOR VARIABLES POLICIES)
+    # The pinned upstream CMakeLists explicitly sets CMP0111 OLD.
+    if(POLICY CMP0218)
+        cmake_policy(SET CMP0218 OLD)
+    endif()
+    set(CMAKE_WARN_DEPRECATED OFF)
+    CPMAddPackage(NAME highway
+        GITHUB_REPOSITORY ZL-Audio/highway
+        GIT_TAG 2607d3b5b0113992fe84d3848859eae13b3b52c1
+        OPTIONS "HWY_ENABLE_TESTS OFF" "HWY_ENABLE_EXAMPLES OFF" "HWY_ENABLE_CONTRIB OFF" "HWY_COMPILE_ONLY_STATIC ON")
+endblock()
+CPMAddPackage(NAME zldsp_fft
+    GITHUB_REPOSITORY ZL-Audio/zldsp_fft
+    GIT_TAG dfc50e6c39680d9ee04fbb60fc6c935552630045
+    DOWNLOAD_ONLY YES)
+
+# Baseline compiler targets give SSE2 on x86-64 and NEON on Apple Silicon.
+target_compile_definitions(SharedCode INTERFACE HWY_COMPILE_ONLY_STATIC)
+target_include_directories(SharedCode SYSTEM INTERFACE "${zldsp_fft_SOURCE_DIR}/src")
+target_link_libraries(SharedCode INTERFACE hwy)
+
 clap_juce_extensions_plugin(TARGET "${PROJECT_NAME}"
     CLAP_ID "${BUNDLE_ID}"
     CLAP_FEATURES audio-effect)

@@ -2,9 +2,40 @@
 #include "ui/Palette.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
+    : AudioProcessorEditor (&p), analyzerTransport (p.getAnalyzerTransport()), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
 {
+    responseGraph.setAnalyzerTransport (analyzerTransport);
     addAndMakeVisible (responseGraph);
+    addAndMakeVisible (preTrace);
+    addAndMakeVisible (postTrace);
+    addAndMakeVisible (analyzerQuality);
+    preTrace.setComponentID ("analyzer.pre");
+    postTrace.setComponentID ("analyzer.post");
+    analyzerQuality.setComponentID ("analyzer.quality");
+    preTrace.setColour (juce::ToggleButton::tickColourId, openq::palette::analyzerPre);
+    postTrace.setColour (juce::ToggleButton::tickColourId, openq::palette::analyzerPost);
+    preTrace.setTooltip ("Show the input spectrum (averaged channel power).");
+    postTrace.setTooltip ("Show the output spectrum (averaged channel power).");
+    analyzerQuality.setTooltip ("Analyzer quality only; does not change audio or plugin latency. Display tilt: 4.5 dB/oct, anchored at 1 kHz.");
+    analyzerQuality.addItem ("Normal", 1);
+    analyzerQuality.addItem ("High", 2);
+    preTrace.onClick = [this] {
+        auto settings = analyzerTransport.getSettings();
+        settings.pre = preTrace.getToggleState();
+        analyzerTransport.setSettings (settings);
+    };
+    postTrace.onClick = [this] {
+        auto settings = analyzerTransport.getSettings();
+        settings.post = postTrace.getToggleState();
+        analyzerTransport.setSettings (settings);
+    };
+    analyzerQuality.onChange = [this] {
+        auto settings = analyzerTransport.getSettings();
+        settings.quality = analyzerQuality.getSelectedId() == 2 ? openq::AnalyzerQuality::High : openq::AnalyzerQuality::Normal;
+        analyzerTransport.setSettings (settings);
+    };
+    timerCallback();
+    startTimerHz (10);
     addChildComponent (bandCard);
     responseGraph.onBandSelected = [this] (size_t band) { selectBand (band); };
     responseGraph.onNodeLayoutChanged = [this] { positionBandCard(); };
@@ -71,6 +102,7 @@ void PluginEditor::positionBandCard()
 
 PluginEditor::~PluginEditor()
 {
+    stopTimer();
     responseGraph.cancelDrag();
     responseGraph.onBandSelected = nullptr;
     responseGraph.onDragStateChanged = nullptr;
@@ -78,6 +110,14 @@ PluginEditor::~PluginEditor()
     bandCard.onDragStateChanged = nullptr;
     bandCard.onDelete = nullptr;
     bandCard.onClose = nullptr;
+}
+
+void PluginEditor::timerCallback()
+{
+    const auto settings = analyzerTransport.getSettings();
+    preTrace.setToggleState (settings.pre, juce::dontSendNotification);
+    postTrace.setToggleState (settings.post, juce::dontSendNotification);
+    analyzerQuality.setSelectedId (settings.quality == openq::AnalyzerQuality::High ? 2 : 1, juce::dontSendNotification);
 }
 
 void PluginEditor::paint (juce::Graphics& g)
@@ -93,6 +133,10 @@ void PluginEditor::resized()
     auto area = getLocalBounds().reduced (12);
     auto header = area.removeFromTop (36);
     inspectButton.setBounds (header.removeFromRight (130).reduced (0, 4));
+    header.removeFromRight (8);
+    analyzerQuality.setBounds (header.removeFromRight (100).reduced (0, 4));
+    postTrace.setBounds (header.removeFromRight (66));
+    preTrace.setBounds (header.removeFromRight (60));
     area.removeFromTop (4);
     responseGraph.setBounds (area);
     positionBandCard();
