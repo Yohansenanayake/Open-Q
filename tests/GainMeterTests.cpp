@@ -313,22 +313,51 @@ TEST_CASE ("Gain fields support exact entry reset cancellation and host gestures
     CHECK (gestures.starts == 2);
     if (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() != nullptr)
     {
-        editor.addToDesktop (juce::ComponentPeer::windowIsTemporary);
+        const auto waitFor = [] (auto&& ready) {
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 2000.0;
+            do
+            {
+                juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            } while (!ready() && juce::Time::getMillisecondCounterHiRes() < deadline);
+            return ready();
+        };
+        editor.addToDesktop (juce::ComponentPeer::windowHasTitleBar);
         editor.setVisible (true);
-        input->mouseDoubleClick (click (*input));
-        auto* text = value->getCurrentTextEditor();
-        REQUIRE (text != nullptr);
+       #if JUCE_MAC
+        // Synthetic key calls do not perform AppKit's normal activation on a real mouse click.
+        juce::Process::makeForegroundProcess();
+        REQUIRE (waitFor ([] { return juce::Process::isForegroundProcess(); }));
+       #endif
+        const auto beginEditing = [&] {
+            editor.toFront (true);
+            editor.grabKeyboardFocus();
+            REQUIRE (waitFor ([&] { return editor.hasKeyboardFocus (false); }));
+            input->mouseDoubleClick (click (*input));
+            REQUIRE (waitFor ([&] {
+                const auto* text = value->getCurrentTextEditor();
+                return text != nullptr && text->hasKeyboardFocus (false);
+            }));
+            return juce::Component::SafePointer<juce::TextEditor> (value->getCurrentTextEditor());
+        };
+        auto text = beginEditing();
         text->setText ("18.0", false);
         CHECK (text->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey)));
-        juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+        REQUIRE (waitFor ([&] { return value->getCurrentTextEditor() == nullptr; }));
         CHECK_THAT (input->getValue(), Catch::Matchers::WithinAbs (-4.5, 1e-5));
-        input->mouseDoubleClick (click (*input));
-        text = value->getCurrentTextEditor();
-        REQUIRE (text != nullptr);
+        CHECK (gestures.starts == 2);
+        text = beginEditing();
         text->setText ("-12.3", false);
         CHECK (text->keyPressed (juce::KeyPress (juce::KeyPress::returnKey)));
-        juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+        REQUIRE (waitFor ([&] { return value->getCurrentTextEditor() == nullptr; }));
         CHECK_THAT (input->getValue(), Catch::Matchers::WithinAbs (-12.3, 1e-5));
+        CHECK (gestures.active == 0);
+        CHECK (gestures.starts == 3);
+        text = beginEditing();
+        text->setText ("9.0", false);
+        text->giveAwayKeyboardFocus();
+        REQUIRE (waitFor ([&] { return value->getCurrentTextEditor() == nullptr; }));
+        CHECK_THAT (input->getValue(), Catch::Matchers::WithinAbs (-12.3, 1e-5));
+        CHECK (gestures.starts == 3);
         CHECK (gestures.active == 0);
     }
 }
