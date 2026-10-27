@@ -11,6 +11,7 @@ namespace openq
         static constexpr int preferredWidth = 350, preferredHeight = 166;
         explicit BandControlCard (juce::AudioProcessorValueTreeState& parameters);
         void setBand (size_t band);
+        void dismissPopups();
         void paint (juce::Graphics&) override;
         void resized() override;
         void visibilityChanged() override;

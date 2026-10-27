@@ -32,11 +32,12 @@ namespace openq
         }
         void paintButton (juce::Graphics& g, bool highlighted, bool) override
         {
-            const auto circle = getLocalBounds().toFloat().reduced (4.0f);
+            const auto circle = getLocalBounds().toFloat().reduced (4.0f * graph.uiScale);
             g.setColour (palette::background);
             g.fillEllipse (circle);
             g.setColour (palette::accent);
-            g.drawEllipse (circle, graph.selectedBand == band || highlighted || hasKeyboardFocus (true) ? 2.5f : 1.0f);
+            g.drawEllipse (circle, graph.selectedBand == band || highlighted || hasKeyboardFocus (true) ? 2.5f * graph.uiScale : graph.uiScale);
+            g.setFont (14.0f * graph.uiScale);
             g.drawText (getButtonText(), getLocalBounds(), juce::Justification::centred);
         }
         void mouseDown (const juce::MouseEvent& event) override
@@ -135,7 +136,17 @@ namespace openq
 
     juce::Rectangle<int> ResponseGraph::plotBounds() const
     {
-        return getLocalBounds().withTrimmedLeft (52).withTrimmedRight (24).withTrimmedTop (36).withTrimmedBottom (32);
+        const auto scaled = [this] (int value) { return juce::roundToInt (static_cast<float> (value) * uiScale); };
+        return getLocalBounds().withTrimmedLeft (scaled (52)).withTrimmedRight (scaled (24)).withTrimmedTop (scaled (36)).withTrimmedBottom (scaled (32));
+    }
+
+    void ResponseGraph::setUiScale (float scale)
+    {
+        if (juce::exactlyEqual (uiScale, scale))
+            return;
+        uiScale = scale;
+        resized();
+        repaint();
     }
 
     void ResponseGraph::resized()
@@ -237,7 +248,7 @@ namespace openq
             if (valid)
             {
                 const auto point = band == draggedBand ? dragPosition : nodePosition (settings);
-                nodes[band]->setBounds (juce::Rectangle<int> (nodeSize, nodeSize).withCentre (point.roundToInt()));
+                nodes[band]->setBounds (juce::Rectangle<int> (juce::roundToInt (nodeSize * uiScale), juce::roundToInt (nodeSize * uiScale)).withCentre (point.roundToInt()));
             }
         }
         if (selectedBand < bandCount)
@@ -421,15 +432,21 @@ namespace openq
 
     void ResponseGraph::paintOverChildren (juce::Graphics&)
     {
+        if (paintStartedMilliseconds > 0.0)
+        {
+            refreshLimiter.recordPaintDuration ((juce::Time::getMillisecondCounterHiRes() - paintStartedMilliseconds) * 0.001);
+            paintStartedMilliseconds = 0.0;
+        }
         worker.requestUpdate();
     }
 
     void ResponseGraph::paint (juce::Graphics& g)
     {
+        paintStartedMilliseconds = g.getClipBounds().contains (getLocalBounds()) ? juce::Time::getMillisecondCounterHiRes() : 0.0;
         worker.pullFrame();
         const auto& frame = worker.getFrame();
         const auto plot = plotBounds();
-        artwork.setDisplay (plot, frame.valid ? frame.response.sampleRate : 0.0, analyzer != nullptr);
+        artwork.setDisplay (plot, frame.valid ? frame.response.sampleRate : 0.0, analyzer != nullptr, uiScale);
         g.fillAll (palette::background);
         if (plot.isEmpty())
             return;
@@ -455,7 +472,7 @@ namespace openq
                         g.fillPath (spectrum.fills[trace], translation);
                     }
                     g.setColour (color.withAlpha (0.6f));
-                    g.strokePath (spectrum.outlines[trace], juce::PathStrokeType (1.0f), translation);
+                    g.strokePath (spectrum.outlines[trace], juce::PathStrokeType (uiScale), translation);
                 }
             }
         }
@@ -470,6 +487,7 @@ namespace openq
         if (!frame.valid)
         {
             g.setColour (palette::secondaryText);
+            g.setFont (14.0f * uiScale);
             g.drawText ("Waiting for audio preparation", plot, juce::Justification::centred);
         }
         else if (frame.geometry == ResponseGeometry { plot.getWidth(), plot.getHeight() })
@@ -480,10 +498,10 @@ namespace openq
                 && frame.settings[selectedBand] == bandParameters[selectedBand].load())
             {
                 g.setColour (palette::accent.withAlpha (frame.settings[selectedBand].status == BandStatus::Bypass ? 0.2f : 0.45f));
-                g.strokePath (frame.bandCurves[selectedBand], juce::PathStrokeType (1.0f), juce::AffineTransform::translation (static_cast<float> (plot.getX()), static_cast<float> (plot.getY())));
+                g.strokePath (frame.bandCurves[selectedBand], juce::PathStrokeType (uiScale), juce::AffineTransform::translation (static_cast<float> (plot.getX()), static_cast<float> (plot.getY())));
             }
             g.setColour (palette::accent);
-            g.strokePath (frame.curve, juce::PathStrokeType (2.0f), juce::AffineTransform::translation (static_cast<float> (plot.getX()), static_cast<float> (plot.getY())));
+            g.strokePath (frame.curve, juce::PathStrokeType (2.0f * uiScale), juce::AffineTransform::translation (static_cast<float> (plot.getX()), static_cast<float> (plot.getY())));
         }
     }
 }

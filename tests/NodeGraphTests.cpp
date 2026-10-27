@@ -282,6 +282,13 @@ TEST_CASE ("Compact band selectors use editor child popups and preserve paramete
     CHECK (gestures.active() == 0);
     const auto selected = settings (processor, 0);
     type->showPopup();
+    REQUIRE (type->isPopupActive());
+    editor->setSize (1013, 900);
+    CHECK_FALSE (type->isPopupActive());
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (settings (processor, 0) == selected);
+    CHECK (gestures.active() == 0);
+    type->showPopup();
     popup = juce::Component::getCurrentlyModalComponent();
     REQUIRE (popup != nullptr);
     CHECK (popup->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey)));
@@ -624,4 +631,133 @@ TEST_CASE ("Cut nodes stay at zero dB ignore vertical edits and disable first-or
         first.mouseWheelMove (mouse (first, { 12.0f, 12.0f }, 0), wheel);
         CHECK (settings (processor, 0).q > qBefore);
     }
+}
+
+TEST_CASE ("Editor continuously scales cards and nodes with width while height adds graph space", "[resize][ui][card]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    PluginEditor editor (processor);
+    REQUIRE (editor.isResizable());
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor.findChildWithID ("response.graph"));
+    auto* card = editor.findChildWithID ("band.card");
+    REQUIRE (graph != nullptr);
+    REQUIRE (card != nullptr);
+    auto& first = node (*graph, 0);
+    first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+    first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+    REQUIRE (card->isVisible());
+    const auto parameters = processor.parameters.copyState();
+    auto* frequency = dynamic_cast<juce::Slider*> (card->findChildWithID ("band.frequency"));
+    auto* selector = dynamic_cast<juce::ComboBox*> (card->findChildWithID ("band.type"));
+    REQUIRE (frequency != nullptr);
+    REQUIRE (selector != nullptr);
+    const auto originalCard = card->getBounds();
+    const auto originalKnob = frequency->getBounds();
+    const auto originalNode = first.getBounds();
+    const auto originalGraphHeight = graph->getHeight();
+    const auto originalFont = selector->getLookAndFeel().getComboBoxFont (*selector).getHeight();
+    editor.setSize (openq::EditorSize::defaultWidth, 800);
+    CHECK (card->getWidth() == originalCard.getWidth());
+    CHECK (card->getHeight() == originalCard.getHeight());
+    CHECK (frequency->getBounds() == originalKnob);
+    CHECK (graph->getHeight() > originalGraphHeight);
+
+    struct Layout
+    {
+        int width;
+        float scale;
+    };
+    for (const auto layout : { Layout { 1013, 1.186147f }, Layout { 1440, 1.414214f }, Layout { 2160, 1.732051f } })
+    {
+        const auto [width, scale] = layout;
+        editor.setSize (width, juce::roundToInt (openq::EditorSize::defaultHeight * scale));
+        CHECK_THAT (card->getWidth(), Catch::Matchers::WithinAbs (originalCard.getWidth() * scale, 1.0));
+        CHECK_THAT (card->getHeight(), Catch::Matchers::WithinAbs (originalCard.getHeight() * scale, 1.0));
+        CHECK_THAT (first.getWidth(), Catch::Matchers::WithinAbs (originalNode.getWidth() * scale, 1.0));
+        CHECK_THAT (selector->getLookAndFeel().getComboBoxFont (*selector).getHeight(), Catch::Matchers::WithinAbs (originalFont * scale, 0.5));
+        CHECK (graph->getBounds().contains (card->getBounds()));
+        CHECK_FALSE (card->getBounds().intersects (first.getBounds().translated (graph->getX(), graph->getY())));
+        CHECK (editor.getTransform().isIdentity());
+        CHECK (processor.getEditorSize() == openq::EditorSize { editor.getWidth(), editor.getHeight() });
+    }
+    editor.setSize (1440, 1160);
+    const auto image = editor.createComponentSnapshot (editor.getLocalBounds());
+    juce::FileOutputStream output (juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("openq-resized-card.png"));
+    REQUIRE (juce::PNGImageFormat().writeImageToStream (image, output));
+    // Short/wide host requests are constrained so the enlarged card still fits.
+    editor.setSize (openq::EditorSize::maximumWidth, openq::EditorSize::minimumHeight);
+    CHECK (editor.getHeight() == openq::EditorSize::minimumHeightForWidth (editor.getWidth()));
+    CHECK (graph->getBounds().contains (card->getBounds()));
+    CHECK (processor.parameters.copyState().isEquivalentTo (parameters));
+    // If every corner intersects a centered node, shrinking must still retain the entire card.
+    set (processor, 0, "frequency", 500.0f);
+    graph->setSelectedBand (0);
+    editor.setSize (openq::EditorSize::minimumWidth, openq::EditorSize::minimumHeight);
+    CHECK (graph->getBounds().contains (card->getBounds()));
+    editor.setSize (1, 1);
+    CHECK (editor.getWidth() == openq::EditorSize::minimumWidth);
+    CHECK (editor.getHeight() == openq::EditorSize::minimumHeight);
+}
+
+TEST_CASE ("Resize ends graph gestures and preserves an ongoing knob gesture until release", "[resize][ui][nodes]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    PluginEditor editor (processor);
+    Gestures gestures (processor);
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor.findChildWithID ("response.graph"));
+    REQUIRE (graph != nullptr);
+    auto& first = node (*graph, 0);
+    first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+    REQUIRE (gestures.active() == 2);
+    editor.setSize (900, 750);
+    CHECK (gestures.active() == 0);
+    first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+    auto* card = editor.findChildWithID ("band.card");
+    REQUIRE (card != nullptr);
+    auto* gain = dynamic_cast<juce::Slider*> (card->findChildWithID ("band.gain"));
+    REQUIRE (gain != nullptr);
+    {
+        juce::Slider::ScopedDragNotification drag (*gain);
+        REQUIRE (gestures.active() == 1);
+        editor.setSize (1100, 900);
+        CHECK (gestures.active() == 1);
+        CHECK_FALSE (graph->isEnabled());
+        CHECK (graph->getBounds().contains (card->getBounds()));
+    }
+    CHECK (gestures.active() == 0);
+    CHECK (graph->isEnabled());
+}
+
+TEST_CASE ("Widescreen resizing reserves space for the graph instead of oversized controls", "[resize][ui][card]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (44100.0, 64);
+    PluginEditor editor (processor);
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor.findChildWithID ("response.graph"));
+    auto* card = editor.findChildWithID ("band.card");
+    REQUIRE (graph != nullptr);
+    REQUIRE (card != nullptr);
+    auto& first = node (*graph, 0);
+    first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+    first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+    const auto initialCardWidth = card->getWidth();
+    editor.setSize (1880, 1000);
+    CHECK (editor.getHeight() == 1000);
+    CHECK (graph->getHeight() > editor.getHeight() * 0.88);
+    CHECK (card->getWidth() > initialCardWidth);
+    CHECK (card->getWidth() < editor.getWidth() * 0.34);
+    CHECK (card->getHeight() < graph->getHeight() * 0.32);
+    CHECK (graph->getBounds().contains (card->getBounds()));
+    auto* selector = dynamic_cast<juce::ComboBox*> (card->findChildWithID ("band.type"));
+    REQUIRE (selector != nullptr);
+    CHECK (selector->getLookAndFeel().getComboBoxFont (*selector).getHeight() < 21.0f);
+    const auto cardSize = card->getLocalBounds();
+    editor.setSize (1880, 1200);
+    CHECK (card->getLocalBounds() == cardSize);
+    editor.setSize (1880, 1000);
+    const auto image = editor.createComponentSnapshot (editor.getLocalBounds());
+    juce::FileOutputStream output (juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("openq-widescreen-card.png"));
+    REQUIRE (juce::PNGImageFormat().writeImageToStream (image, output));
 }

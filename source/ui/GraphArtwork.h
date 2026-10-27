@@ -4,17 +4,23 @@
 
 namespace openq
 {
-    // Static artwork stays ordinary painting code; JUCE owns cache storage and invalidation.
+    // Cache bounded label regions; draw grid lines without a full-plot transparent image.
     class GraphArtwork : public juce::Component
     {
     public:
         GraphArtwork();
-        void setDisplay (juce::Rectangle<int> plotBounds, double sampleRate, bool analyzerVisible);
+        ~GraphArtwork() override;
+        void resized() override;
+        void setDisplay (juce::Rectangle<int> plotBounds, double sampleRate, bool analyzerVisible, float scale = 1.0f);
         void paint (juce::Graphics&) override;
 
     private:
+        class LabelLayer;
+        void updateLabelBounds();
+        std::vector<std::unique_ptr<LabelLayer>> labelLayers;
         juce::Rectangle<int> plot;
         double rate = 0.0;
+        float uiScale = 1.0f;
         bool showAnalyzer = false;
     };
 }

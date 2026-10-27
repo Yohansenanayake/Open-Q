@@ -137,11 +137,12 @@ namespace openq
 
     void BandControlCard::paint (juce::Graphics& g)
     {
-        const auto bounds = getLocalBounds().toFloat().reduced (0.5f);
+        const auto scale = static_cast<float> (getWidth()) / static_cast<float> (preferredWidth);
+        const auto bounds = getLocalBounds().toFloat().reduced (0.5f * scale);
         g.setColour (palette::cardBackground);
-        g.fillRoundedRectangle (bounds, 8.0f);
+        g.fillRoundedRectangle (bounds, 8.0f * scale);
         g.setColour (palette::accent.withAlpha (0.65f));
-        g.drawRoundedRectangle (bounds, 8.0f, 1.0f);
+        g.drawRoundedRectangle (bounds, 8.0f * scale, scale);
     }
 
     void BandControlCard::visibilityChanged()
@@ -153,11 +154,19 @@ namespace openq
         }
     }
 
+    void BandControlCard::dismissPopups()
+    {
+        typeSelector.closePopup();
+        slopeSelector.closePopup();
+    }
+
     void BandControlCard::resized()
     {
-        auto area = getLocalBounds().reduced (10);
-        constexpr int buttonSize = 26;
-        constexpr int spacing = 6;
+        const auto scale = static_cast<float> (getWidth()) / static_cast<float> (preferredWidth);
+        const auto scaled = [scale] (int value) { return juce::roundToInt (static_cast<float> (value) * scale); };
+        auto area = getLocalBounds().reduced (scaled (10));
+        const int buttonSize = scaled (26), spacing = scaled (6);
+        title.setFont (juce::FontOptions (15.0f * scale));
         auto header = area.removeFromTop (buttonSize);
         closeButton.setBounds (header.removeFromRight (buttonSize));
         header.removeFromRight (spacing);
@@ -167,9 +176,9 @@ namespace openq
         header.removeFromLeft (spacing);
         title.setBounds (header);
         area.removeFromTop (spacing);
-        constexpr int selectorColumnWidth = 78;
+        const int selectorColumnWidth = scaled (78);
         auto selectors = area.removeFromLeft (selectorColumnWidth);
-        selectors.removeFromTop (18);
+        selectors.removeFromTop (scaled (18));
         typeSelector.setBounds (selectors.removeFromTop (buttonSize));
         selectors.removeFromTop (spacing);
         slopeSelector.setBounds (selectors.removeFromTop (buttonSize));
@@ -177,8 +186,11 @@ namespace openq
         const auto width = area.getWidth() / static_cast<int> (controls.size());
         for (size_t i = 0; i < controls.size(); ++i)
         {
-            auto column = area.removeFromLeft (width).reduced (3, 0);
-            labels[i].setBounds (column.removeFromTop (18));
+            auto column = area.removeFromLeft (width).reduced (scaled (3), 0);
+            labels[i].setFont (juce::FontOptions (15.0f * scale));
+            labels[i].setBounds (column.removeFromTop (scaled (18)));
+            controls[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, scaled (74), scaled (22));
+            controls[i].setMouseDragSensitivity (scaled (250));
             controls[i].setBounds (column);
         }
     }

@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "ui/Palette.h"
 #include "ui/ResponseMapping.h"
 #include "ui/ResponseWorker.h"
 #include <catch2/catch_test_macros.hpp>
@@ -38,6 +39,7 @@ TEST_CASE ("Automatic graph refresh stays bounded on high refresh displays", "[r
             if (frames > 0)
                 CHECK (timestamp > previous);
             previous = timestamp;
+            limiter.recordPaintDuration (0.001);
             ++frames;
         }
         CHECK (frames <= static_cast<int> (seconds * openq::GraphRefreshLimiter::targetFramesPerSecond));
@@ -357,44 +359,107 @@ TEST_CASE ("Cut target curves follow type slope and recall without processBlock"
     worker.stop();
 }
 
-TEST_CASE ("Static graph artwork reuses its cache and invalidates only for display changes", "[response][ui][cache]")
+TEST_CASE ("Static artwork caches label margins without blending an image over the entire plot", "[response][ui][cache]")
 {
-    struct Artwork : openq::GraphArtwork
+    struct Scene : juce::Component
     {
         void paint (juce::Graphics& g) override
         {
-            ++paints;
-            GraphArtwork::paint (g);
+            g.fillAll (openq::palette::background);
+            g.setColour (openq::palette::analyzerPost);
+            g.fillRect (plot);
         }
-        int paints = 0;
-    } artwork;
-    juce::Component parent;
+        juce::Rectangle<int> plot { 52, 36, 644, 432 };
+    } parent;
+    openq::GraphArtwork artwork;
     parent.setSize (720, 500);
     parent.addAndMakeVisible (artwork);
     artwork.setBounds (parent.getLocalBounds());
-    const juce::Rectangle<int> plot { 52, 36, 644, 432 };
-    artwork.setDisplay (plot, 48000.0, true);
-    REQUIRE (artwork.getCachedComponentImage() != nullptr);
+    artwork.setDisplay (parent.plot, 48000.0, true);
+    CHECK (artwork.getCachedComponentImage() == nullptr);
     CHECK_FALSE (artwork.hitTest (100, 100));
+    int cachedArea = 0;
+    for (auto* layer : artwork.getChildren())
+    {
+        REQUIRE (layer->getCachedComponentImage() != nullptr);
+        CHECK_FALSE (layer->hitTest (0, 0));
+        cachedArea += layer->getWidth() * layer->getHeight();
+        if (layer->isOpaque())
+            CHECK_FALSE (layer->getBounds().intersects (parent.plot));
+    }
+    CHECK (cachedArea < parent.getWidth() * parent.getHeight() / 8);
     auto draw = [&] { return parent.createComponentSnapshot (parent.getLocalBounds()); };
-    REQUIRE (draw().isValid());
-    const auto first = artwork.paints;
-    REQUIRE (first > 0);
-    parent.repaint();
-    artwork.setDisplay (plot, 48000.0, true);
-    draw();
-    CHECK (artwork.paints == first);
-    auto changesCache = [&] (auto change) {
-        const auto before = artwork.paints;
-        change();
-        draw();
-        CHECK (artwork.paints > before);
+    auto equal = [] (const juce::Image& a, const juce::Image& b) {
+        if (a.getBounds() != b.getBounds())
+            return false;
+        for (int y = 0; y < a.getHeight(); ++y)
+            for (int x = 0; x < a.getWidth(); ++x)
+                if (a.getPixelAt (x, y) != b.getPixelAt (x, y))
+                    return false;
+        return true;
     };
-    changesCache ([&] { artwork.setDisplay (plot, 8000.0, true); });
-    changesCache ([&] { artwork.setDisplay (plot, 8000.0, false); });
-    changesCache ([&] { artwork.setBounds (0, 0, 600, 450); artwork.setDisplay ({ 52, 36, 524, 382 }, 8000.0, false); });
-    changesCache ([&] { artwork.sendLookAndFeelChange(); });
-    const auto beforeScale = artwork.paints;
+    const auto first = draw();
+    REQUIRE (first.isValid());
+    CHECK (first.getPixelAt (parent.plot.getX() + 17, parent.plot.getY() + 25) == openq::palette::analyzerPost);
+    parent.repaint();
+    artwork.setDisplay (parent.plot, 48000.0, true);
+    CHECK (equal (first, draw()));
+    artwork.setDisplay (parent.plot, 8000.0, true);
+    const auto lowRate = draw();
+    CHECK_FALSE (equal (first, lowRate));
+    artwork.setDisplay (parent.plot, 8000.0, false);
+    CHECK_FALSE (equal (lowRate, draw()));
+    artwork.setBounds (0, 0, 600, 450);
+    artwork.setDisplay ({ 52, 36, 524, 382 }, 8000.0, false);
+    artwork.sendLookAndFeelChange();
     REQUIRE (parent.createComponentSnapshot (parent.getLocalBounds(), true, 2.0f).isValid());
-    CHECK (artwork.paints > beforeScale);
+    const auto cached = draw();
+    for (auto* layer : artwork.getChildren())
+        layer->setBufferedToImage (false);
+    const auto direct = draw();
+    int difference = 0;
+    for (int y = 0; y < cached.getHeight(); ++y)
+        for (int x = 0; x < cached.getWidth(); ++x)
+        {
+            const auto a = cached.getPixelAt (x, y), b = direct.getPixelAt (x, y);
+            difference = std::max ({ difference, std::abs (int (a.getRed()) - int (b.getRed())), std::abs (int (a.getGreen()) - int (b.getGreen())), std::abs (int (a.getBlue()) - int (b.getBlue())), std::abs (int (a.getAlpha()) - int (b.getAlpha())) });
+        }
+    INFO ("Maximum cached/direct channel difference: " << difference);
+    CHECK (difference <= 2);
+}
+
+TEST_CASE ("Slow full graph paints leave time for input and recover without repaint bursts", "[response][ui][pacing]")
+{
+    openq::GraphRefreshLimiter limiter;
+    REQUIRE (limiter.tick (0.0));
+    limiter.recordPaintDuration (0.04);
+    CHECK_FALSE (limiter.tick (0.04));
+    CHECK_FALSE (limiter.tick (0.079));
+    CHECK (limiter.tick (0.08));
+    int frames = 0;
+    for (int tick = 1; tick <= 600; ++tick)
+    {
+        if (limiter.tick (0.08 + tick / 60.0))
+        {
+            ++frames;
+            limiter.recordPaintDuration (0.04);
+        }
+    }
+    CHECK (frames >= 100);
+    CHECK (frames <= 125);
+    // Removing fill or shrinking the editor allows fast painting to restore the normal cadence.
+    for (int tick = 601; tick <= 900; ++tick)
+        if (limiter.tick (0.08 + tick / 60.0))
+            limiter.recordPaintDuration (0.001);
+    frames = 0;
+    for (int tick = 901; tick <= 960; ++tick)
+        if (limiter.tick (0.08 + tick / 60.0))
+            ++frames;
+    CHECK (frames >= 28);
+    CHECK (frames <= 30);
+    limiter.recordPaintDuration (std::numeric_limits<double>::infinity());
+    limiter.recordPaintDuration (-1.0);
+    limiter.reset();
+    CHECK (limiter.tick (0.0));
+    CHECK (limiter.tick (1.0 / openq::GraphRefreshLimiter::targetFramesPerSecond));
 }

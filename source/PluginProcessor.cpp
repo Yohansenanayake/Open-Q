@@ -183,6 +183,9 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
     auto state = parameters.copyState();
     state.setProperty ("analyzerSettings", static_cast<int> (analyzer.getSettings().encode()), nullptr);
     state.setProperty ("analyzerFill", analyzer.getFillEnabled() ? 1 : 0, nullptr);
+    const auto size = getEditorSize();
+    state.setProperty ("editorWidth", size.width, nullptr);
+    state.setProperty ("editorHeight", size.height, nullptr);
     if (const auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -235,9 +238,24 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     const auto fill = state.getProperty ("analyzerFill", 1).toString().trim();
     if (fill != "0" && fill != "1")
         return;
+    openq::EditorSize size;
+    if (state.hasProperty ("editorWidth") != state.hasProperty ("editorHeight"))
+        return;
+    if (state.hasProperty ("editorWidth"))
+    {
+        auto readDimension = [&] (const char* name, int& result) {
+            std::istringstream input (state.getProperty (name).toString().trim().toStdString());
+            input.imbue (std::locale::classic());
+            input >> std::noskipws >> result;
+            return !input.fail() && input.eof();
+        };
+        if (!readDimension ("editorWidth", size.width) || !readDimension ("editorHeight", size.height) || !size.isValid())
+            return;
+    }
     parameters.replaceState (state);
     analyzer.setSettings (openq::AnalyzerSettings::decode (static_cast<unsigned> (settings)));
     analyzer.setFillEnabled (fill == "1");
+    setEditorSize (size);
 }
 
 //==============================================================================

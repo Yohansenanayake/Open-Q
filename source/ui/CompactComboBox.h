@@ -18,6 +18,8 @@ namespace openq
         struct LookAndFeel final : juce::LookAndFeel_V4
         {
             LookAndFeel();
+            float scale = 1.0f;
+            juce::Font getPopupMenuFont() override;
             juce::Font getComboBoxFont (juce::ComboBox&) override;
             void drawComboBox (juce::Graphics&, int width, int height, bool buttonDown, int, int, int, int, juce::ComboBox&) override;
             void positionComboBoxText (juce::ComboBox&, juce::Label&) override;

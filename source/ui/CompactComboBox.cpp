@@ -21,44 +21,52 @@ namespace openq
         setColour (juce::PopupMenu::highlightedTextColourId, palette::text);
     }
 
-    juce::Font CompactComboBox::LookAndFeel::getComboBoxFont (juce::ComboBox&)
+    juce::Font CompactComboBox::LookAndFeel::getComboBoxFont (juce::ComboBox& box)
     {
-        return juce::Font (juce::FontOptions (selectorFontSize));
+        return juce::Font (juce::FontOptions (selectorFontSize * static_cast<float> (box.getHeight()) / 26.0f));
+    }
+
+    juce::Font CompactComboBox::LookAndFeel::getPopupMenuFont()
+    {
+        return juce::Font (juce::FontOptions (15.0f * scale));
     }
 
     void CompactComboBox::LookAndFeel::drawComboBox (juce::Graphics& g, int width, int height, bool buttonDown, int, int, int, int, juce::ComboBox& box)
     {
-        const auto bounds = juce::Rectangle<float> (static_cast<float> (width), static_cast<float> (height)).reduced (0.5f);
+        const auto s = static_cast<float> (height) / 26.0f;
+        const auto bounds = juce::Rectangle<float> (static_cast<float> (width), static_cast<float> (height)).reduced (0.5f * s);
         const bool highlighted = box.isEnabled() && (buttonDown || box.isPopupActive() || box.isMouseOver (true) || box.hasKeyboardFocus (true));
         g.setColour (highlighted ? palette::grid : palette::background);
-        g.fillRoundedRectangle (bounds, 4.0f);
+        g.fillRoundedRectangle (bounds, 4.0f * s);
         g.setColour (highlighted ? palette::accent : palette::inactiveIcon);
-        g.drawRoundedRectangle (bounds, 4.0f, 1.0f);
+        g.drawRoundedRectangle (bounds, 4.0f * s, s);
         const auto centreY = static_cast<float> (height) * 0.5f;
-        const auto arrowX = static_cast<float> (width) - 10.0f;
+        const auto arrowX = static_cast<float> (width) - 10.0f * s;
         juce::Path arrow;
-        arrow.startNewSubPath (arrowX - 2.5f, centreY - 1.5f);
-        arrow.lineTo (arrowX, centreY + 1.5f);
-        arrow.lineTo (arrowX + 2.5f, centreY - 1.5f);
-        g.strokePath (arrow, juce::PathStrokeType (1.2f));
+        arrow.startNewSubPath (arrowX - 2.5f * s, centreY - 1.5f * s);
+        arrow.lineTo (arrowX, centreY + 1.5f * s);
+        arrow.lineTo (arrowX + 2.5f * s, centreY - 1.5f * s);
+        g.strokePath (arrow, juce::PathStrokeType (1.2f * s));
     }
 
     void CompactComboBox::LookAndFeel::positionComboBoxText (juce::ComboBox& box, juce::Label& label)
     {
-        label.setBounds (3, 1, std::max (0, box.getWidth() - 16), std::max (0, box.getHeight() - 2));
+        const auto s = static_cast<float> (box.getHeight()) / 26.0f;
+        label.setBounds (juce::Rectangle<float> (3.0f * s, s, std::max (0.0f, static_cast<float> (box.getWidth()) - 16.0f * s), std::max (0.0f, static_cast<float> (box.getHeight()) - 2.0f * s)).toNearestInt());
         label.setFont (getComboBoxFont (box));
         label.setJustificationType (juce::Justification::centredLeft);
     }
 
     juce::PopupMenu::Options CompactComboBox::LookAndFeel::getOptionsForComboBoxPopupMenu (juce::ComboBox& box, juce::Label& label)
     {
+        scale = static_cast<float> (box.getHeight()) / 26.0f;
         auto* editor = box.findParentComponentOfClass<juce::AudioProcessorEditor>();
         // Even an orphan must never fall back to JUCE's separate desktop-window path.
         return juce::LookAndFeel_V4::getOptionsForComboBoxPopupMenu (box, label)
             .withParentComponent (editor != nullptr ? static_cast<juce::Component*> (editor) : &box)
             .withPreferredPopupDirection (juce::PopupMenu::Options::PopupDirection::upwards)
-            .withMinimumWidth (std::max (popupMinimumWidth, box.getWidth()))
-            .withStandardItemHeight (popupItemHeight);
+            .withMinimumWidth (std::max (juce::roundToInt (popupMinimumWidth * scale), box.getWidth()))
+            .withStandardItemHeight (juce::roundToInt (popupItemHeight * scale));
     }
 
     void CompactComboBox::LookAndFeel::drawPopupMenuBackground (juce::Graphics& g, int width, int height)

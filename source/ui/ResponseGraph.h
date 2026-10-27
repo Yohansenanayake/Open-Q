@@ -23,6 +23,7 @@ namespace openq
         void setSelectedBand (size_t band);
         size_t getSelectedBand() const { return selectedBand; }
         void cancelDrag();
+        void setUiScale (float scale);
         void deleteSelectedBand();
         void setAnalyzerTransport (AnalyzerTransport& transport);
         juce::Rectangle<int> getSelectedNodeBounds() const;
@@ -34,6 +35,7 @@ namespace openq
         class Node;
         class ResponseLayer;
         void paintResponse (juce::Graphics&);
+        float uiScale = 1.0f;
         GraphArtwork artwork;
         std::unique_ptr<ResponseLayer> responseLayer;
         void timerCallback() override;
@@ -65,5 +67,6 @@ namespace openq
         AnalyzerTransport* analyzerTransport = nullptr;
         std::unique_ptr<juce::VBlankAttachment> vblank;
         GraphRefreshLimiter refreshLimiter;
+        double paintStartedMilliseconds = 0.0;
     };
 }

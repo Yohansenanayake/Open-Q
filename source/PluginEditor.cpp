@@ -2,8 +2,9 @@
 #include "ui/Palette.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), analyzerTransport (p.getAnalyzerTransport()), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
+    : AudioProcessorEditor (&p), processor (p), analyzerTransport (p.getAnalyzerTransport()), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
 {
+    setLookAndFeel (&lookAndFeel);
     responseGraph.setAnalyzerTransport (analyzerTransport);
     addAndMakeVisible (responseGraph);
     addAndMakeVisible (preTrace);
@@ -64,8 +65,11 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         }
         inspector->setVisible (true);
     };
-    constexpr int initialWidth = 720, initialHeight = 580;
-    setSize (initialWidth, initialHeight);
+    boundsConstrainer.setSizeLimits (openq::EditorSize::minimumWidth, openq::EditorSize::minimumHeight, openq::EditorSize::maximumWidth, openq::EditorSize::maximumHeight);
+    setConstrainer (&boundsConstrainer);
+    setResizable (true, p.wrapperType != juce::AudioProcessor::wrapperType_AudioUnitv3);
+    const auto size = p.getEditorSize();
+    setSize (size.width, size.height);
 }
 
 void PluginEditor::selectBand (size_t band)
@@ -77,30 +81,46 @@ void PluginEditor::selectBand (size_t band)
     positionBandCard();
 }
 
-void PluginEditor::positionBandCard()
+void PluginEditor::positionBandCard (bool resizing)
 {
-    if (!bandCard.isVisible() || knobDragging)
+    if (!bandCard.isVisible() || (knobDragging && !resizing))
         return;
-    constexpr int cardAreaHorizontalInset = 18, cardAreaVerticalInset = 44;
-    constexpr int nodeClearance = 12;
+    const auto scaled = [this] (int value) { return juce::roundToInt (static_cast<float> (value) * uiScale); };
+    const int cardAreaHorizontalInset = scaled (18), cardAreaVerticalInset = scaled (44);
+    const int nodeClearance = scaled (12);
     const auto graph = responseGraph.getBounds().reduced (cardAreaHorizontalInset, cardAreaVerticalInset);
     const auto node = responseGraph.getSelectedNodeBounds().translated (responseGraph.getX(), responseGraph.getY()).expanded (nodeClearance);
-    constexpr int width = openq::BandControlCard::preferredWidth, height = openq::BandControlCard::preferredHeight;
+    const int width = scaled (openq::BandControlCard::preferredWidth), height = scaled (openq::BandControlCard::preferredHeight);
     const std::array<juce::Rectangle<int>, 5> positions {
-        bandCard.getBounds(),
+        bandCard.getBounds().withSize (width, height),
         juce::Rectangle<int> (graph.getX(), graph.getBottom() - height, width, height),
         juce::Rectangle<int> (graph.getRight() - width, graph.getBottom() - height, width, height),
         juce::Rectangle<int> (graph.getX(), graph.getY(), width, height),
         juce::Rectangle<int> (graph.getRight() - width, graph.getY(), width, height)
     };
+    auto fallback = positions[1];
+    auto overlap = std::numeric_limits<int>::max();
     for (const auto& position : positions)
     {
         if (!position.isEmpty() && graph.contains (position) && !position.intersects (node))
         {
             bandCard.setBounds (position);
-            break;
+            bandCard.toFront (false);
+            return;
+        }
+        if (graph.contains (position))
+        {
+            const auto intersection = position.getIntersection (node);
+            const auto area = intersection.getWidth() * intersection.getHeight();
+            if (area < overlap)
+            {
+                fallback = position;
+                overlap = area;
+            }
         }
     }
+    // Extremely short windows may offer no clear corner; keep the card inside the graph.
+    bandCard.setBounds (fallback);
     bandCard.toFront (false);
 }
 
@@ -114,10 +134,15 @@ PluginEditor::~PluginEditor()
     bandCard.onDragStateChanged = nullptr;
     bandCard.onDelete = nullptr;
     bandCard.onClose = nullptr;
+    setLookAndFeel (nullptr);
+    setConstrainer (nullptr);
 }
 
 void PluginEditor::timerCallback()
 {
+    const auto size = processor.getEditorSize();
+    if (getWidth() > 0 && openq::EditorSize { getWidth(), getHeight() } != size)
+        setSize (size.width, size.height);
     const auto settings = analyzerTransport.getSettings();
     spectrumFill.setToggleState (analyzerTransport.getFillEnabled(), juce::dontSendNotification);
     preTrace.setToggleState (settings.pre, juce::dontSendNotification);
@@ -129,21 +154,82 @@ void PluginEditor::paint (juce::Graphics& g)
 {
     g.fillAll (openq::palette::background);
     g.setColour (openq::palette::text);
-    g.setFont (24.0f);
-    g.drawText ("Open-Q", 20, 8, 200, 32, juce::Justification::centredLeft);
+    g.setFont (24.0f * uiScale);
+    g.drawText ("Open-Q", juce::Rectangle<float> (20.0f, 8.0f, 200.0f, 32.0f) * uiScale, juce::Justification::centredLeft);
 }
 
 void PluginEditor::resized()
 {
-    auto area = getLocalBounds().reduced (12);
-    auto header = area.removeFromTop (36);
-    inspectButton.setBounds (header.removeFromRight (130).reduced (0, 4));
-    header.removeFromRight (8);
-    analyzerQuality.setBounds (header.removeFromRight (100).reduced (0, 4));
-    postTrace.setBounds (header.removeFromRight (66));
-    preTrace.setBounds (header.removeFromRight (60));
-    spectrumFill.setBounds (header.removeFromRight (60));
-    area.removeFromTop (4);
+    const auto size = openq::EditorSize { getWidth(), getHeight() }.constrained();
+    if (size != openq::EditorSize { getWidth(), getHeight() })
+    {
+        setSize (size.width, size.height);
+        return;
+    }
+    uiScale = size.scale();
+    const auto scaled = [this] (int value) { return juce::roundToInt (static_cast<float> (value) * uiScale); };
+    bandCard.dismissPopups();
+    analyzerQuality.hidePopup();
+    if (!juce::exactlyEqual (lookAndFeel.scale, uiScale))
+    {
+        lookAndFeel.scale = uiScale;
+        sendLookAndFeelChange();
+    }
+    responseGraph.setUiScale (uiScale);
+    auto area = getLocalBounds().reduced (scaled (12));
+    auto header = area.removeFromTop (scaled (36));
+    inspectButton.setBounds (header.removeFromRight (scaled (130)).reduced (0, scaled (4)));
+    header.removeFromRight (scaled (8));
+    analyzerQuality.setBounds (header.removeFromRight (scaled (100)).reduced (0, scaled (4)));
+    postTrace.setBounds (header.removeFromRight (scaled (66)));
+    preTrace.setBounds (header.removeFromRight (scaled (60)));
+    spectrumFill.setBounds (header.removeFromRight (scaled (60)));
+    area.removeFromTop (scaled (4));
     responseGraph.setBounds (area);
-    positionBandCard();
+    positionBandCard (true);
+    processor.setEditorSize (size);
+}
+
+void PluginEditor::BoundsConstrainer::checkBounds (juce::Rectangle<int>& bounds, const juce::Rectangle<int>& previous, const juce::Rectangle<int>& limits, bool top, bool left, bool bottom, bool right)
+{
+    juce::ComponentBoundsConstrainer::checkBounds (bounds, previous, limits, top, left, bottom, right);
+    const auto size = openq::EditorSize { bounds.getWidth(), bounds.getHeight() }.constrained();
+    if (top)
+        bounds.setTop (bounds.getBottom() - size.height);
+    bounds.setSize (size.width, size.height);
+}
+
+juce::Font PluginEditor::LookAndFeel::getTextButtonFont (juce::TextButton&, int)
+{
+    return juce::Font (juce::FontOptions (16.0f * scale));
+}
+juce::Font PluginEditor::LookAndFeel::getComboBoxFont (juce::ComboBox&)
+{
+    return juce::Font (juce::FontOptions (15.0f * scale));
+}
+juce::Font PluginEditor::LookAndFeel::getPopupMenuFont()
+{
+    return juce::Font (juce::FontOptions (15.0f * scale));
+}
+juce::Label* PluginEditor::LookAndFeel::createSliderTextBox (juce::Slider& slider)
+{
+    auto* label = juce::LookAndFeel_V4::createSliderTextBox (slider);
+    label->setFont (juce::FontOptions (14.0f * scale));
+    return label;
+}
+void PluginEditor::LookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float position, float start, float end, juce::Slider& slider)
+{
+    juce::Graphics::ScopedSaveState save (g);
+    g.addTransform (juce::AffineTransform::scale (scale));
+    // Scale JUCE's capped stroke/padding metrics along with the knob bounds.
+    juce::LookAndFeel_V4::drawRotarySlider (g, juce::roundToInt (x / scale), juce::roundToInt (y / scale), juce::roundToInt (width / scale), juce::roundToInt (height / scale), position, start, end, slider);
+}
+void PluginEditor::LookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool down)
+{
+    const auto tickSize = 18.0f * scale;
+    const auto y = (static_cast<float> (button.getHeight()) - tickSize) * 0.5f;
+    drawTickBox (g, button, 2.0f * scale, y, tickSize, tickSize, button.getToggleState(), button.isEnabled(), highlighted, down);
+    g.setColour (button.findColour (juce::ToggleButton::textColourId).withMultipliedAlpha (button.isEnabled() ? 1.0f : 0.5f));
+    g.setFont (15.0f * scale);
+    g.drawText (button.getButtonText(), button.getLocalBounds().withTrimmedLeft (juce::roundToInt (24.0f * scale)), juce::Justification::centredLeft);
 }

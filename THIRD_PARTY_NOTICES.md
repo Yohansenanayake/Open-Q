@@ -52,6 +52,8 @@ Open-Q's `source/ui/CompactComboBox.*` follows the compact styling, control cach
 
 Open-Q's static graph artwork follows the separate buffered-component pattern in the pinned references' `source/panel/curve_panel/curve_panel.cpp` and scale-label panels. `GraphArtwork` contains Open-Q's existing drawing code and uses JUCE's standard `setBufferedToImage(true)` cache; no additional reference source was copied for caching.
 
+Open-Q's continuous editor resizing and width-scaled card/control layout follow the Scale-mode architecture studied in the second reference's `PluginEditor.cpp`, `panel/main_panel.cpp` and `panel/control_panel/` at the pinned revision above. The implementation retains Open-Q's layout, uses JUCE's standard corner/constrainer, and saves per-instance dimensions instead of importing the reference's global UI settings APVTS/file helper. No new reference code or assets were copied for resizing.
+
 ## Pamplejuce template
 
 The original build system, plugin skeleton, and supporting template files are derived from [Pamplejuce](https://github.com/sudara/pamplejuce), copyright (c) 2022 Sudara Williams. Its complete MIT notice is retained in [licenses/Pamplejuce-MIT.txt](licenses/Pamplejuce-MIT.txt).
