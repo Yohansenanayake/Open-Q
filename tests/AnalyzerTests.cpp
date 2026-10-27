@@ -391,3 +391,50 @@ TEST_CASE ("Analyzer UI switches remain independent of band parameters", "[analy
     CHECK (processor.parameters.copyState().isEquivalentTo (before));
     CHECK ((processor.getAnalyzerTransport().session() & 1u) == 0); // No capture from a hidden editor.
 }
+
+TEST_CASE ("Spectrum fill is a saved display preference independent of analysis", "[analyzer][state][ui]")
+{
+    PluginProcessor processor;
+    auto& transport = processor.getAnalyzerTransport();
+    CHECK (transport.getFillEnabled());
+    PluginEditor editor (processor);
+    auto* fill = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("analyzer.fill"));
+    REQUIRE (fill != nullptr);
+    CHECK (fill->getToggleState());
+    const auto settings = transport.getSettings().encode();
+    const auto session = transport.session();
+    const auto parameters = processor.parameters.copyState();
+    fill->setToggleState (false, juce::dontSendNotification);
+    fill->onClick();
+    CHECK_FALSE (transport.getFillEnabled());
+    CHECK (transport.getSettings().encode() == settings);
+    CHECK (transport.session() == session);
+    CHECK (processor.parameters.copyState().isEquivalentTo (parameters));
+    juce::MemoryBlock saved;
+    processor.getStateInformation (saved);
+    PluginProcessor restored;
+    restored.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
+    CHECK_FALSE (restored.getAnalyzerTransport().getFillEnabled());
+    PluginEditor reopened (restored);
+    auto* reopenedFill = dynamic_cast<juce::ToggleButton*> (reopened.findChildWithID ("analyzer.fill"));
+    REQUIRE (reopenedFill != nullptr);
+    CHECK_FALSE (reopenedFill->getToggleState());
+
+    for (const auto invalid : { "-1", "2", "0.5", "nan", "invalid", "1 trailing" })
+    {
+        auto state = parameters.createCopy();
+        state.setProperty ("analyzerFill", invalid, nullptr);
+        state.getChildWithProperty ("id", "band.0.gain").setProperty ("value", 12.0, nullptr);
+        juce::MemoryBlock bytes;
+        juce::AudioProcessor::copyXmlToBinary (*state.createXml(), bytes);
+        restored.setStateInformation (bytes.getData(), static_cast<int> (bytes.getSize()));
+        CHECK_FALSE (restored.getAnalyzerTransport().getFillEnabled());
+        CHECK (juce::exactlyEqual (restored.parameters.getRawParameterValue ("band.0.gain")->load(), 0.0f));
+    }
+    auto legacy = parameters.createCopy();
+    legacy.removeProperty ("analyzerFill", nullptr);
+    juce::MemoryBlock bytes;
+    juce::AudioProcessor::copyXmlToBinary (*legacy.createXml(), bytes);
+    restored.setStateInformation (bytes.getData(), static_cast<int> (bytes.getSize()));
+    CHECK (restored.getAnalyzerTransport().getFillEnabled());
+}

@@ -182,6 +182,7 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = parameters.copyState();
     state.setProperty ("analyzerSettings", static_cast<int> (analyzer.getSettings().encode()), nullptr);
+    state.setProperty ("analyzerFill", analyzer.getFillEnabled() ? 1 : 0, nullptr);
     if (const auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -231,8 +232,12 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     if (settingsInput.fail() || !settingsInput.eof() || !std::isfinite (settings)
         || settings < 0.0 || settings > 7.0 || !juce::exactlyEqual (settings, std::round (settings)))
         return;
+    const auto fill = state.getProperty ("analyzerFill", 1).toString().trim();
+    if (fill != "0" && fill != "1")
+        return;
     parameters.replaceState (state);
     analyzer.setSettings (openq::AnalyzerSettings::decode (static_cast<unsigned> (settings)));
+    analyzer.setFillEnabled (fill == "1");
 }
 
 //==============================================================================

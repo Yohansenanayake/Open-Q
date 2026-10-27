@@ -356,3 +356,45 @@ TEST_CASE ("Cut target curves follow type slope and recall without processBlock"
     }));
     worker.stop();
 }
+
+TEST_CASE ("Static graph artwork reuses its cache and invalidates only for display changes", "[response][ui][cache]")
+{
+    struct Artwork : openq::GraphArtwork
+    {
+        void paint (juce::Graphics& g) override
+        {
+            ++paints;
+            GraphArtwork::paint (g);
+        }
+        int paints = 0;
+    } artwork;
+    juce::Component parent;
+    parent.setSize (720, 500);
+    parent.addAndMakeVisible (artwork);
+    artwork.setBounds (parent.getLocalBounds());
+    const juce::Rectangle<int> plot { 52, 36, 644, 432 };
+    artwork.setDisplay (plot, 48000.0, true);
+    REQUIRE (artwork.getCachedComponentImage() != nullptr);
+    CHECK_FALSE (artwork.hitTest (100, 100));
+    auto draw = [&] { return parent.createComponentSnapshot (parent.getLocalBounds()); };
+    REQUIRE (draw().isValid());
+    const auto first = artwork.paints;
+    REQUIRE (first > 0);
+    parent.repaint();
+    artwork.setDisplay (plot, 48000.0, true);
+    draw();
+    CHECK (artwork.paints == first);
+    auto changesCache = [&] (auto change) {
+        const auto before = artwork.paints;
+        change();
+        draw();
+        CHECK (artwork.paints > before);
+    };
+    changesCache ([&] { artwork.setDisplay (plot, 8000.0, true); });
+    changesCache ([&] { artwork.setDisplay (plot, 8000.0, false); });
+    changesCache ([&] { artwork.setBounds (0, 0, 600, 450); artwork.setDisplay ({ 52, 36, 524, 382 }, 8000.0, false); });
+    changesCache ([&] { artwork.sendLookAndFeelChange(); });
+    const auto beforeScale = artwork.paints;
+    REQUIRE (parent.createComponentSnapshot (parent.getLocalBounds(), true, 2.0f).isValid());
+    CHECK (artwork.paints > beforeScale);
+}

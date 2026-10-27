@@ -42,6 +42,8 @@ namespace openq
         unsigned session() const { return captureSession.load (std::memory_order_acquire); }
         AnalyzerSettings getSettings() const { return AnalyzerSettings::decode (settings.load (std::memory_order_relaxed)); }
         void setSettings (AnalyzerSettings value) { settings.store (value.encode(), std::memory_order_relaxed); }
+        bool getFillEnabled() const { return fillEnabled.load (std::memory_order_relaxed) != 0; }
+        void setFillEnabled (bool enabled) { fillEnabled.store (enabled ? 1u : 0u, std::memory_order_relaxed); }
         void beginBlock (const juce::AudioBuffer<float>& buffer, int channels);
         void endBlock (const juce::AudioBuffer<float>& buffer);
         bool read (AnalyzerPacket& packet);
@@ -50,6 +52,7 @@ namespace openq
         std::unique_ptr<std::array<AnalyzerPacket, packetSlots>> packets;
         juce::AbstractFifo fifo { packetSlots };
         std::atomic<unsigned> captureSession { 0 }, settings { AnalyzerSettings {}.encode() };
+        std::atomic<unsigned> fillEnabled { 1 };
         double sampleRate = 0.0;
         std::uint64_t sequence = 0;
         int pendingStart = 0, pendingCount = 0;

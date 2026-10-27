@@ -50,6 +50,8 @@ These files are used under AGPL-3.0-only; see [LICENSE](LICENSE). Button colors 
 
 Open-Q's `source/ui/CompactComboBox.*` follows the compact styling, control caching and explicitly parented popup pattern in `source/gui/combobox/compact_combobox/` from both pinned ZLE references above. It is an independent Open-Q implementation using a JUCE ComboBox subclass and the existing JUCE parameter attachments. It locates the actual AudioProcessorEditor rather than assuming a host child index, prevents native-popup fallback, and clears popup LookAndFeel references during teardown. No additional ZLE or JUCE-fork source was copied for this control.
 
+Open-Q's static graph artwork follows the separate buffered-component pattern in the pinned references' `source/panel/curve_panel/curve_panel.cpp` and scale-label panels. `GraphArtwork` contains Open-Q's existing drawing code and uses JUCE's standard `setBufferedToImage(true)` cache; no additional reference source was copied for caching.
+
 ## Pamplejuce template
 
 The original build system, plugin skeleton, and supporting template files are derived from [Pamplejuce](https://github.com/sudara/pamplejuce), copyright (c) 2022 Sudara Williams. Its complete MIT notice is retained in [licenses/Pamplejuce-MIT.txt](licenses/Pamplejuce-MIT.txt).

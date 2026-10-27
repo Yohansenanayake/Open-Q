@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
 #include "AnalyzerWorker.h"
+#include "GraphArtwork.h"
 #include "GraphRefreshLimiter.h"
 #include "ResponseWorker.h"
 
@@ -31,6 +32,10 @@ namespace openq
 
     private:
         class Node;
+        class ResponseLayer;
+        void paintResponse (juce::Graphics&);
+        GraphArtwork artwork;
+        std::unique_ptr<ResponseLayer> responseLayer;
         void timerCallback() override;
         void updateVisibility();
         void updateNodes();

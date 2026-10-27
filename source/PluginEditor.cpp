@@ -7,6 +7,10 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     responseGraph.setAnalyzerTransport (analyzerTransport);
     addAndMakeVisible (responseGraph);
     addAndMakeVisible (preTrace);
+    addAndMakeVisible (spectrumFill);
+    spectrumFill.setComponentID ("analyzer.fill");
+    spectrumFill.setTooltip ("Fill the spectra; turn off to show outlines only.");
+    spectrumFill.onClick = [this] { analyzerTransport.setFillEnabled (spectrumFill.getToggleState()); responseGraph.repaint(); };
     addAndMakeVisible (postTrace);
     addAndMakeVisible (analyzerQuality);
     preTrace.setComponentID ("analyzer.pre");
@@ -115,6 +119,7 @@ PluginEditor::~PluginEditor()
 void PluginEditor::timerCallback()
 {
     const auto settings = analyzerTransport.getSettings();
+    spectrumFill.setToggleState (analyzerTransport.getFillEnabled(), juce::dontSendNotification);
     preTrace.setToggleState (settings.pre, juce::dontSendNotification);
     postTrace.setToggleState (settings.post, juce::dontSendNotification);
     analyzerQuality.setSelectedId (settings.quality == openq::AnalyzerQuality::High ? 2 : 1, juce::dontSendNotification);
@@ -137,6 +142,7 @@ void PluginEditor::resized()
     analyzerQuality.setBounds (header.removeFromRight (100).reduced (0, 4));
     postTrace.setBounds (header.removeFromRight (66));
     preTrace.setBounds (header.removeFromRight (60));
+    spectrumFill.setBounds (header.removeFromRight (60));
     area.removeFromTop (4);
     responseGraph.setBounds (area);
     positionBandCard();

@@ -15,7 +15,6 @@ namespace openq
         constexpr double qWheelSensitivity = 2.0;
         constexpr double fineQWheelSensitivity = 0.3;
         constexpr float bypassNodeOpacity = 0.4f;
-        constexpr int gridStepDb = 6;
     }
 
     class ResponseGraph::Node final : public juce::TextButton
@@ -82,6 +81,20 @@ namespace openq
         size_t band;
     };
 
+    class ResponseGraph::ResponseLayer final : public juce::Component
+    {
+    public:
+        explicit ResponseLayer (ResponseGraph& owner) : graph (owner)
+        {
+            setComponentID ("response.curves");
+            setInterceptsMouseClicks (false, false);
+        }
+        void paint (juce::Graphics& g) override { graph.paintResponse (g); }
+
+    private:
+        ResponseGraph& graph;
+    };
+
     ResponseGraph::ResponseGraph (juce::AudioProcessorValueTreeState& state, const std::atomic<double>& rate)
         : parameters (state), sampleRate (rate), worker (state, rate)
     {
@@ -89,6 +102,9 @@ namespace openq
         setComponentID ("response.graph");
         setDescription ("Combined digital EQ response. Drag band nodes to edit frequency and gain. Bypassed nodes remain dimmed and editable; Off nodes are hidden.");
         setOpaque (true);
+        addAndMakeVisible (artwork);
+        responseLayer = std::make_unique<ResponseLayer> (*this);
+        addAndMakeVisible (*responseLayer);
         for (size_t band = 0; band < bandCount; ++band)
         {
             bandParameters[band] = getBandParameterPointers (parameters, band);
@@ -125,6 +141,8 @@ namespace openq
     void ResponseGraph::resized()
     {
         cancelDrag();
+        artwork.setBounds (getLocalBounds());
+        responseLayer->setBounds (getLocalBounds());
         const auto bounds = plotBounds();
         worker.setGeometry ({ std::max (0, bounds.getWidth()), std::max (0, bounds.getHeight()) });
         if (analyzer)
@@ -411,13 +429,8 @@ namespace openq
         worker.pullFrame();
         const auto& frame = worker.getFrame();
         const auto plot = plotBounds();
+        artwork.setDisplay (plot, frame.valid ? frame.response.sampleRate : 0.0, analyzer != nullptr);
         g.fillAll (palette::background);
-        g.setColour (palette::secondaryText);
-        g.setFont (13.0f);
-        g.drawText ("Frequency response", 52, 6, 200, 24, juce::Justification::centredLeft);
-        g.drawText ("dB", 2, 6, 42, 24, juce::Justification::centredRight);
-        if (frame.valid)
-            g.drawText (juce::String (frame.response.sampleRate / 1000.0, 1) + " kHz", getWidth() - 110, 6, 90, 24, juce::Justification::centredRight);
         if (plot.isEmpty())
             return;
 
@@ -436,46 +449,24 @@ namespace openq
                 for (size_t trace = 0; trace < spectrum.fills.size(); ++trace)
                 {
                     const auto color = trace == 0 ? palette::analyzerPre : palette::analyzerPost;
-                    // Temporary diagnostic: omit fills to isolate popup delay; restore after the comparison.
-                    // g.setColour (color.withAlpha (0.16f));
-                    // g.fillPath (spectrum.fills[trace], translation);
+                    if (analyzerTransport->getFillEnabled())
+                    {
+                        g.setColour (color.withAlpha (0.16f));
+                        g.fillPath (spectrum.fills[trace], translation);
+                    }
                     g.setColour (color.withAlpha (0.6f));
                     g.strokePath (spectrum.outlines[trace], juce::PathStrokeType (1.0f), translation);
                 }
             }
-            g.setColour (palette::secondaryText);
-            g.setFont (10.0f);
-            // Analyzer levels have their own scale; the left scale remains EQ gain.
-            for (int db = static_cast<int> (analyzerDisplay::maximumDb); db >= static_cast<int> (analyzerDisplay::minimumDb); db -= 24)
-            {
-                const auto proportion = (analyzerDisplay::maximumDb - static_cast<float> (db)) / (analyzerDisplay::maximumDb - analyzerDisplay::minimumDb);
-                const auto y = plot.getY() + static_cast<int> (proportion * static_cast<float> (plot.getHeight()));
-                g.drawText (juce::String (db), plot.getRight() + 2, y - 7, 22, 14, juce::Justification::centredLeft);
-            }
-            g.drawText ("dBFS", plot.getRight() - 40, plot.getY() + 3, 36, 12, juce::Justification::centred);
         }
+    }
 
-        for (int db = responseMapping::minimumDb; db <= responseMapping::maximumDb; db += gridStepDb)
-        {
-            const auto y = plot.getY() + (responseMapping::maximumDb - db) * plot.getHeight() / responseMapping::spanDb;
-            g.setColour (db == 0 ? palette::zeroLine : palette::grid);
-            g.drawHorizontalLine (y, static_cast<float> (plot.getX()), static_cast<float> (plot.getRight()));
-            g.setColour (palette::secondaryText);
-            g.drawText (juce::String (db), 2, y - 9, 42, 18, juce::Justification::centredRight);
-        }
-        const auto maximum = frame.valid ? responseMapping::maximumFrequency (frame.response.sampleRate) : bandLimits::maximumFrequencyHz;
-        for (const auto frequency : { 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0, 20000.0 })
-        {
-            if (frequency > maximum)
-                continue;
-            const auto proportion = responseMapping::frequencyToProportion (frequency, maximum);
-            const auto x = static_cast<int> (std::round (plot.getX() + proportion * plot.getWidth()));
-            g.setColour (palette::grid);
-            g.drawVerticalLine (x, static_cast<float> (plot.getY()), static_cast<float> (plot.getBottom()));
-            g.setColour (palette::secondaryText);
-            const auto label = frequency >= 1000.0 ? juce::String (frequency / 1000.0, 0) + "k" : juce::String (frequency, 0);
-            g.drawText (label, x - 22, plot.getBottom() + 5, 44, 20, juce::Justification::centred);
-        }
+    void ResponseGraph::paintResponse (juce::Graphics& g)
+    {
+        const auto& frame = worker.getFrame();
+        const auto plot = plotBounds();
+        if (plot.isEmpty())
+            return;
         if (!frame.valid)
         {
             g.setColour (palette::secondaryText);

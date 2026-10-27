@@ -22,7 +22,7 @@ private:
     void positionBandCard();
     void timerCallback() override;
     openq::AnalyzerTransport& analyzerTransport;
-    juce::ToggleButton preTrace { "Pre" }, postTrace { "Post" };
+    juce::ToggleButton preTrace { "Pre" }, postTrace { "Post" }, spectrumFill { "Fill" };
     juce::ComboBox analyzerQuality;
     openq::ResponseGraph responseGraph;
     openq::BandControlCard bandCard;
