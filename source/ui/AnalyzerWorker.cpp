@@ -39,10 +39,8 @@ namespace openq
         using Clock = std::chrono::steady_clock;
         AnalyzerEngine engine;
         AnalyzerPacket packet;
-        std::array<std::vector<float>, 2> levels;
         auto lastTick = Clock::now(), lastAudio = lastTick;
         unsigned previousSettings = transport.getSettings().encode();
-        std::uint64_t revision = 0;
         while (!threadShouldExit())
         {
             geometry.pull();
@@ -66,12 +64,8 @@ namespace openq
             if (fresh || previousSettings != settings.encode())
                 engine.analyze (settings);
             const auto width = std::clamp (bounds.width, 0, 8192);
-            const bool reset = revision != engine.getRevision() || ((previousSettings ^ settings.encode()) & 4u) != 0;
             previousSettings = settings.encode();
-            revision = engine.getRevision();
-            for (auto& trace : levels)
-                if (trace.size() != static_cast<size_t> (width + 1) || reset)
-                    trace.assign (static_cast<size_t> (width + 1), analyzerDisplay::minimumDb);
+            engine.updateDisplay (elapsed, stale, analyzerDisplay::minimumDb, analyzerDisplay::tiltDbPerOctave);
             auto& frame = frames.getWriter();
             frame.geometry = bounds;
             frame.sampleRate = engine.getSampleRate();
@@ -86,11 +80,10 @@ namespace openq
             if (frame.valid)
             {
                 const auto maximum = responseMapping::maximumFrequency (frame.sampleRate);
-                for (size_t trace = 0; trace < levels.size(); ++trace)
+                for (size_t trace = 0; trace < frame.fills.size(); ++trace)
                 {
                     if (!(trace == 0 ? settings.pre : settings.post))
                     {
-                        std::fill (levels[trace].begin(), levels[trace].end(), analyzerDisplay::minimumDb);
                         continue;
                     }
                     auto& fill = frame.fills[trace];
@@ -99,12 +92,7 @@ namespace openq
                     for (int x = 0; x <= width; ++x)
                     {
                         const auto frequency = responseMapping::proportionToFrequency (static_cast<double> (x) / width, maximum);
-                        const auto power = engine.powerAt (trace, frequency);
-                        const auto db = 10.0f * std::log10 (std::max (power, 1.0e-20f))
-                                        + analyzerDisplay::tiltDbPerOctave * static_cast<float> (std::log2 (frequency / 1000.0));
-                        auto& level = levels[trace][static_cast<size_t> (x)];
-                        const auto falling = std::max (analyzerDisplay::minimumDb, level - elapsed * analyzerDisplay::fallDbPerSecond);
-                        level = std::clamp (stale ? falling : std::max (db, falling), analyzerDisplay::minimumDb, analyzerDisplay::maximumDb);
+                        const auto level = std::clamp (engine.displayDbAt (trace, frequency), analyzerDisplay::minimumDb, analyzerDisplay::maximumDb);
                         const auto proportion = (analyzerDisplay::maximumDb - level) / (analyzerDisplay::maximumDb - analyzerDisplay::minimumDb);
                         const auto drawX = static_cast<float> (x) * static_cast<float> (bounds.width) / static_cast<float> (width);
                         const auto y = proportion * static_cast<float> (bounds.height);

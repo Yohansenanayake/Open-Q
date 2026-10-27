@@ -2,7 +2,7 @@
 #include "ui/Palette.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), analyzerTransport (p.getAnalyzerTransport()), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
+    : AudioProcessorEditor (&p), processor (p), analyzerTransport (p.getAnalyzerTransport()), analyzerPanel (analyzerTransport), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
 {
     setLookAndFeel (&lookAndFeel);
     responseGraph.setAnalyzerTransport (analyzerTransport);
@@ -13,17 +13,26 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     spectrumFill.setTooltip ("Fill the spectra; turn off to show outlines only.");
     spectrumFill.onClick = [this] { analyzerTransport.setFillEnabled (spectrumFill.getToggleState()); responseGraph.repaint(); };
     addAndMakeVisible (postTrace);
-    addAndMakeVisible (analyzerQuality);
+    addAndMakeVisible (analyzerButton);
+    addChildComponent (analyzerPanel);
+    analyzerButton.setComponentID ("analyzer.settings");
+    analyzerButton.setClickingTogglesState (true);
+    analyzerButton.onClick = [this] {
+        analyzerPanel.refresh();
+        analyzerPanel.setVisible (analyzerButton.getToggleState());
+        if (analyzerPanel.isVisible())
+            analyzerPanel.toFront (false);
+    };
+    analyzerPanel.onClose = [this] {
+        analyzerPanel.setVisible (false);
+        analyzerButton.setToggleState (false, juce::dontSendNotification);
+    };
     preTrace.setComponentID ("analyzer.pre");
     postTrace.setComponentID ("analyzer.post");
-    analyzerQuality.setComponentID ("analyzer.quality");
     preTrace.setColour (juce::ToggleButton::tickColourId, openq::palette::analyzerPre);
     postTrace.setColour (juce::ToggleButton::tickColourId, openq::palette::analyzerPost);
     preTrace.setTooltip ("Show the input spectrum (averaged channel power).");
     postTrace.setTooltip ("Show the output spectrum (averaged channel power).");
-    analyzerQuality.setTooltip ("Analyzer quality only; does not change audio or plugin latency. Display tilt: 4.5 dB/oct, anchored at 1 kHz.");
-    analyzerQuality.addItem ("Normal", 1);
-    analyzerQuality.addItem ("High", 2);
     preTrace.onClick = [this] {
         auto settings = analyzerTransport.getSettings();
         settings.pre = preTrace.getToggleState();
@@ -32,11 +41,6 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     postTrace.onClick = [this] {
         auto settings = analyzerTransport.getSettings();
         settings.post = postTrace.getToggleState();
-        analyzerTransport.setSettings (settings);
-    };
-    analyzerQuality.onChange = [this] {
-        auto settings = analyzerTransport.getSettings();
-        settings.quality = analyzerQuality.getSelectedId() == 2 ? openq::AnalyzerQuality::High : openq::AnalyzerQuality::Normal;
         analyzerTransport.setSettings (settings);
     };
     timerCallback();
@@ -106,6 +110,8 @@ void PluginEditor::positionBandCard (bool resizing)
         {
             bandCard.setBounds (position);
             bandCard.toFront (false);
+            if (analyzerPanel.isVisible())
+                analyzerPanel.toFront (false);
             return;
         }
         if (graph.contains (position))
@@ -122,6 +128,8 @@ void PluginEditor::positionBandCard (bool resizing)
     // Extremely short windows may offer no clear corner; keep the card inside the graph.
     bandCard.setBounds (fallback);
     bandCard.toFront (false);
+    if (analyzerPanel.isVisible())
+        analyzerPanel.toFront (false);
 }
 
 PluginEditor::~PluginEditor()
@@ -134,6 +142,8 @@ PluginEditor::~PluginEditor()
     bandCard.onDragStateChanged = nullptr;
     bandCard.onDelete = nullptr;
     bandCard.onClose = nullptr;
+    analyzerPanel.onClose = nullptr;
+    analyzerPanel.dismissPopups();
     setLookAndFeel (nullptr);
     setConstrainer (nullptr);
 }
@@ -147,7 +157,7 @@ void PluginEditor::timerCallback()
     spectrumFill.setToggleState (analyzerTransport.getFillEnabled(), juce::dontSendNotification);
     preTrace.setToggleState (settings.pre, juce::dontSendNotification);
     postTrace.setToggleState (settings.post, juce::dontSendNotification);
-    analyzerQuality.setSelectedId (settings.quality == openq::AnalyzerQuality::High ? 2 : 1, juce::dontSendNotification);
+    analyzerPanel.refresh();
 }
 
 void PluginEditor::paint (juce::Graphics& g)
@@ -169,7 +179,7 @@ void PluginEditor::resized()
     uiScale = size.scale();
     const auto scaled = [this] (int value) { return juce::roundToInt (static_cast<float> (value) * uiScale); };
     bandCard.dismissPopups();
-    analyzerQuality.hidePopup();
+    analyzerPanel.dismissPopups();
     if (!juce::exactlyEqual (lookAndFeel.scale, uiScale))
     {
         lookAndFeel.scale = uiScale;
@@ -180,10 +190,15 @@ void PluginEditor::resized()
     auto header = area.removeFromTop (scaled (36));
     inspectButton.setBounds (header.removeFromRight (scaled (130)).reduced (0, scaled (4)));
     header.removeFromRight (scaled (8));
-    analyzerQuality.setBounds (header.removeFromRight (scaled (100)).reduced (0, scaled (4)));
+    analyzerButton.setBounds (header.removeFromRight (scaled (100)).reduced (0, scaled (4)));
     postTrace.setBounds (header.removeFromRight (scaled (66)));
     preTrace.setBounds (header.removeFromRight (scaled (60)));
     spectrumFill.setBounds (header.removeFromRight (scaled (60)));
+    const auto panelWidth = scaled (openq::AnalyzerPanel::preferredWidth);
+    analyzerPanel.setBounds (std::clamp (analyzerButton.getRight() - panelWidth, scaled (12), getWidth() - panelWidth - scaled (12)),
+        analyzerButton.getBottom() + scaled (8),
+        panelWidth,
+        scaled (openq::AnalyzerPanel::preferredHeight));
     area.removeFromTop (scaled (4));
     responseGraph.setBounds (area);
     positionBandCard (true);

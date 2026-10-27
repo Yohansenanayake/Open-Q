@@ -11,7 +11,7 @@
 namespace
 {
     constexpr double sampleRate = 48000.0;
-    constexpr double toneHz = 93.75; // Coherent bin 8 in the Normal FFT, outside the smoothed-bin region.
+    constexpr double toneHz = 93.75; // Coherent bin 8 in the Normal FFT; half-ERB smoothing spans neighboring bins.
 
     void feedTone (openq::AnalyzerEngine& engine, int channels, float rightGain = 1.0f, float postGain = 1.0f, double rate = sampleRate, std::uint64_t start = 0)
     {
@@ -139,7 +139,13 @@ TEST_CASE ("Analyzer channel power convention preserves dual mono and polarity",
     openq::AnalyzerEngine engine;
     feedTone (engine, 1);
     const auto mono = dbAt (engine, 0);
-    CHECK_THAT (mono, Catch::Matchers::WithinAbs (0.0, 0.08));
+    // The coherent Hann tone occupies bins 7/8/9 with powers 1/4, 1, 1/4.
+    // Two three-bin averages give 4/9 at bin 8; also account for the analysis DC blocker.
+    const auto pole = std::exp (-2.0 * std::numbers::pi * 5.0 / sampleRate);
+    const auto cosine = std::cos (2.0 * std::numbers::pi * toneHz / sampleRate);
+    const auto dcPower = (2.0 - 2.0 * cosine) / (1.0 + pole * pole - 2.0 * pole * cosine);
+    const auto expected = 10.0 * std::log10 ((4.0 / 9.0) * dcPower);
+    CHECK_THAT (mono, Catch::Matchers::WithinAbs (expected, 0.01));
     feedTone (engine, 2);
     CHECK_THAT (dbAt (engine, 0), Catch::Matchers::WithinAbs (mono, 0.001));
     feedTone (engine, 2, -1.0f, 0.5f);
@@ -244,7 +250,8 @@ TEST_CASE ("Analyzer worker publishes geometry tagged traces and decays suspende
     REQUIRE (awaitAnalyzer (worker, [] (const auto& frame) { return frame.valid && frame.geometry == openq::ResponseGeometry { 480, 240 }; }));
     REQUIRE (awaitAnalyzer (worker, [] (const auto& frame) { return frame.stale; }));
     const auto staleTop = worker.getFrame().outlines[0].getBounds().getY();
-    REQUIRE (awaitAnalyzer (worker, [=] (const auto& frame) { return frame.stale && frame.outlines[0].getBounds().getY() > staleTop + 2.0f; }));
+    CHECK (staleTop > initialTop * 240.0f / 180.0f + 2.0f);
+    REQUIRE (awaitAnalyzer (worker, [] (const auto& frame) { return frame.stale && frame.outlines[0].getBounds().getY() >= 239.9f; }));
     transport.setSettings ({ false, true, openq::AnalyzerQuality::High });
     REQUIRE (awaitAnalyzer (worker, [] (const auto& frame) { return frame.settings.quality == openq::AnalyzerQuality::High && frame.outlines[0].isEmpty(); }));
     worker.stop();
@@ -375,7 +382,9 @@ TEST_CASE ("Analyzer UI switches remain independent of band parameters", "[analy
     const auto before = processor.parameters.copyState();
     auto* pre = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("analyzer.pre"));
     auto* post = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("analyzer.post"));
-    auto* quality = dynamic_cast<juce::ComboBox*> (editor.findChildWithID ("analyzer.quality"));
+    auto* panel = editor.findChildWithID ("analyzer.panel");
+    REQUIRE (panel != nullptr);
+    auto* quality = dynamic_cast<juce::ComboBox*> (panel->findChildWithID ("analyzer.quality"));
     REQUIRE (pre != nullptr);
     REQUIRE (post != nullptr);
     REQUIRE (quality != nullptr);
@@ -437,4 +446,84 @@ TEST_CASE ("Spectrum fill is a saved display preference independent of analysis"
     juce::AudioProcessor::copyXmlToBinary (*legacy.createXml(), bytes);
     restored.setStateInformation (bytes.getData(), static_cast<int> (bytes.getSize()));
     CHECK (restored.getAnalyzerTransport().getFillEnabled());
+}
+
+TEST_CASE ("Default half ERB smoothing broadens bass peaks in the power domain", "[analyzer][smoothing]")
+{
+    openq::AnalyzerEngine engine;
+    feedTone (engine, 1);
+    const auto binWidth = sampleRate / static_cast<double> (engine.getMiddleFFTSize());
+    const auto peak = engine.powerAt (0, toneHz);
+    // Two bins away, half-ERB averages yield 1/6 versus 4/9 at the peak.
+    // The previous 1/12-octave setting left this coherent Hann tone's outer bin near zero.
+    CHECK_THAT (engine.powerAt (0, toneHz + 2.0 * binWidth) / peak,
+        Catch::Matchers::WithinAbs (3.0 / 8.0, 0.001));
+    CHECK_THAT (engine.powerAt (0, toneHz - 2.0 * binWidth) / peak,
+        Catch::Matchers::WithinAbs (3.0 / 8.0, 0.001));
+}
+
+TEST_CASE ("Analyzer mode and amount choices change power smoothing without changing input history", "[analyzer][smoothing]")
+{
+    openq::AnalyzerEngine engine;
+    feedTone (engine, 1);
+    const auto halfErb = engine.powerAt (0, toneHz);
+    const auto revision = engine.getRevision();
+    openq::AnalyzerSettings settings;
+    settings.smoothing = openq::AnalyzerSmoothing::Octave;
+    engine.analyze (settings);
+    CHECK (engine.powerAt (0, toneHz) > halfErb * 2.0f);
+    settings.smoothing = openq::AnalyzerSmoothing::Erb;
+    settings.erbAmount = 2;
+    engine.analyze (settings);
+    CHECK (engine.powerAt (0, toneHz) < halfErb);
+    CHECK (engine.getRevision() == revision);
+}
+
+TEST_CASE ("Analyzer exponential decay follows elapsed time speed and dB range with immediate rise", "[analyzer][decay]")
+{
+    const auto run = [] (int steps, openq::AnalyzerDecay decay, float minimumDb) {
+        openq::AnalyzerEngine engine;
+        feedTone (engine, 1);
+        openq::AnalyzerSettings settings;
+        settings.decay = decay;
+        engine.analyze (settings);
+        engine.updateDisplay (1.0 / 30.0, false, minimumDb, 0.0f);
+        const auto peak = engine.displayDbAt (0, toneHz);
+        for (int i = 0; i < steps; ++i)
+            engine.updateDisplay (0.1 / steps, true, minimumDb, 0.0f);
+        const auto fallen = engine.displayDbAt (0, toneHz);
+        engine.updateDisplay (std::numeric_limits<double>::quiet_NaN(), true, minimumDb, 0.0f);
+        CHECK_THAT (engine.displayDbAt (0, toneHz), Catch::Matchers::WithinAbs (fallen, 0.0));
+        engine.updateDisplay (0.01, false, minimumDb, 0.0f);
+        CHECK_THAT (engine.displayDbAt (0, toneHz), Catch::Matchers::WithinAbs (peak, 0.001));
+        return std::pair { peak, fallen };
+    };
+    using Decay = openq::AnalyzerDecay;
+    const auto [peak, at30] = run (3, Decay::Medium, -96.0f);
+    const auto at60 = run (6, Decay::Medium, -96.0f).second;
+    const auto at10 = run (1, Decay::Medium, -96.0f).second;
+    const auto expected = -240.0 + (peak + 240.0) * std::pow (0.2, 0.1 / (0.15 / 1.1));
+    CHECK_THAT (at30, Catch::Matchers::WithinAbs (expected, 0.002));
+    CHECK_THAT (at60, Catch::Matchers::WithinAbs (at30, 0.002));
+    CHECK_THAT (at10, Catch::Matchers::WithinAbs (at30, 0.002));
+    CHECK (run (3, Decay::VeryFast, -96.0f).second < at30);
+    CHECK (run (3, Decay::VerySlow, -96.0f).second > at30);
+    CHECK (run (3, Decay::Medium, -60.0f).second > at30);
+}
+
+TEST_CASE ("Both analyzer qualities retain channel ratios through spectrum-domain decay", "[analyzer][decay]")
+{
+    openq::AnalyzerEngine engine;
+    feedTone (engine, 2, -1.0f, 0.5f);
+    for (const auto quality : { openq::AnalyzerQuality::Normal, openq::AnalyzerQuality::High })
+    {
+        auto settings = openq::AnalyzerSettings { true, true, quality };
+        engine.analyze (settings);
+        engine.updateDisplay (1.0 / 30.0, false, -96.0f, 4.5f);
+        CHECK_THAT (engine.displayDbAt (1, toneHz) - engine.displayDbAt (0, toneHz),
+            Catch::Matchers::WithinAbs (-6.0206, 0.002));
+        const auto before = engine.displayDbAt (0, toneHz);
+        engine.updateDisplay (0.02, true, -96.0f, 4.5f);
+        CHECK (engine.displayDbAt (0, toneHz) < before);
+    }
 }

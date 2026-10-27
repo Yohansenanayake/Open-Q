@@ -12,6 +12,8 @@ namespace openq
         ~AnalyzerEngine();
         void push (const AnalyzerPacket& packet);
         void analyze (AnalyzerSettings settings);
+        void updateDisplay (double elapsedSeconds, bool stale, float minimumDb, float tiltDbPerOctave);
+        float displayDbAt (size_t trace, double frequency) const;
         float powerAt (size_t trace, double frequency) const;
         double getSampleRate() const;
         std::uint64_t getRevision() const;

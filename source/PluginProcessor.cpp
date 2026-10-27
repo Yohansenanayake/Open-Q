@@ -181,7 +181,9 @@ juce::AudioProcessorEditor* PluginProcessor::createEditor()
 void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = parameters.copyState();
-    state.setProperty ("analyzerSettings", static_cast<int> (analyzer.getSettings().encode()), nullptr);
+    const auto analyzerSettings = analyzer.getSettings();
+    state.setProperty ("analyzerSettings", static_cast<int> (analyzerSettings.flags()), nullptr);
+    state.setProperty ("analyzerConfiguration", static_cast<int> (analyzerSettings.configuration()), nullptr);
     state.setProperty ("analyzerFill", analyzer.getFillEnabled() ? 1 : 0, nullptr);
     const auto size = getEditorSize();
     state.setProperty ("editorWidth", size.width, nullptr);
@@ -235,6 +237,16 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     if (settingsInput.fail() || !settingsInput.eof() || !std::isfinite (settings)
         || settings < 0.0 || settings > 7.0 || !juce::exactlyEqual (settings, std::round (settings)))
         return;
+    double configuration = openq::AnalyzerSettings {}.configuration();
+    std::istringstream configurationInput (state.getProperty ("analyzerConfiguration", static_cast<int> (configuration)).toString().trim().toStdString());
+    configurationInput.imbue (std::locale::classic());
+    configurationInput >> std::noskipws >> configuration;
+    if (configurationInput.fail() || !configurationInput.eof() || !std::isfinite (configuration)
+        || configuration < 0.0 || configuration > openq::AnalyzerSettings::configurationMask || !juce::exactlyEqual (configuration, std::round (configuration)))
+        return;
+    const auto analyzerSettings = openq::AnalyzerSettings::decode ((static_cast<unsigned> (configuration) << 3) | static_cast<unsigned> (settings));
+    if (!analyzerSettings.isValid())
+        return;
     const auto fill = state.getProperty ("analyzerFill", 1).toString().trim();
     if (fill != "0" && fill != "1")
         return;
@@ -253,7 +265,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             return;
     }
     parameters.replaceState (state);
-    analyzer.setSettings (openq::AnalyzerSettings::decode (static_cast<unsigned> (settings)));
+    analyzer.setSettings (analyzerSettings);
     analyzer.setFillEnabled (fill == "1");
     setEditorSize (size);
 }

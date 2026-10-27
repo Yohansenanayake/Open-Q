@@ -1,25 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
 #include "../BandLimits.h"
+#include "AnalyzerSettings.h"
 #include <atomic>
 #include <juce_audio_basics/juce_audio_basics.h>
 
 namespace openq
 {
     inline constexpr double maximumAnalyzerSampleRate = 768000.0;
-    enum class AnalyzerQuality {
-        Normal,
-        High
-    };
-
-    struct AnalyzerSettings
-    {
-        bool pre = true, post = true;
-        AnalyzerQuality quality = AnalyzerQuality::Normal;
-        constexpr unsigned encode() const { return (pre ? 1u : 0u) | (post ? 2u : 0u) | (quality == AnalyzerQuality::High ? 4u : 0u); }
-        static AnalyzerSettings decode (unsigned bits) { return { (bits & 1u) != 0, (bits & 2u) != 0, (bits & 4u) != 0 ? AnalyzerQuality::High : AnalyzerQuality::Normal }; }
-    };
-
     struct AnalyzerPacket
     {
         static constexpr int capacity = 256;
@@ -41,7 +29,13 @@ namespace openq
         void setActive (bool active);
         unsigned session() const { return captureSession.load (std::memory_order_acquire); }
         AnalyzerSettings getSettings() const { return AnalyzerSettings::decode (settings.load (std::memory_order_relaxed)); }
-        void setSettings (AnalyzerSettings value) { settings.store (value.encode(), std::memory_order_relaxed); }
+        bool setSettings (AnalyzerSettings value)
+        {
+            if (!value.isValid())
+                return false;
+            settings.store (value.encode(), std::memory_order_relaxed);
+            return true;
+        }
         bool getFillEnabled() const { return fillEnabled.load (std::memory_order_relaxed) != 0; }
         void setFillEnabled (bool enabled) { fillEnabled.store (enabled ? 1u : 0u, std::memory_order_relaxed); }
         void beginBlock (const juce::AudioBuffer<float>& buffer, int channels);

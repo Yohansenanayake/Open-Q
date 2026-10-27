@@ -1,0 +1,123 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+#include "AnalyzerPanel.h"
+#include "Palette.h"
+
+namespace openq
+{
+    AnalyzerPanel::AnalyzerPanel (AnalyzerTransport& source) : transport (source)
+    {
+        setComponentID ("analyzer.panel");
+        setTitle ("Analyzer settings");
+        const std::array<juce::String, 4> names { "Quality", "Smoothing", "Amount", "Decay" };
+        const std::array<CompactComboBox*, 4> boxes { &quality, &smoothing, &amount, &decay };
+        const std::array<juce::String, 4> ids { "quality", "smoothing", "amount", "decay" };
+        for (size_t i = 0; i < labels.size(); ++i)
+        {
+            labels[i].setText (names[i], juce::dontSendNotification);
+            addAndMakeVisible (labels[i]);
+            boxes[i]->setComponentID ("analyzer." + ids[i]);
+            boxes[i]->setTitle (names[i]);
+            addAndMakeVisible (*boxes[i]);
+        }
+        quality.addItemList ({ "Normal", "High" }, 1);
+        smoothing.addItemList ({ "ERB", "Octave" }, 1);
+        decay.addItemList ({ "Very Fast", "Fast", "Medium", "Slow", "Very Slow" }, 1);
+        quality.setTooltip ("Analyzer resolution only; does not change audio or plugin latency.");
+        smoothing.setTooltip ("Average nearby frequencies in linear power using ERB or octave bands.");
+        amount.setTooltip ("Smoothing bandwidth. Each mode remembers its own amount.");
+        decay.setTooltip ("Controls how quickly spectrum peaks fall. Rising levels respond immediately. Speed follows the analyzer dB range.");
+        quality.onChange = [this] {
+            auto settings = transport.getSettings();
+            settings.quality = quality.getSelectedId() == 2 ? AnalyzerQuality::High : AnalyzerQuality::Normal;
+            transport.setSettings (settings);
+        };
+        smoothing.onChange = [this] {
+            auto settings = transport.getSettings();
+            settings.smoothing = smoothing.getSelectedId() == 2 ? AnalyzerSmoothing::Octave : AnalyzerSmoothing::Erb;
+            transport.setSettings (settings);
+            refresh();
+        };
+        amount.onChange = [this] {
+            auto settings = transport.getSettings();
+            auto& index = settings.smoothing == AnalyzerSmoothing::Erb ? settings.erbAmount : settings.octaveAmount;
+            if (amount.getSelectedId() > 0)
+                index = static_cast<unsigned> (amount.getSelectedId() - 1);
+            transport.setSettings (settings);
+        };
+        decay.onChange = [this] {
+            auto settings = transport.getSettings();
+            settings.decay = static_cast<AnalyzerDecay> (decay.getSelectedItemIndex());
+            transport.setSettings (settings);
+        };
+        addAndMakeVisible (close);
+        close.onClick = [this] { if (onClose) onClose(); };
+        refresh();
+    }
+
+    void AnalyzerPanel::refresh()
+    {
+        const auto settings = transport.getSettings();
+        quality.setSelectedId (settings.quality == AnalyzerQuality::High ? 2 : 1, juce::dontSendNotification);
+        smoothing.setSelectedId (settings.smoothing == AnalyzerSmoothing::Erb ? 1 : 2, juce::dontSendNotification);
+        if (shownMode != settings.smoothing || amount.getNumItems() == 0)
+        {
+            amount.closePopup();
+            shownMode = settings.smoothing;
+            amount.clear (juce::dontSendNotification);
+            if (shownMode == AnalyzerSmoothing::Erb)
+                amount.addItemList ({ "1/4 ERB", "1/2 ERB", "1 ERB" }, 1);
+            else
+                amount.addItemList ({ "1/24 octave", "1/12 octave", "1/6 octave", "1/3 octave" }, 1);
+        }
+        amount.setSelectedId (static_cast<int> (shownMode == AnalyzerSmoothing::Erb ? settings.erbAmount : settings.octaveAmount) + 1, juce::dontSendNotification);
+        decay.setSelectedId (static_cast<int> (settings.decay) + 1, juce::dontSendNotification);
+    }
+
+    void AnalyzerPanel::dismissPopups()
+    {
+        for (auto* box : { &quality, &smoothing, &amount, &decay })
+            box->closePopup();
+    }
+    void AnalyzerPanel::visibilityChanged()
+    {
+        if (!isVisible())
+            dismissPopups();
+    }
+    bool AnalyzerPanel::keyPressed (const juce::KeyPress& key)
+    {
+        if (key != juce::KeyPress::escapeKey)
+            return false;
+        if (onClose)
+            onClose();
+        return true;
+    }
+    void AnalyzerPanel::paint (juce::Graphics& g)
+    {
+        const auto scale = static_cast<float> (getWidth()) / preferredWidth;
+        g.setColour (palette::cardBackground);
+        g.fillRoundedRectangle (getLocalBounds().toFloat(), 8.0f * scale);
+        g.setColour (palette::accent.withAlpha (0.65f));
+        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 8.0f * scale, 1.0f);
+        g.setColour (palette::text);
+        g.setFont (16.0f * scale);
+        g.drawText ("Analyzer", juce::Rectangle<float> (12.0f, 8.0f, 180.0f, 28.0f) * scale, juce::Justification::centredLeft);
+    }
+    void AnalyzerPanel::resized()
+    {
+        dismissPopups();
+        const auto scale = static_cast<float> (getWidth()) / preferredWidth;
+        const auto scaled = [scale] (int value) { return juce::roundToInt (static_cast<float> (value) * scale); };
+        auto area = getLocalBounds().reduced (scaled (12));
+        auto header = area.removeFromTop (scaled (28));
+        close.setBounds (header.removeFromRight (scaled (68)));
+        const std::array<CompactComboBox*, 4> boxes { &quality, &smoothing, &amount, &decay };
+        for (size_t i = 0; i < labels.size(); ++i)
+        {
+            area.removeFromTop (scaled (8));
+            auto row = area.removeFromTop (scaled (30));
+            labels[i].setFont (juce::FontOptions (15.0f * scale));
+            labels[i].setBounds (row.removeFromLeft (scaled (100)));
+            boxes[i]->setBounds (row);
+        }
+    }
+}

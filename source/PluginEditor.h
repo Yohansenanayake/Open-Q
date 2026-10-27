@@ -3,6 +3,7 @@
 #include "BinaryData.h"
 #include "PluginProcessor.h"
 #include "melatonin_inspector/melatonin_inspector.h"
+#include "ui/AnalyzerPanel.h"
 #include "ui/BandControlCard.h"
 #include "ui/ResponseGraph.h"
 
@@ -39,7 +40,8 @@ private:
     void timerCallback() override;
     openq::AnalyzerTransport& analyzerTransport;
     juce::ToggleButton preTrace { "Pre" }, postTrace { "Post" }, spectrumFill { "Fill" };
-    juce::ComboBox analyzerQuality;
+    juce::TextButton analyzerButton { "Analyzer" };
+    openq::AnalyzerPanel analyzerPanel;
     openq::ResponseGraph responseGraph;
     openq::BandControlCard bandCard;
     bool knobDragging = false;

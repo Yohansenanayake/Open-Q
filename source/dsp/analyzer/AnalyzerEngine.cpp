@@ -7,6 +7,7 @@
 #include <numbers>
 // Upstream half-float comparisons and integer extensions are intentional.
 JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wfloat-equal", "-Wpedantic")
+#include "reference/SpectrumDecayer.h"
 #include <hwy/aligned_allocator.h>
 #include <zldsp_fft_rfft.hpp>
 JUCE_END_IGNORE_WARNINGS_GCC_LIKE
@@ -17,7 +18,6 @@ namespace openq
     {
         constexpr size_t middleResolution = 1;
         constexpr double dcCutoffHz = 5.0;
-        constexpr double smoothingOctaves = 1.0 / 12.0;
 
         int middleOrder (double sampleRate)
         {
@@ -51,6 +51,24 @@ namespace openq
         unsigned session = 0;
         std::uint64_t expectedSequence = 0, revision = 0;
         AnalyzerQuality quality = AnalyzerQuality::Normal;
+        AnalyzerSettings settings;
+        std::array<zldsp::analyzer::SpectrumDecayer, 2> decayers;
+        std::array<std::vector<float>, 2> displayLevels;
+        std::vector<float> displayFrequencies, displayTilt;
+        std::array<bool, 2> displayEnabled {};
+        AnalyzerQuality displayQuality = AnalyzerQuality::Normal;
+        float displayTiltSlope = 0.0f;
+        bool displayReady = false;
+
+        void configureSmoothing (AnalyzerSettings value)
+        {
+            for (auto& resolution : resolutions)
+                if (value.smoothing == AnalyzerSmoothing::Erb)
+                    resolution.smoother.setSmoothERB (sampleRate, analyzerErbAmounts[value.erbAmount]);
+                else
+                    resolution.smoother.setSmoothOCT (analyzerOctaveAmounts[value.octaveAmount]);
+            settings = value;
+        }
 
         void prepare (double rate)
         {
@@ -70,8 +88,8 @@ namespace openq
                 for (auto& power : resolution.powers)
                     power.assign (size / 2 + 1, 0.0f);
                 resolution.smoother.prepare (size);
-                resolution.smoother.setSmoothOCT (smoothingOctaves);
             }
+            configureSmoothing (settings);
             historySize = resolutions.front().fft->get_size();
             for (auto& trace : history)
                 for (auto& channel : trace)
@@ -87,6 +105,7 @@ namespace openq
             for (auto& trace : history)
                 for (auto& channel : trace)
                     std::fill (channel.begin(), channel.end(), 0.0f);
+            displayReady = false;
             previousInput = {};
             previousOutput = {};
             writePosition = 0;
@@ -132,8 +151,16 @@ namespace openq
     void AnalyzerEngine::analyze (AnalyzerSettings settings)
     {
         auto& state = *impl;
-        if (state.channels == 0)
+        if (!settings.isValid())
             return;
+        if (state.channels == 0)
+        {
+            state.settings = settings;
+            return;
+        }
+        if (settings.smoothing != state.settings.smoothing || settings.erbAmount != state.settings.erbAmount || settings.octaveAmount != state.settings.octaveAmount)
+            state.configureSmoothing (settings);
+        state.settings = settings;
         state.quality = settings.quality;
         const auto first = settings.quality == AnalyzerQuality::High ? size_t (0) : middleResolution;
         const auto end = settings.quality == AnalyzerQuality::High ? state.resolutions.size() : middleResolution + 1;
@@ -165,6 +192,92 @@ namespace openq
             if (settings.quality == AnalyzerQuality::High)
                 zldsp::analyzer::SpectrumBlender::blend (state.blended[trace], state.frequencies, state.resolutions[0].powers[trace], state.resolutions[1].powers[trace], state.resolutions[2].powers[trace], state.sampleRate);
         }
+    }
+
+    void AnalyzerEngine::updateDisplay (double elapsedSeconds, bool stale, float minimumDb, float tiltDbPerOctave)
+    {
+        auto& state = *impl;
+        if (state.channels == 0 || !std::isfinite (elapsedSeconds) || elapsedSeconds <= 0.0
+            || !std::isfinite (minimumDb) || !std::isfinite (tiltDbPerOctave))
+            return;
+        constexpr float silenceDb = -240.0f;
+        if (!state.displayReady || state.displayQuality != state.quality)
+        {
+            state.displayQuality = state.quality;
+            if (state.quality == AnalyzerQuality::High)
+                state.displayFrequencies = state.frequencies;
+            else
+            {
+                const auto size = state.resolutions[middleResolution].powers[0].size();
+                state.displayFrequencies.resize (size);
+                const auto delta = static_cast<float> (state.sampleRate / state.resolutions[middleResolution].fft->get_size());
+                for (size_t i = 0; i < size; ++i)
+                    state.displayFrequencies[i] = static_cast<float> (i) * delta;
+            }
+            for (size_t trace = 0; trace < state.displayLevels.size(); ++trace)
+            {
+                state.displayLevels[trace].assign (state.displayFrequencies.size(), silenceDb);
+                state.decayers[trace].prepareSpectrum (state.displayFrequencies.size());
+            }
+            state.displayTilt.clear();
+            state.displayEnabled = {};
+            state.displayReady = true;
+        }
+        if (state.displayTilt.size() != state.displayFrequencies.size() || !juce::exactlyEqual (state.displayTiltSlope, tiltDbPerOctave))
+        {
+            state.displayTiltSlope = tiltDbPerOctave;
+            state.displayTilt.resize (state.displayFrequencies.size());
+            for (size_t i = 0; i < state.displayTilt.size(); ++i)
+                state.displayTilt[i] = tiltDbPerOctave * std::log2 (std::max (state.displayFrequencies[i], state.displayFrequencies[1]) / 1000.0f);
+        }
+        const auto speed = analyzerDecaySpeeds[static_cast<size_t> (state.settings.decay)];
+        // ZLE's default extra-speed control is 1: its multiplier is 1^2 + 0.1.
+        const auto duration = 0.15f / (speed * 1.1f);
+        const auto refresh = static_cast<float> (1.0 / std::max (elapsedSeconds, 1.0e-6));
+        for (size_t trace = 0; trace < state.displayLevels.size(); ++trace)
+        {
+            const auto enabled = trace == 0 ? state.settings.pre : state.settings.post;
+            auto& levels = state.displayLevels[trace];
+            if (!enabled)
+            {
+                if (state.displayEnabled[trace])
+                {
+                    state.decayers[trace].prepareSpectrum (levels.size());
+                    std::fill (levels.begin(), levels.end(), silenceDb);
+                }
+                state.displayEnabled[trace] = false;
+                continue;
+            }
+            state.displayEnabled[trace] = true;
+            const auto& powers = state.quality == AnalyzerQuality::High ? state.blended[trace] : state.resolutions[middleResolution].powers[trace];
+            for (size_t i = 0; i < levels.size(); ++i)
+                levels[i] = (stale ? silenceDb : 10.0f * std::log10 (std::max (powers[i], 1.0e-24f))) + state.displayTilt[i];
+            auto& decayer = state.decayers[trace];
+            decayer.setDecaySpeed (refresh, minimumDb, duration);
+            decayer.decay (levels);
+        }
+    }
+
+    float AnalyzerEngine::displayDbAt (size_t trace, double frequency) const
+    {
+        const auto& state = *impl;
+        if (!state.displayReady || trace >= state.displayLevels.size() || !std::isfinite (frequency))
+            return -240.0f;
+        const auto& levels = state.displayLevels[trace];
+        if (state.displayQuality == AnalyzerQuality::Normal)
+        {
+            const auto bin = std::clamp (frequency * state.resolutions[middleResolution].fft->get_size() / state.sampleRate, 0.0, static_cast<double> (levels.size() - 1));
+            const auto lower = static_cast<size_t> (bin);
+            return std::lerp (levels[lower], levels[std::min (lower + 1, levels.size() - 1)], static_cast<float> (bin - lower));
+        }
+        const auto upper = std::lower_bound (state.displayFrequencies.begin(), state.displayFrequencies.end(), static_cast<float> (frequency));
+        if (upper == state.displayFrequencies.begin())
+            return levels.front();
+        if (upper == state.displayFrequencies.end())
+            return levels.back();
+        const auto index = static_cast<size_t> (upper - state.displayFrequencies.begin());
+        const auto mix = static_cast<float> ((frequency - state.displayFrequencies[index - 1]) / (*upper - state.displayFrequencies[index - 1]));
+        return std::lerp (levels[index - 1], levels[index], mix);
     }
 
     float AnalyzerEngine::powerAt (size_t trace, double frequency) const

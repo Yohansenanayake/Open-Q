@@ -9,7 +9,6 @@ namespace openq
     {
         inline constexpr float minimumDb = -96.0f, maximumDb = 0.0f;
         inline constexpr float tiltDbPerOctave = 4.5f;
-        inline constexpr float fallDbPerSecond = 24.0f;
         inline constexpr double staleAfterSeconds = 0.25;
         inline constexpr int refreshMilliseconds = 33;
     }
