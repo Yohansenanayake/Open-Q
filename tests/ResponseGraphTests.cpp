@@ -513,10 +513,17 @@ TEST_CASE ("Opaque editor bars do not disable expensive plot paint pacing", "[re
         }
         refreshMeters();
     };
-    class MovingPeaks final : private juce::Timer
+    auto* bottom = editor.findChildWithID ("editor.bottom");
+    REQUIRE (bottom != nullptr);
+    auto* inputGain = dynamic_cast<openq::GainControl*> (bottom->findChildWithID (openq::gainParameterIds[0]));
+    auto* outputGain = dynamic_cast<openq::GainControl*> (bottom->findChildWithID (openq::gainParameterIds[1]));
+    REQUIRE (inputGain != nullptr);
+    REQUIRE (outputGain != nullptr);
+    class MovingMetersAndGains final : private juce::Timer
     {
     public:
-        explicit MovingPeaks (openq::LevelMeterTransport& target) : transport (target) {}
+        MovingMetersAndGains (openq::LevelMeterTransport& target, openq::GainControl& input, openq::GainControl& output)
+            : transport (target), inputGain (input), outputGain (output) {}
         void start() { startTimerHz (30); }
     private:
         void timerCallback() override
@@ -524,10 +531,20 @@ TEST_CASE ("Opaque editor bars do not disable expensive plot paint pacing", "[re
             phase += juce::MathConstants<float>::twoPi / 60.0f;
             const auto peak = 0.2f + 0.7f * (0.5f + 0.5f * std::sin (phase));
             transport.publish ({ peak, peak * 0.5f }, { peak * 0.7f, peak * 0.3f });
+            for (auto* control : { &inputGain, &outputGain })
+            {
+                const auto before = control->getValue();
+                const auto time = juce::Time::getCurrentTime();
+                const juce::MouseEvent event { juce::Desktop::getInstance().getMainMouseSource(), {}, {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, control, control, time, {}, time, 0, false };
+                control->mouseWheelMove (event, { 0.0f, 0.01f, false, true, false });
+                CHECK (control->getValue() > before);
+            }
         }
         openq::LevelMeterTransport& transport;
+        openq::GainControl& inputGain;
+        openq::GainControl& outputGain;
         float phase = 0.0f;
-    } moving (processor.getLevelMeters());
+    } moving (processor.getLevelMeters(), *inputGain, *outputGain);
     for (bool metersMoving : { false, true })
     {
         if (metersMoving)

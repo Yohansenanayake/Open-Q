@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// Wheel interaction follows ZLEqualizer's SnappingSlider, revision 3ce598ee065b3d3847121e76e196feda7ed8f56d.
+// See THIRD_PARTY_NOTICES.md for reference attribution.
 #include "GainControl.h"
 #include "Palette.h"
 #include <cmath>
@@ -12,11 +14,11 @@ namespace openq
         setTitle (juce::String (id).startsWith ("input") ? "Input gain" : "Output gain");
         setSliderStyle (juce::Slider::RotaryVerticalDrag);
         setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-        setScrollWheelEnabled (false);
+        setScrollWheelEnabled (true);
         setTextValueSuffix (" dB");
         setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
         setRepaintsOnMouseActivity (true);
-        setTooltip ("Drag up/down to adjust gain; Shift for fine adjustment. Double-click or Enter to type. Ctrl/Cmd-double-click resets to 0 dB.");
+        setTooltip ("Drag up/down or scroll to adjust gain; wheel steps are 0.5 dB, or 0.1 dB with Shift. Shift also gives fine dragging. Double-click or Enter to type. Ctrl/Cmd-double-click resets to 0 dB.");
         value.setComponentID ("gain.value");
         value.setJustificationType (juce::Justification::centred);
         value.setEditable (false, false, true);
@@ -99,6 +101,24 @@ namespace openq
         juce::Slider::mouseUp (event);
         dragging = false;
         discardDrag = false;
+    }
+    void GainControl::mouseWheelMove (const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
+    {
+        if (!isEnabled() || !isScrollWheelEnabled() || dragging || event.mods.isAnyMouseButtonDown() || value.isBeingEdited() || wheel.isInertial
+            || !std::isfinite (wheel.deltaX) || !std::isfinite (wheel.deltaY))
+            return;
+        const auto delta = (std::abs (wheel.deltaX) > std::abs (wheel.deltaY) ? -wheel.deltaX : wheel.deltaY) * (wheel.isReversed ? -1.0f : 1.0f);
+        const auto timestamp = event.eventTime.toMilliseconds();
+        if (juce::exactlyEqual (delta, 0.0f) || timestamp == lastWheelEventMilliseconds)
+            return;
+        lastWheelEventMilliseconds = timestamp;
+        // Stepped wheel scales vary between JUCE backends; smooth input keeps its fractional magnitude.
+        const auto steps = wheel.isSmooth ? static_cast<double> (delta) / smoothWheelUnitsPerStep : std::copysign (1.0, delta);
+        const auto db = std::clamp (getValue() + steps * (event.mods.isShiftDown() ? fineWheelStepDb : wheelStepDb), getMinimum(), getMaximum());
+        if (juce::exactlyEqual (db, getValue()))
+            return;
+        juce::Slider::ScopedDragNotification gesture (*this);
+        setValue (db, juce::sendNotificationSync);
     }
     void GainControl::mouseDoubleClick (const juce::MouseEvent& event)
     {

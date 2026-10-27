@@ -13,9 +13,8 @@ namespace
         auto* parameter = processor.parameters.getParameter (openq::gainParameterIds[stage]);
         parameter->setValueNotifyingHost (parameter->convertTo0to1 (db));
     }
-    juce::MouseEvent click (juce::Component& target, int modifiers = juce::ModifierKeys::leftButtonModifier)
+    juce::MouseEvent click (juce::Component& target, int modifiers = juce::ModifierKeys::leftButtonModifier, juce::Time time = juce::Time::getCurrentTime())
     {
-        const auto time = juce::Time::getCurrentTime();
         return { juce::Desktop::getInstance().getMainMouseSource(), { 5.0f, 5.0f }, juce::ModifierKeys (modifiers), 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, &target, &target, time, {}, time, 2, false };
     }
     struct GestureCounter : juce::AudioProcessorParameter::Listener
@@ -273,6 +272,123 @@ TEST_CASE ("Global trims save restore and reject malformed complete states", "[g
         auto state = unchanged.createCopy();
         state.setProperty ("schemaVersion", invalid, nullptr);
         load (state);
+    }
+}
+
+TEST_CASE ("Gain wheel edits are immediate fine reversible fractional and bounded", "[gain][ui][wheel]")
+{
+    for (size_t stage = 0; stage < openq::gainParameterIds.size(); ++stage)
+    {
+        CAPTURE (stage);
+        PluginProcessor processor;
+        openq::GainControl control (processor.parameters, openq::gainParameterIds[stage]);
+        auto* parameter = processor.parameters.getParameter (openq::gainParameterIds[stage]);
+        GestureCounter gestures (*parameter);
+        juce::int64 timestamp = 1000;
+        const juce::MouseWheelDetails up { 0.0f, 0.1f, false, false, false };
+        const auto send = [&] (juce::MouseWheelDetails wheel, int modifiers = 0) {
+            control.mouseWheelMove (click (control, modifiers, juce::Time (++timestamp)), wheel);
+        };
+        const auto checkValue = [&] (double expected) {
+            CHECK_THAT (control.getValue(), Catch::Matchers::WithinAbs (expected, 1e-5));
+            CHECK_THAT (processor.parameters.getRawParameterValue (openq::gainParameterIds[stage])->load(), Catch::Matchers::WithinAbs (expected, 1e-5));
+            CHECK (gestures.active == 0);
+        };
+        const auto first = click (control, 0, juce::Time (++timestamp));
+        control.mouseWheelMove (first, up);
+        checkValue (0.5);
+        CHECK (gestures.starts == 1);
+        control.mouseWheelMove (first, up);
+        checkValue (0.5);
+        CHECK (gestures.starts == 1);
+        send (up, juce::ModifierKeys::shiftModifier);
+        checkValue (0.6);
+        auto wheel = up;
+        wheel.isReversed = true;
+        send (wheel);
+        checkValue (0.1);
+        send ({ 0.2f, 0.01f, false, false, false });
+        checkValue (-0.4);
+        setGain (processor, stage, 0.0f);
+        wheel = { 0.0f, 0.01f, false, true, false };
+        for (int i = 0; i < 4; ++i)
+            send (wheel);
+        checkValue (0.2);
+        send (wheel, juce::ModifierKeys::shiftModifier);
+        checkValue (0.21);
+        setGain (processor, stage, 30.0f);
+        auto starts = gestures.starts;
+        send (up);
+        checkValue (30.0);
+        CHECK (gestures.starts == starts);
+        wheel = up;
+        wheel.deltaY = -up.deltaY;
+        send (wheel);
+        checkValue (29.5);
+        CHECK (gestures.starts == starts + 1);
+        setGain (processor, stage, -30.0f);
+        starts = gestures.starts;
+        send (wheel);
+        checkValue (-30.0);
+        CHECK (gestures.starts == starts);
+        send (up);
+        checkValue (-29.5);
+        for (size_t other = 0; other < openq::gainParameterIds.size(); ++other)
+            if (other != stage)
+                CHECK (juce::exactlyEqual (processor.parameters.getRawParameterValue (openq::gainParameterIds[other])->load(), 0.0f));
+    }
+}
+
+TEST_CASE ("Gain wheels ignore inactive invalid inertial dragging and editing input", "[gain][ui][wheel]")
+{
+    for (const auto* id : openq::gainParameterIds)
+    {
+        CAPTURE (id);
+        PluginProcessor processor;
+        openq::GainControl control (processor.parameters, id);
+        control.setSize (100, 26);
+        GestureCounter gestures (*processor.parameters.getParameter (id));
+        juce::int64 timestamp = 2000;
+        const juce::MouseWheelDetails up { 0.0f, 0.1f, false, false, false };
+        const auto send = [&] (juce::MouseWheelDetails wheel, int modifiers = 0) {
+            control.mouseWheelMove (click (control, modifiers, juce::Time (++timestamp)), wheel);
+        };
+        control.setEnabled (false);
+        send (up);
+        control.setEnabled (true);
+        control.setScrollWheelEnabled (false);
+        send (up);
+        control.setScrollWheelEnabled (true);
+        send (up, juce::ModifierKeys::leftButtonModifier);
+        send ({ 0.0f, 0.1f, false, true, true });
+        send ({ 0.0f, 0.0f, false, false, false });
+        send ({ std::numeric_limits<float>::quiet_NaN(), 0.1f, false, false, false });
+        send ({ 0.0f, std::numeric_limits<float>::infinity(), false, false, false });
+        CHECK (juce::exactlyEqual (control.getValue(), 0.0));
+        CHECK (gestures.starts == 0);
+        control.mouseDown (click (control));
+        const auto draggingValue = control.getValue();
+        const auto draggingStarts = gestures.starts;
+        send (up);
+        CHECK (juce::exactlyEqual (control.getValue(), draggingValue));
+        CHECK (gestures.starts == draggingStarts);
+        control.mouseUp (click (control, 0));
+        CHECK (gestures.active == 0);
+        auto* label = dynamic_cast<juce::Label*> (control.findChildWithID ("gain.value"));
+        REQUIRE (label != nullptr);
+        REQUIRE (control.keyPressed (juce::KeyPress (juce::KeyPress::returnKey)));
+        auto* text = label->getCurrentTextEditor();
+        REQUIRE (text != nullptr);
+        text->setText ("11.0", false);
+        const auto editingValue = control.getValue();
+        const auto editingStarts = gestures.starts;
+        send (up);
+        CHECK (label->getCurrentTextEditor() == text);
+        CHECK (text->getText() == "11.0");
+        CHECK (juce::exactlyEqual (control.getValue(), editingValue));
+        CHECK (gestures.starts == editingStarts);
+        CHECK (gestures.active == 0);
+        label->hideEditor (true);
     }
 }
 

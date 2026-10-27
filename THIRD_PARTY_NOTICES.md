@@ -29,6 +29,10 @@ Open-Q's fixed-slot bank and shared selected-band controls are also informed by 
 
 Open-Q's node interaction follows the source study of ZLEqualizer commit `3ce598ee065b3d3847121e76e196feda7ed8f56d`, copyright (C) 2026 zsliu98, under AGPL-3.0-only. Relevant sources are `source/gui/dragger/dragger_component.cpp`, `dragger_attachment.hpp`, and `source/panel/curve_panel/response_panel/dragger_panel/`. Open-Q implements relative dragging, shelf half-gain node placement and inverse gain mapping, display-to-host parameter conversion, three-state node visibility, and host gesture handling in `source/ui/ResponseGraph.cpp`. It uses its own bell-only creation defaults, digital response paths, parameter-polling node positions, and fixed shortcuts. The selection-driven band card also follows the studied `panel/control_panel/` and floating-popup pattern, with Open-Q’s existing parameter attachments and status controls. The Spectrum icon imports are recorded separately below; no excluded logos are imported.
 
+## ZLEqualizer wheel interaction reference
+
+Open-Q's `source/ui/GainControl.cpp` wheel handling follows `source/gui/slider/extra_slider/snapping_slider.h` at ZLEqualizer commit `3ce598ee065b3d3847121e76e196feda7ed8f56d`, copyright (C) 2026 zsliu98, under AGPL-3.0-only. It follows the timestamp de-duplication, dominant-axis/reversed-direction handling and JUCE host-gesture pattern. Open-Q uses its own dB increments and fractional smooth-scroll scaling, ignores inertial and text-editing input, and retains continuous trim parameters and the existing rendering cadence.
+
 ## ZL Spectrum Equalizer research reference
 
 [ZL Spectrum Equalizer](https://github.com/ZL-Audio/ZLSpectrumEqualizer), copyright (C) 2026 zsliu98, is Open-Q's second implementation reference. Its UI and architecture were studied at commit `10388f0cb594c6a322f8652cd718aed28c2e2c39`. Source headers specify AGPL version 3, and its README excludes the ZL Audio and Spectrum Equalizer logos. The initial research imported no code or assets. On 27 October 2026, Open-Q copied the following files unchanged from that revision, retaining existing source notices:

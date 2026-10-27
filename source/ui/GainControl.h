@@ -13,6 +13,7 @@ namespace openq
         void mouseDown (const juce::MouseEvent&) override;
         void mouseDrag (const juce::MouseEvent&) override;
         void mouseUp (const juce::MouseEvent&) override;
+        void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
         void messageThreadTick (double seconds);
         void mouseDoubleClick (const juce::MouseEvent&) override;
         bool keyPressed (const juce::KeyPress&) override;
@@ -22,6 +23,8 @@ namespace openq
         void updateText();
         void commitText();
         static constexpr double maximumMessageGapSeconds = 0.2;
+        static constexpr double wheelStepDb = 0.5, fineWheelStepDb = 0.1, smoothWheelUnitsPerStep = 0.1;
+        juce::int64 lastWheelEventMilliseconds = -1;
         double lastMessageTick = 0.0;
         bool dragging = false, discardDrag = false;
         juce::Label value;
