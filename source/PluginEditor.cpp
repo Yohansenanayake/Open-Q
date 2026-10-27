@@ -230,7 +230,7 @@ void PluginEditor::resized()
     const auto meterHeight = bottomBar.getY() - headerBar.getBottom();
     inputMeter.setBounds (0, headerBar.getBottom(), meterWidth, meterHeight);
     outputMeter.setBounds (getWidth() - meterWidth, headerBar.getBottom(), meterWidth, meterHeight);
-    responseGraph.setContentInsets ({ headerBar.getHeight() + scaled (4), meterWidth + scaled (6), bottomBar.getHeight() + scaled (4), meterWidth + scaled (6) });
+    responseGraph.setContentInsets ({ headerBar.getHeight() + scaled (4), meterWidth + scaled (4), bottomBar.getHeight() + scaled (4), meterWidth + scaled (6) });
     responseGraph.setBounds (area);
     positionBandCard (true);
     positionAnalyzerPanel();

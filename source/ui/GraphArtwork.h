@@ -8,6 +8,8 @@ namespace openq
     class GraphArtwork : public juce::Component
     {
     public:
+        static constexpr int axisLabelWidth = 24, axisLabelGap = 6;
+        static constexpr int leftMargin = axisLabelWidth + axisLabelGap + 2;
         GraphArtwork();
         ~GraphArtwork() override;
         void resized() override;

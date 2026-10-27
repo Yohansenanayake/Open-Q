@@ -369,6 +369,15 @@ TEST_CASE ("Gain and meter layout keeps strips clear while resized and shows liv
     auto snapshot = [&] (const char* name) {
         juce::MemoryOutputStream png;
         REQUIRE (juce::PNGImageFormat().writeImageToStream (editor.createComponentSnapshot (editor.getLocalBounds()), png));
+        auto* artwork = graph->findChildWithID ("response.artwork");
+        REQUIRE (artwork != nullptr);
+        for (auto* label : artwork->getChildren())
+            if (label->isVisible())
+            {
+                const auto bounds = editor.getLocalArea (label, label->getLocalBounds());
+                CHECK_FALSE (bounds.intersects (input->getBounds()));
+                CHECK_FALSE (bounds.intersects (output->getBounds()));
+            }
         REQUIRE (juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile (name).replaceWithData (png.getData(), png.getDataSize()));
     };
     snapshot ("openq-gain-meters.png");
