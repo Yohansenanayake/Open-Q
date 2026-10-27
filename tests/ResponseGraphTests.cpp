@@ -21,6 +21,47 @@ namespace
     }
 }
 
+TEST_CASE ("Automatic graph refresh stays bounded on high refresh displays", "[response][ui]")
+{
+    for (const double monitorHz : { 25.0, 30.0, 50.0, 60.0, 62.5, 90.0, 120.0, 144.0, 165.0, 240.0, 360.0 })
+    {
+        CAPTURE (monitorHz);
+        openq::GraphRefreshLimiter limiter;
+        constexpr int seconds = 10;
+        int frames = 0;
+        double previous = -1.0;
+        for (int tick = 0; tick < monitorHz * seconds; ++tick)
+        {
+            const auto timestamp = static_cast<double> (tick) / monitorHz;
+            if (!limiter.tick (timestamp))
+                continue;
+            if (frames > 0)
+                CHECK (timestamp > previous);
+            previous = timestamp;
+            ++frames;
+        }
+        CHECK (frames <= static_cast<int> (seconds * openq::GraphRefreshLimiter::targetFramesPerSecond));
+        CHECK (frames >= seconds * 24);
+    }
+}
+
+TEST_CASE ("Graph refresh recovers from pauses clock changes and editor reopening without bursts", "[response][ui]")
+{
+    openq::GraphRefreshLimiter limiter;
+    CHECK_FALSE (limiter.tick (std::numeric_limits<double>::quiet_NaN()));
+    CHECK_FALSE (limiter.tick (std::numeric_limits<double>::infinity()));
+    CHECK (limiter.tick (0.0));
+    CHECK_FALSE (limiter.tick (0.0));
+    CHECK_FALSE (limiter.tick (0.001));
+    CHECK (limiter.tick (20.0));
+    CHECK_FALSE (limiter.tick (20.001));
+    CHECK (limiter.tick (1.0));
+    CHECK_FALSE (limiter.tick (1.001));
+    limiter.reset();
+    CHECK (limiter.tick (1.001));
+    CHECK_FALSE (limiter.tick (1.001));
+}
+
 TEST_CASE ("Triple buffer publishes complete latest values without tearing", "[response][threading]")
 {
     struct Packet

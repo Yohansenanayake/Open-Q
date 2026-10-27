@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
 #include "AnalyzerWorker.h"
+#include "GraphRefreshLimiter.h"
 #include "ResponseWorker.h"
 
 namespace openq
@@ -58,5 +59,6 @@ namespace openq
         std::unique_ptr<AnalyzerWorker> analyzer;
         AnalyzerTransport* analyzerTransport = nullptr;
         std::unique_ptr<juce::VBlankAttachment> vblank;
+        GraphRefreshLimiter refreshLimiter;
     };
 }

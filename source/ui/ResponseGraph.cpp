@@ -151,7 +151,15 @@ namespace openq
         {
             if (worker.start())
             {
-                vblank = std::make_unique<juce::VBlankAttachment> (this, [this] (double) { updateNodes(); repaint(); });
+                refreshLimiter.reset();
+                vblank = std::make_unique<juce::VBlankAttachment> (this, [this] (double timestamp) {
+                    // Limit software painting independently of the monitor's refresh rate, as ZLE does.
+                    if (refreshLimiter.tick (timestamp))
+                    {
+                        updateNodes();
+                        repaint();
+                    }
+                });
                 worker.requestUpdate();
                 repaint();
             }
