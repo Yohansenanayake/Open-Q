@@ -40,6 +40,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Fixed Regressions to Preserve
 
+- **Linux CI native-window tests:** run Xvfb with Openbox and wait for both display and window-manager readiness. Bare Xvfb can leave JUCE's `WM_PROTOCOLS` atom unset and abort native-peer tests with `BadAtom`.
+- **Exact trim unity:** use continuous trim parameter ranges. JUCE's convenience float constructor adds 0.01 dB snapping whose fused arithmetic can move zero slightly negative. Preserve exact zero through host conversion, automation and state recall; keep bit-exact dry audio coverage in `GainMeterTests.cpp`.
 - **UI stalls after adding opaque meters/footer:** requiring the entire graph bounds to be repainted disabled paint-cost feedback when JUCE clipped those edges. Expensive spectrum fills then starved input handling. Measure visible plot redraws, retain an input window after long paints, and keep the 200 ms stalled-gain-drag cancellation guard. Regression coverage is in `ResponseGraphTests.cpp` and `GainMeterTests.cpp`; see [diagnosis and verification](yohan-docs/gain-meter-ui-stall-diagnosis.md). The user confirmed responsiveness was restored. Preserve these checks when changing layout, opacity or repaint scheduling.
 
 ## About This Project

@@ -58,7 +58,6 @@ jobs:
         if: runner.os == 'Linux'
         uses: egor-tensin/setup-clang@v2
 
-      # This also starts up our "fake" display (Xvfb), needed for pluginval
       - name: Install JUCE's Linux Deps
         if: runner.os == 'Linux'
         # Thanks to McMartin & co https://forum.juce.com/t/list-of-juce-dependencies-under-linux/15121/44
@@ -67,8 +66,31 @@ jobs:
           # wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
           # echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
           # sudo apt install intel-oneapi-ipp-devel
-          sudo apt-get update && sudo apt install libasound2-dev libx11-dev libxi-dev libxinerama-dev libxext-dev libfreetype6-dev libwebkit2gtk-4.1-dev libglu1-mesa-dev xvfb ninja-build lld
-          sudo /usr/bin/Xvfb $DISPLAY & 
+          sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxi-dev libxinerama-dev libxext-dev libfreetype6-dev libwebkit2gtk-4.1-dev libglu1-mesa-dev xvfb openbox x11-utils ninja-build lld
+
+      - name: Start Linux test desktop
+        if: runner.os == 'Linux'
+        run: |
+          Xvfb "$DISPLAY" -screen 0 1920x1080x24 -nolisten tcp > "$RUNNER_TEMP/xvfb.log" 2>&1 &
+          for attempt in {1..60}; do
+            if xdpyinfo -display "$DISPLAY" > /dev/null 2>&1; then break; fi
+            sleep 0.25
+          done
+          if ! xdpyinfo -display "$DISPLAY" > /dev/null 2>&1; then
+            cat "$RUNNER_TEMP/xvfb.log"
+            exit 1
+          fi
+          # Native editor tests need window-manager atoms and focus handling, not just an X server.
+          openbox --sm-disable > "$RUNNER_TEMP/openbox.log" 2>&1 &
+          for attempt in {1..60}; do
+            if xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q 'window id #'; then break; fi
+            sleep 0.25
+          done
+          if ! xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q 'window id #'; then
+            cat "$RUNNER_TEMP/openbox.log"
+            exit 1
+          fi
+          xprop -root _NET_SUPPORTING_WM_CHECK
 
       # IPP installation is deferred until profiling justifies it.
       # - name: Install IPP (Windows)

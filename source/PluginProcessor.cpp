@@ -307,7 +307,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParam
         slopeNames.add (name);
     for (size_t band = 0; band < openq::bandCount; ++band)
         layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { openq::bandParameterId (band, "slope"), 1 }, "Band " + juce::String (band + 1) + " Slope", slopeNames, static_cast<int> (openq::defaultCutSlope)));
-    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::gainParameterIds[0], 1 }, "Input Gain", openq::gainLimits::minimumDb, openq::gainLimits::maximumDb, openq::gainLimits::defaultDb));
-    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::gainParameterIds[1], 1 }, "Output Gain", openq::gainLimits::minimumDb, openq::gainLimits::maximumDb, openq::gainLimits::defaultDb));
+    // Avoid 0.01f step snapping, which can round nominal zero away from unity with fused multiply-add.
+    const juce::NormalisableRange<float> trimRange (openq::gainLimits::minimumDb, openq::gainLimits::maximumDb);
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::gainParameterIds[0], 1 }, "Input Gain", trimRange, openq::gainLimits::defaultDb));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::gainParameterIds[1], 1 }, "Output Gain", trimRange, openq::gainLimits::defaultDb));
     return layout;
 }

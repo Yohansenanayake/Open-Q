@@ -182,6 +182,57 @@ TEST_CASE ("Trim extremes remain finite and preserve floating point headroom", "
         CHECK_THAT (buffer.getSample (0, sample), Catch::Matchers::WithinAbs (0.0f, 1e-7));
 }
 
+TEST_CASE ("Trim parameter round trips preserve exact zero and dry audio", "[gain][dsp][state][regression]")
+{
+    PluginProcessor processor;
+    for (const auto* id : openq::gainParameterIds)
+    {
+        auto* parameter = processor.parameters.getParameter (id);
+        REQUIRE (parameter != nullptr);
+        // The old stepped range can only fail numerically when the compiler fuses its snapping arithmetic.
+        CHECK (juce::exactlyEqual (parameter->getNormalisableRange().interval, 0.0f));
+        CHECK (juce::exactlyEqual (parameter->convertFrom0to1 (parameter->getDefaultValue()), 0.0f));
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (6.0f));
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (0.0f));
+        CHECK (juce::exactlyEqual (processor.parameters.getRawParameterValue (id)->load(), 0.0f));
+    }
+    const auto checkDry = [] (PluginProcessor& target) {
+        juce::AudioBuffer<float> buffer (2, 64);
+        juce::MidiBuffer midi;
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        {
+            buffer.setSample (0, sample, 0.137f);
+            buffer.setSample (1, sample, -0.3f);
+        }
+        target.processBlock (buffer, midi);
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        {
+            CHECK (juce::exactlyEqual (buffer.getSample (0, sample), 0.137f));
+            CHECK (juce::exactlyEqual (buffer.getSample (1, sample), -0.3f));
+        }
+    };
+    processor.prepareToPlay (48000.0, 1024);
+    checkDry (processor);
+    juce::AudioBuffer<float> settling (2, 1024);
+    juce::MidiBuffer midi;
+    for (float db : { 6.0f, 0.0f })
+    {
+        for (size_t stage = 0; stage < openq::gainParameterIds.size(); ++stage)
+            setGain (processor, stage, db);
+        settling.clear();
+        processor.processBlock (settling, midi);
+    }
+    checkDry (processor);
+    juce::MemoryBlock saved;
+    processor.getStateInformation (saved);
+    PluginProcessor restored;
+    restored.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
+    for (const auto* id : openq::gainParameterIds)
+        CHECK (juce::exactlyEqual (restored.parameters.getRawParameterValue (id)->load(), 0.0f));
+    restored.prepareToPlay (48000.0, 64);
+    checkDry (restored);
+}
+
 TEST_CASE ("Global trims save restore and reject malformed complete states", "[gain][state]")
 {
     PluginProcessor processor;
