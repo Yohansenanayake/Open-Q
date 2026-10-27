@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "ui/UiScale.h"
+#include "ui/Palette.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
@@ -58,6 +59,74 @@ namespace
         std::vector<int> depth;
         std::vector<int> changes;
     };
+}
+
+TEST_CASE ("Band slot colours stay distinct and follow selection without changing parameters", "[nodes][ui][card][colours]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    graph.setSize (720, 400);
+    openq::BandControlCard card (processor.parameters);
+    card.setSize (openq::BandControlCard::preferredWidth, openq::BandControlCard::preferredHeight);
+    auto* power = dynamic_cast<juce::DrawableButton*> (card.findChildWithID ("band.power"));
+    REQUIRE (power != nullptr);
+    const auto containsColour = [] (const juce::Image& image, juce::Colour colour) {
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+                if (image.getPixelAt (x, y) == colour)
+                    return true;
+        return false;
+    };
+    for (size_t band = 0; band < openq::bandCount; ++band)
+    {
+        const auto colour = openq::palette::bandColour (band);
+        INFO ("Band " << band + 1);
+        CHECK (colour.isOpaque());
+        for (size_t previous = 0; previous < band; ++previous)
+            CHECK (colour != openq::palette::bandColour (previous));
+        set (processor, band, "status", static_cast<float> (openq::BandStatus::On));
+        const auto before = settings (processor, band);
+        graph.setSelectedBand (band);
+        card.setBand (band);
+        for (const auto* name : { "band.frequency", "band.gain", "band.q" })
+        {
+            auto* slider = dynamic_cast<juce::Slider*> (card.findChildWithID (name));
+            REQUIRE (slider != nullptr);
+            CHECK (slider->findColour (juce::Slider::thumbColourId) == colour);
+            CHECK (slider->findColour (juce::Slider::rotarySliderFillColourId) == colour);
+        }
+        CHECK (containsColour (power->createComponentSnapshot (power->getLocalBounds()), colour));
+        auto& bandNode = node (graph, band);
+        CHECK (containsColour (bandNode.createComponentSnapshot (bandNode.getLocalBounds()), colour));
+        CHECK (settings (processor, band) == before);
+    }
+    // Returning to a slot must recolour the reusable controls back to that slot.
+    card.setBand (0);
+    const auto first = openq::palette::bandColour (0);
+    CHECK (containsColour (power->createComponentSnapshot (power->getLocalBounds()), first));
+    set (processor, 0, "frequency", 8000.0f);
+    set (processor, 0, "status", static_cast<float> (openq::BandStatus::Bypass));
+    card.setBand (0);
+    auto* gain = dynamic_cast<juce::Slider*> (card.findChildWithID ("band.gain"));
+    REQUIRE (gain != nullptr);
+    const auto dimmed = gain->findColour (juce::Slider::thumbColourId);
+    CHECK (dimmed != first);
+    CHECK (dimmed.getPerceivedBrightness() < first.getPerceivedBrightness());
+    CHECK_FALSE (power->getToggleState());
+    const auto bypassBorder = card.createComponentSnapshot (card.getLocalBounds()).getPixelAt (0, card.getHeight() / 2);
+    const auto bypassSettings = settings (processor, 0);
+    CHECK (gain->isEnabled());
+    gain->setValue (6.0, juce::sendNotificationSync);
+    CHECK_THAT (settings (processor, 0).gain, Catch::Matchers::WithinAbs (6.0, 0.001));
+    CHECK (settings (processor, 0).status == bypassSettings.status);
+    // Status automation updates the open card without rebinding its controls.
+    set (processor, 0, "status", static_cast<float> (openq::BandStatus::On));
+    CHECK (gain->findColour (juce::Slider::thumbColourId) == first);
+    CHECK (gain->findColour (juce::Slider::rotarySliderFillColourId) == first);
+    CHECK (card.createComponentSnapshot (card.getLocalBounds()).getPixelAt (0, card.getHeight() / 2) != bypassBorder);
+    set (processor, 0, "status", static_cast<float> (openq::BandStatus::Bypass));
+    CHECK (gain->findColour (juce::Slider::thumbColourId) == dimmed);
 }
 
 TEST_CASE ("Nodes reflect status, automation, recall and low sample rates without editing settings", "[nodes][ui]")

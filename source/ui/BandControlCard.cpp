@@ -6,7 +6,7 @@
 
 namespace openq
 {
-    BandControlCard::BandControlCard (juce::AudioProcessorValueTreeState& state) : parameters (state)
+    BandControlCard::BandControlCard (juce::AudioProcessorValueTreeState& state) : parameters (state), bandColour (palette::accent)
     {
         setComponentID ("band.card");
         setTitle ("Selected band controls");
@@ -78,6 +78,8 @@ namespace openq
         setVisible (band < bandCount);
         if (band >= bandCount)
             return;
+        const auto colour = palette::bandColour (band);
+        powerButton.setAccentColour (colour);
         title.setText ("Band " + juce::String (band + 1), juce::dontSendNotification);
         typeSelector.setTitle ("Band " + juce::String (band + 1) + " filter type");
         typeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, bandParameterId (band, "type"), typeSelector);
@@ -91,8 +93,15 @@ namespace openq
             controls[i].textFromValueFunction = nullptr;
             controls[i].setNumDecimalPlacesToDisplay (i == 0 ? 1 : 2);
         }
-        statusAttachment = std::make_unique<juce::ParameterAttachment> (*parameters.getParameter (bandParameterId (band, "status")), [this] (float value) {
+        statusAttachment = std::make_unique<juce::ParameterAttachment> (*parameters.getParameter (bandParameterId (band, "status")), [this, colour] (float value) {
             const auto bandStatus = static_cast<BandStatus> (juce::roundToInt (value));
+            bandColour = bandStatus == BandStatus::On ? colour : colour.interpolatedWith (palette::cardBackground, palette::bypassBandAccentBlend);
+            for (auto& control : controls)
+            {
+                control.setColour (juce::Slider::rotarySliderFillColourId, bandColour);
+                control.setColour (juce::Slider::thumbColourId, bandColour);
+            }
+            repaint();
             powerButton.setToggleState (bandStatus == BandStatus::On, juce::dontSendNotification);
             powerButton.setEnabled (bandStatus != BandStatus::Off);
             powerButton.setTooltip (bandStatus == BandStatus::On ? "Bypass this band" : bandStatus == BandStatus::Bypass ? "Enable this band" : "Band deleted. Double-click empty graph space to create a band."); }, nullptr);
@@ -118,7 +127,7 @@ namespace openq
     void BandControlCard::paint (juce::Graphics& g)
     {
         const auto scale = static_cast<float> (getWidth()) / static_cast<float> (preferredWidth);
-        drawPanelBackground (g, getLocalBounds().toFloat(), scale);
+        drawPanelBackground (g, getLocalBounds().toFloat(), scale, bandColour);
     }
 
     void BandControlCard::visibilityChanged()

@@ -7,5 +7,10 @@ namespace openq
     {
     public:
         IconButton (const juce::String& name, const void* svg, int bytes);
+        void setAccentColour (juce::Colour colour);
+
+    private:
+        std::unique_ptr<juce::Drawable> image, hover, active;
+        juce::Colour accentColour;
     };
 }

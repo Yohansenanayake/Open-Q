@@ -23,6 +23,7 @@ namespace openq
 
     private:
         juce::AudioProcessorValueTreeState& parameters;
+        juce::Colour bandColour;
         void updateControlEnablement();
         juce::Label title;
         CompactComboBox typeSelector, slopeSelector;
