@@ -2,7 +2,7 @@
 #include "ui/Palette.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), analyzerTransport (p.getAnalyzerTransport()), analyzerPanel (analyzerTransport), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
+    : AudioProcessorEditor (&p), processor (p), analyzerTransport (p.getAnalyzerTransport()), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
 {
     setLookAndFeel (&lookAndFeel);
     responseGraph.setAnalyzerTransport (analyzerTransport);
@@ -14,18 +14,27 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     spectrumFill.onClick = [this] { analyzerTransport.setFillEnabled (spectrumFill.getToggleState()); responseGraph.repaint(); };
     addAndMakeVisible (postTrace);
     addAndMakeVisible (analyzerButton);
-    addChildComponent (analyzerPanel);
     analyzerButton.setComponentID ("analyzer.settings");
     analyzerButton.setClickingTogglesState (true);
     analyzerButton.onClick = [this] {
-        analyzerPanel.refresh();
-        analyzerPanel.setVisible (analyzerButton.getToggleState());
-        if (analyzerPanel.isVisible())
-            analyzerPanel.toFront (false);
-    };
-    analyzerPanel.onClose = [this] {
-        analyzerPanel.setVisible (false);
-        analyzerButton.setToggleState (false, juce::dontSendNotification);
+        // Hosts may create probe editors before their event loop can drain startup notifications.
+        if (analyzerButton.getToggleState() && analyzerPanel == nullptr)
+        {
+            analyzerPanel = std::make_unique<openq::AnalyzerPanel> (analyzerTransport);
+            addChildComponent (*analyzerPanel);
+            analyzerPanel->onClose = [this] {
+                analyzerPanel->setVisible (false);
+                analyzerButton.setToggleState (false, juce::dontSendNotification);
+            };
+            positionAnalyzerPanel();
+        }
+        if (analyzerPanel != nullptr)
+        {
+            analyzerPanel->refresh();
+            analyzerPanel->setVisible (analyzerButton.getToggleState());
+            if (analyzerPanel != nullptr && analyzerPanel->isVisible())
+                analyzerPanel->toFront (false);
+        }
     };
     preTrace.setComponentID ("analyzer.pre");
     postTrace.setComponentID ("analyzer.post");
@@ -72,8 +81,23 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     boundsConstrainer.setSizeLimits (openq::EditorSize::minimumWidth, openq::EditorSize::minimumHeight, openq::EditorSize::maximumWidth, openq::EditorSize::maximumHeight);
     setConstrainer (&boundsConstrainer);
     setResizable (true, p.wrapperType != juce::AudioProcessor::wrapperType_AudioUnitv3);
+    addMouseListener (this, true);
     const auto size = p.getEditorSize();
     setSize (size.width, size.height);
+}
+
+void PluginEditor::mouseDown (const juce::MouseEvent& event)
+{
+    auto* target = event.originalComponent;
+    if (analyzerPanel == nullptr || !analyzerPanel->isVisible() || target == nullptr || target == analyzerPanel.get() || analyzerPanel->isParentOf (target)
+        || target == &analyzerButton || analyzerButton.isParentOf (target))
+        return;
+    // Selector menus are editor siblings, so treat their active menu as part of the panel.
+    if (auto* popup = juce::Component::getCurrentlyModalComponent(); analyzerPanel->isPopupActive() && popup != nullptr
+                                                                     && (target == popup || popup->isParentOf (target)))
+        return;
+    if (analyzerPanel->onClose)
+        analyzerPanel->onClose();
 }
 
 void PluginEditor::selectBand (size_t band)
@@ -110,8 +134,8 @@ void PluginEditor::positionBandCard (bool resizing)
         {
             bandCard.setBounds (position);
             bandCard.toFront (false);
-            if (analyzerPanel.isVisible())
-                analyzerPanel.toFront (false);
+            if (analyzerPanel != nullptr && analyzerPanel->isVisible())
+                analyzerPanel->toFront (false);
             return;
         }
         if (graph.contains (position))
@@ -128,12 +152,13 @@ void PluginEditor::positionBandCard (bool resizing)
     // Extremely short windows may offer no clear corner; keep the card inside the graph.
     bandCard.setBounds (fallback);
     bandCard.toFront (false);
-    if (analyzerPanel.isVisible())
-        analyzerPanel.toFront (false);
+    if (analyzerPanel != nullptr && analyzerPanel->isVisible())
+        analyzerPanel->toFront (false);
 }
 
 PluginEditor::~PluginEditor()
 {
+    removeMouseListener (this);
     stopTimer();
     responseGraph.cancelDrag();
     responseGraph.onBandSelected = nullptr;
@@ -142,8 +167,11 @@ PluginEditor::~PluginEditor()
     bandCard.onDragStateChanged = nullptr;
     bandCard.onDelete = nullptr;
     bandCard.onClose = nullptr;
-    analyzerPanel.onClose = nullptr;
-    analyzerPanel.dismissPopups();
+    if (analyzerPanel != nullptr)
+    {
+        analyzerPanel->onClose = nullptr;
+        analyzerPanel->dismissPopups();
+    }
     setLookAndFeel (nullptr);
     setConstrainer (nullptr);
 }
@@ -157,7 +185,8 @@ void PluginEditor::timerCallback()
     spectrumFill.setToggleState (analyzerTransport.getFillEnabled(), juce::dontSendNotification);
     preTrace.setToggleState (settings.pre, juce::dontSendNotification);
     postTrace.setToggleState (settings.post, juce::dontSendNotification);
-    analyzerPanel.refresh();
+    if (analyzerPanel != nullptr)
+        analyzerPanel->refresh();
 }
 
 void PluginEditor::paint (juce::Graphics& g)
@@ -179,7 +208,8 @@ void PluginEditor::resized()
     uiScale = size.scale();
     const auto scaled = [this] (int value) { return juce::roundToInt (static_cast<float> (value) * uiScale); };
     bandCard.dismissPopups();
-    analyzerPanel.dismissPopups();
+    if (analyzerPanel != nullptr)
+        analyzerPanel->dismissPopups();
     if (!juce::exactlyEqual (lookAndFeel.scale, uiScale))
     {
         lookAndFeel.scale = uiScale;
@@ -194,15 +224,23 @@ void PluginEditor::resized()
     postTrace.setBounds (header.removeFromRight (scaled (66)));
     preTrace.setBounds (header.removeFromRight (scaled (60)));
     spectrumFill.setBounds (header.removeFromRight (scaled (60)));
-    const auto panelWidth = scaled (openq::AnalyzerPanel::preferredWidth);
-    analyzerPanel.setBounds (std::clamp (analyzerButton.getRight() - panelWidth, scaled (12), getWidth() - panelWidth - scaled (12)),
-        analyzerButton.getBottom() + scaled (8),
-        panelWidth,
-        scaled (openq::AnalyzerPanel::preferredHeight));
+    positionAnalyzerPanel();
     area.removeFromTop (scaled (4));
     responseGraph.setBounds (area);
     positionBandCard (true);
     processor.setEditorSize (size);
+}
+
+void PluginEditor::positionAnalyzerPanel()
+{
+    if (analyzerPanel == nullptr)
+        return;
+    const auto scaled = [this] (int value) { return juce::roundToInt (static_cast<float> (value) * uiScale); };
+    const auto panelWidth = scaled (openq::AnalyzerPanel::preferredWidth);
+    analyzerPanel->setBounds (std::clamp (analyzerButton.getRight() - panelWidth, scaled (12), getWidth() - panelWidth - scaled (12)),
+        analyzerButton.getBottom() + scaled (8),
+        panelWidth,
+        scaled (openq::AnalyzerPanel::preferredHeight));
 }
 
 void PluginEditor::BoundsConstrainer::checkBounds (juce::Rectangle<int>& bounds, const juce::Rectangle<int>& previous, const juce::Rectangle<int>& limits, bool top, bool left, bool bottom, bool right)

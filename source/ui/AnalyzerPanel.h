@@ -11,6 +11,7 @@ namespace openq
         explicit AnalyzerPanel (AnalyzerTransport&);
         void refresh();
         void dismissPopups();
+        bool isPopupActive() const;
         void paint (juce::Graphics&) override;
         void resized() override;
         void visibilityChanged() override;
@@ -22,7 +23,7 @@ namespace openq
         AnalyzerTransport& transport;
         std::array<juce::Label, 4> labels;
         CompactComboBox quality, smoothing, amount, decay;
-        juce::TextButton close { "Close" };
+        juce::DrawableButton close { "Close analyzer settings", juce::DrawableButton::ImageFitted };
         AnalyzerSmoothing shownMode = AnalyzerSmoothing::Erb;
     };
 }

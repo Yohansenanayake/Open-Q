@@ -17,10 +17,12 @@ public:
     //==============================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;
 
 private:
     void selectBand (size_t band);
     void positionBandCard (bool resizing = false);
+    void positionAnalyzerPanel();
     struct BoundsConstrainer final : juce::ComponentBoundsConstrainer
     {
         void checkBounds (juce::Rectangle<int>&, const juce::Rectangle<int>&, const juce::Rectangle<int>&, bool, bool, bool, bool) override;
@@ -41,7 +43,7 @@ private:
     openq::AnalyzerTransport& analyzerTransport;
     juce::ToggleButton preTrace { "Pre" }, postTrace { "Post" }, spectrumFill { "Fill" };
     juce::TextButton analyzerButton { "Analyzer" };
-    openq::AnalyzerPanel analyzerPanel;
+    std::unique_ptr<openq::AnalyzerPanel> analyzerPanel;
     openq::ResponseGraph responseGraph;
     openq::BandControlCard bandCard;
     bool knobDragging = false;

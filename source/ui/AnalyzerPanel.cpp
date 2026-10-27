@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "AnalyzerPanel.h"
+#include "BinaryData.h"
 #include "Palette.h"
 
 namespace openq
@@ -49,6 +50,18 @@ namespace openq
             settings.decay = static_cast<AnalyzerDecay> (decay.getSelectedItemIndex());
             transport.setSettings (settings);
         };
+        auto cross = juce::Drawable::createFromImageData (BinaryData::close_svg, BinaryData::close_svgSize);
+        jassert (cross != nullptr);
+        if (cross != nullptr)
+        {
+            auto hover = cross->createCopy();
+            cross->replaceColour (juce::Colours::black, palette::inactiveIcon);
+            hover->replaceColour (juce::Colours::black, palette::text);
+            close.setImages (cross.get(), hover.get(), hover.get());
+        }
+        close.setComponentID ("analyzer.close");
+        close.setTitle ("Close analyzer settings");
+        close.setTooltip ("Hide analyzer settings");
         addAndMakeVisible (close);
         close.onClick = [this] { if (onClose) onClose(); };
         refresh();
@@ -77,6 +90,10 @@ namespace openq
     {
         for (auto* box : { &quality, &smoothing, &amount, &decay })
             box->closePopup();
+    }
+    bool AnalyzerPanel::isPopupActive() const
+    {
+        return quality.isPopupActive() || smoothing.isPopupActive() || amount.isPopupActive() || decay.isPopupActive();
     }
     void AnalyzerPanel::visibilityChanged()
     {
@@ -109,7 +126,7 @@ namespace openq
         const auto scaled = [scale] (int value) { return juce::roundToInt (static_cast<float> (value) * scale); };
         auto area = getLocalBounds().reduced (scaled (12));
         auto header = area.removeFromTop (scaled (28));
-        close.setBounds (header.removeFromRight (scaled (68)));
+        close.setBounds (header.removeFromRight (header.getHeight()));
         const std::array<CompactComboBox*, 4> boxes { &quality, &smoothing, &amount, &decay };
         for (size_t i = 0; i < labels.size(); ++i)
         {

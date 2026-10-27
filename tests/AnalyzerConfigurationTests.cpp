@@ -2,6 +2,16 @@
 #include "PluginEditor.h"
 #include <catch2/catch_test_macros.hpp>
 
+namespace
+{
+    void observeMouseDown (PluginEditor& editor, juce::Component& target)
+    {
+        const auto time = juce::Time::getCurrentTime();
+        const juce::MouseEvent event { juce::Desktop::getInstance().getMainMouseSource(), {}, juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier), 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, &target, &target, time, {}, time, 1, false };
+        editor.mouseDown (event);
+    }
+}
+
 TEST_CASE ("Analyzer configuration round trips coherently and rejects invalid choices", "[analyzer][settings]")
 {
     openq::AnalyzerTransport transport;
@@ -66,13 +76,13 @@ TEST_CASE ("Analyzer panel remembers each smoothing amount and keeps preferences
     PluginProcessor processor;
     PluginEditor editor (processor);
     const auto before = processor.parameters.copyState();
-    auto* panel = dynamic_cast<openq::AnalyzerPanel*> (editor.findChildWithID ("analyzer.panel"));
+    CHECK (editor.findChildWithID ("analyzer.panel") == nullptr);
     auto* button = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("analyzer.settings"));
-    REQUIRE (panel != nullptr);
     REQUIRE (button != nullptr);
-    CHECK_FALSE (panel->isVisible());
     button->setToggleState (true, juce::dontSendNotification);
     button->onClick();
+    auto* panel = dynamic_cast<openq::AnalyzerPanel*> (editor.findChildWithID ("analyzer.panel"));
+    REQUIRE (panel != nullptr);
     CHECK (panel->isVisible());
     auto* smoothing = dynamic_cast<openq::CompactComboBox*> (panel->findChildWithID ("analyzer.smoothing"));
     auto* amount = dynamic_cast<openq::CompactComboBox*> (panel->findChildWithID ("analyzer.amount"));
@@ -98,8 +108,9 @@ TEST_CASE ("Analyzer panel remembers each smoothing amount and keeps preferences
     editor.setSize (1440, 900);
     CHECK (editor.getLocalBounds().contains (panel->getBounds()));
     const auto image = editor.createComponentSnapshot (editor.getLocalBounds());
-    juce::FileOutputStream output (juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("openq-analyzer-settings.png"));
+    juce::MemoryOutputStream output;
     REQUIRE (juce::PNGImageFormat().writeImageToStream (image, output));
+    REQUIRE (juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("openq-analyzer-settings.png").replaceWithData (output.getData(), output.getDataSize()));
     REQUIRE (panel->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey)));
     CHECK_FALSE (panel->isVisible());
     CHECK_FALSE (button->getToggleState());
@@ -112,12 +123,12 @@ TEST_CASE ("Analyzer panel menus remain editor children and close safely on hide
     PluginProcessor processor;
     PluginEditor editor (processor);
     editor.setVisible (true);
-    auto* panel = dynamic_cast<openq::AnalyzerPanel*> (editor.findChildWithID ("analyzer.panel"));
     auto* button = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("analyzer.settings"));
-    REQUIRE (panel != nullptr);
     REQUIRE (button != nullptr);
     button->setToggleState (true, juce::dontSendNotification);
     button->onClick();
+    auto* panel = dynamic_cast<openq::AnalyzerPanel*> (editor.findChildWithID ("analyzer.panel"));
+    REQUIRE (panel != nullptr);
     auto* quality = dynamic_cast<openq::CompactComboBox*> (panel->findChildWithID ("analyzer.quality"));
     REQUIRE (quality != nullptr);
     if (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() == nullptr)
@@ -128,6 +139,14 @@ TEST_CASE ("Analyzer panel menus remain editor children and close safely on hide
     REQUIRE (popup != nullptr);
     CHECK (popup->getParentComponent() == &editor);
     CHECK_FALSE (popup->isOnDesktop());
+    observeMouseDown (editor, *popup);
+    CHECK (panel->isVisible());
+    CHECK (quality->isPopupActive());
+    if (popup->getNumChildComponents() > 0)
+    {
+        observeMouseDown (editor, *popup->getChildComponent (0));
+        CHECK (panel->isVisible());
+    }
     CHECK (popup->keyPressed (juce::KeyPress (juce::KeyPress::downKey)));
     CHECK (popup->keyPressed (juce::KeyPress (juce::KeyPress::returnKey)));
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
@@ -144,4 +163,77 @@ TEST_CASE ("Analyzer panel menus remain editor children and close safely on hide
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
     CHECK (juce::Component::getCurrentlyModalComponent() == nullptr);
     CHECK (juce::Desktop::getInstance().getNumComponents() == desktopCount);
+}
+
+TEST_CASE ("Analyzer cross and outside clicks dismiss without changing preferences or blocking controls", "[analyzer][ui][dismiss]")
+{
+    PluginProcessor processor;
+    PluginEditor editor (processor);
+    auto* button = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("analyzer.settings"));
+    REQUIRE (button != nullptr);
+    button->setToggleState (true, juce::dontSendNotification);
+    button->onClick();
+    auto* panel = dynamic_cast<openq::AnalyzerPanel*> (editor.findChildWithID ("analyzer.panel"));
+    auto* pre = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("analyzer.pre"));
+    auto* graph = editor.findChildWithID ("response.graph");
+    REQUIRE (panel != nullptr);
+    REQUIRE (button != nullptr);
+    REQUIRE (pre != nullptr);
+    REQUIRE (graph != nullptr);
+    auto* close = dynamic_cast<juce::DrawableButton*> (panel->findChildWithID ("analyzer.close"));
+    REQUIRE (close != nullptr);
+    REQUIRE (close->getCurrentImage() != nullptr);
+    const auto settings = processor.getAnalyzerTransport().getSettings().encode();
+    const auto open = [&] {
+        button->setToggleState (true, juce::dontSendNotification);
+        button->onClick();
+        REQUIRE (panel->isVisible());
+    };
+    open();
+    observeMouseDown (editor, *panel);
+    CHECK (panel->isVisible());
+    auto* smoothing = panel->findChildWithID ("analyzer.smoothing");
+    REQUIRE (smoothing != nullptr);
+    observeMouseDown (editor, *smoothing);
+    CHECK (panel->isVisible());
+    observeMouseDown (editor, *button);
+    CHECK (panel->isVisible()); // The button's normal click will toggle it off.
+    button->setToggleState (false, juce::dontSendNotification);
+    button->onClick();
+    CHECK_FALSE (panel->isVisible());
+    open();
+    close->onClick();
+    CHECK_FALSE (panel->isVisible());
+    CHECK_FALSE (button->getToggleState());
+    open();
+    observeMouseDown (editor, *graph);
+    CHECK_FALSE (panel->isVisible());
+    CHECK_FALSE (button->getToggleState());
+    CHECK (processor.getAnalyzerTransport().getSettings().encode() == settings);
+    open();
+    observeMouseDown (editor, *pre);
+    CHECK_FALSE (panel->isVisible());
+    pre->setToggleState (false, juce::dontSendNotification);
+    pre->onClick();
+    CHECK_FALSE (processor.getAnalyzerTransport().getSettings().pre);
+    open();
+    observeMouseDown (editor, editor);
+    CHECK_FALSE (panel->isVisible());
+}
+
+TEST_CASE ("Host editor probing defers analyzer controls and preserves configuration", "[analyzer][ui][startup]")
+{
+    if (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() == nullptr)
+        SKIP ("Startup assertion regression requires a display.");
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    PluginProcessor processor;
+    const auto settings = processor.getAnalyzerTransport().getSettings().encode();
+    // AudioPluginHost probes twice and creates the real editor before its queue can drain.
+    for (int creation = 0; creation < 3; ++creation)
+    {
+        PluginEditor editor (processor);
+        CHECK (editor.findChildWithID ("analyzer.panel") == nullptr);
+        CHECK (editor.findChildWithID ("analyzer.settings") != nullptr);
+        CHECK (processor.getAnalyzerTransport().getSettings().encode() == settings);
+    }
 }

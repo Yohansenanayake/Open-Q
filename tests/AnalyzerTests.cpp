@@ -382,6 +382,10 @@ TEST_CASE ("Analyzer UI switches remain independent of band parameters", "[analy
     const auto before = processor.parameters.copyState();
     auto* pre = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("analyzer.pre"));
     auto* post = dynamic_cast<juce::ToggleButton*> (editor.findChildWithID ("analyzer.post"));
+    auto* analyzerButton = dynamic_cast<juce::TextButton*> (editor.findChildWithID ("analyzer.settings"));
+    REQUIRE (analyzerButton != nullptr);
+    analyzerButton->setToggleState (true, juce::dontSendNotification);
+    analyzerButton->onClick();
     auto* panel = editor.findChildWithID ("analyzer.panel");
     REQUIRE (panel != nullptr);
     auto* quality = dynamic_cast<juce::ComboBox*> (panel->findChildWithID ("analyzer.quality"));
