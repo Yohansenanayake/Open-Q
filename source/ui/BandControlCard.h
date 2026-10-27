@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
 #include "../BandParameters.h"
+#include "CompactComboBox.h"
 
 namespace openq
 {
     class BandControlCard final : public juce::Component
     {
     public:
-        static constexpr int preferredWidth = 350, preferredHeight = 196;
+        static constexpr int preferredWidth = 350, preferredHeight = 166;
         explicit BandControlCard (juce::AudioProcessorValueTreeState& parameters);
         void setBand (size_t band);
         void paint (juce::Graphics&) override;
         void resized() override;
+        void visibilityChanged() override;
         std::function<void (bool)> onDragStateChanged;
         std::function<void()> onDelete;
         std::function<void()> onClose;
@@ -19,8 +21,8 @@ namespace openq
     private:
         juce::AudioProcessorValueTreeState& parameters;
         void updateControlEnablement();
-        juce::Label title, slopeLabel;
-        juce::ComboBox typeSelector, slopeSelector;
+        juce::Label title;
+        CompactComboBox typeSelector, slopeSelector;
         juce::DrawableButton powerButton { "Band power", juce::DrawableButton::ImageFitted };
         juce::DrawableButton deleteButton { "Delete band", juce::DrawableButton::ImageFitted };
         juce::DrawableButton closeButton { "Close band controls", juce::DrawableButton::ImageFitted };

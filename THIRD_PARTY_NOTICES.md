@@ -48,6 +48,8 @@ These files are used under AGPL-3.0-only; see [LICENSE](LICENSE). Button colors 
 - [`zldsp_fft`](https://github.com/ZL-Audio/zldsp_fft), pinned to `dfc50e6c39680d9ee04fbb60fc6c935552630045`, is fetched through CPM and used unchanged. License: Apache-2.0; retained in [licenses/zldsp_fft-Apache-2.0.txt](licenses/zldsp_fft-Apache-2.0.txt).
 - [`Highway`](https://github.com/ZL-Audio/highway), pinned to `2607d3b5b0113992fe84d3848859eae13b3b52c1`, is fetched through CPM and used unchanged with static dispatch for the compiler's baseline SIMD target. Highway offers Apache-2.0 or BSD-3-Clause for its main code; Open-Q uses the Apache-2.0 option. The complete upstream license text, including its separately licensed random helper (not used here), is retained in [licenses/Highway-LICENSE.txt](licenses/Highway-LICENSE.txt). Upstream source notices remain in the fetched dependency sources.
 
+Open-Q's `source/ui/CompactComboBox.*` follows the compact styling, control caching and explicitly parented popup pattern in `source/gui/combobox/compact_combobox/` from both pinned ZLE references above. It is an independent Open-Q implementation using a JUCE ComboBox subclass and the existing JUCE parameter attachments. It locates the actual AudioProcessorEditor rather than assuming a host child index, prevents native-popup fallback, and clears popup LookAndFeel references during teardown. No additional ZLE or JUCE-fork source was copied for this control.
+
 ## Pamplejuce template
 
 The original build system, plugin skeleton, and supporting template files are derived from [Pamplejuce](https://github.com/sudara/pamplejuce), copyright (c) 2022 Sudara Williams. Its complete MIT notice is retained in [licenses/Pamplejuce-MIT.txt](licenses/Pamplejuce-MIT.txt).

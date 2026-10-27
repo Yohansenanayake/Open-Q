@@ -236,6 +236,84 @@ TEST_CASE ("Interrupted node drags end host gestures", "[nodes][ui]")
     }
 }
 
+TEST_CASE ("Compact band selectors use editor child popups and preserve parameter gestures", "[nodes][ui][card][popup]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    Gestures gestures (processor);
+    auto editor = std::unique_ptr<juce::AudioProcessorEditor> (processor.createEditor());
+    editor->setVisible (true);
+    auto* card = dynamic_cast<openq::BandControlCard*> (editor->findChildWithID ("band.card"));
+    REQUIRE (card != nullptr);
+    card->setBand (0);
+    card->setBounds (20, 300, openq::BandControlCard::preferredWidth, openq::BandControlCard::preferredHeight);
+    auto* type = dynamic_cast<openq::CompactComboBox*> (card->findChildWithID ("band.type"));
+    auto* slope = dynamic_cast<openq::CompactComboBox*> (card->findChildWithID ("band.slope"));
+    auto* frequency = card->findChildWithID ("band.frequency");
+    REQUIRE (type != nullptr);
+    REQUIRE (slope != nullptr);
+    REQUIRE (frequency != nullptr);
+    CHECK (type->getRight() <= frequency->getX());
+    CHECK (slope->getRight() <= frequency->getX());
+    CHECK (slope->getY() > type->getY());
+    juce::Label label;
+    const auto options = type->getLookAndFeel().getOptionsForComboBoxPopupMenu (*type, label);
+    CHECK (options.getParentComponent() == editor.get());
+    CHECK (options.getTargetComponent() == type);
+    const auto desktopComponents = juce::Desktop::getInstance().getNumComponents();
+    if (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() == nullptr)
+    {
+        type->showPopup();
+        CHECK_FALSE (type->isPopupActive());
+        CHECK (juce::Desktop::getInstance().getNumComponents() == desktopComponents);
+        SKIP ("Popup interaction checks require a display; editor parenting and headless rejection were checked.");
+    }
+    type->showPopup();
+    auto* popup = juce::Component::getCurrentlyModalComponent();
+    REQUIRE (popup != nullptr);
+    CHECK (popup->getParentComponent() == editor.get());
+    CHECK_FALSE (popup->isOnDesktop());
+    CHECK (juce::Desktop::getInstance().getNumComponents() == desktopComponents);
+    // Keyboard selection uses the same JUCE menu result/attachment path as a mouse selection.
+    CHECK (popup->keyPressed (juce::KeyPress (juce::KeyPress::downKey)));
+    CHECK (popup->keyPressed (juce::KeyPress (juce::KeyPress::returnKey)));
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (settings (processor, 0).type == openq::FilterType::LowShelf);
+    CHECK (gestures.active() == 0);
+    const auto selected = settings (processor, 0);
+    type->showPopup();
+    popup = juce::Component::getCurrentlyModalComponent();
+    REQUIRE (popup != nullptr);
+    CHECK (popup->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey)));
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (settings (processor, 0) == selected);
+    type->showPopup();
+    REQUIRE (type->isPopupActive());
+    const auto otherBand = settings (processor, 1);
+    card->setBand (1);
+    CHECK_FALSE (type->isPopupActive());
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (settings (processor, 0) == selected);
+    CHECK (settings (processor, 1) == otherBand);
+    type->showPopup();
+    REQUIRE (type->isPopupActive());
+    card->setBand (openq::bandCount);
+    CHECK_FALSE (type->isPopupActive());
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    card->setBand (0);
+    type->showPopup();
+    REQUIRE (type->isPopupActive());
+    editor.reset();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (juce::Component::getCurrentlyModalComponent() == nullptr);
+    CHECK (juce::Desktop::getInstance().getNumComponents() == desktopComponents);
+    openq::CompactComboBox orphan;
+    orphan.addItem ("Bell", 1);
+    orphan.showPopup();
+    CHECK_FALSE (orphan.isPopupActive());
+    CHECK (juce::Desktop::getInstance().getNumComponents() == desktopComponents);
+}
+
 TEST_CASE ("Band card opens on selection, preserves settings when hidden and deletes through graph selection", "[nodes][ui][card]")
 {
     PluginProcessor processor;
@@ -438,10 +516,16 @@ TEST_CASE ("Cut card controls follow type slope automation and retain inactive s
     REQUIRE (gain != nullptr);
     REQUIRE (q != nullptr);
     CHECK_FALSE (slope->isEnabled());
+    CHECK_FALSE (slope->getWantsKeyboardFocus());
+    CHECK_FALSE (slope->getMouseClickGrabsKeyboardFocus());
+    slope->showPopup();
+    CHECK_FALSE (slope->isPopupActive());
     set (processor, 0, "gain", 12.0f);
     set (processor, 0, "q", 3.0f);
     type->setSelectedItemIndex (static_cast<int> (openq::FilterType::LowCut), juce::sendNotificationSync);
     CHECK (slope->isEnabled());
+    CHECK (slope->getWantsKeyboardFocus());
+    CHECK (slope->getMouseClickGrabsKeyboardFocus());
     CHECK_FALSE (gain->isEnabled());
     CHECK (q->isEnabled());
     CHECK_THAT (settings (processor, 0).gain, Catch::Matchers::WithinAbs (12.0, 0.001));
@@ -458,6 +542,7 @@ TEST_CASE ("Cut card controls follow type slope automation and retain inactive s
     set (processor, 0, "type", static_cast<float> (openq::FilterType::Bell));
     CHECK (gain->isEnabled());
     CHECK_FALSE (slope->isEnabled());
+    CHECK_FALSE (slope->getMouseClickGrabsKeyboardFocus());
     processor.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
     CHECK (type->getSelectedItemIndex() == static_cast<int> (openq::FilterType::LowCut));
     CHECK_FALSE (gain->isEnabled());
@@ -467,6 +552,42 @@ TEST_CASE ("Cut card controls follow type slope automation and retain inactive s
     output.setPosition (0);
     output.truncate();
     REQUIRE (juce::PNGImageFormat().writeImageToStream (image, output));
+}
+
+TEST_CASE ("Disabled compact selectors never paint an active highlight", "[nodes][ui][card]")
+{
+    openq::CompactComboBox selector;
+    selector.setSize (78, 26);
+    const auto render = [&] (bool buttonDown) {
+        juce::Image image (juce::Image::ARGB, selector.getWidth(), selector.getHeight(), true);
+        juce::Graphics graphics (image);
+        selector.getLookAndFeel().drawComboBox (graphics, image.getWidth(), image.getHeight(), buttonDown, 0, 0, 0, 0, selector);
+        return image;
+    };
+    const auto different = [] (const juce::Image& a, const juce::Image& b) {
+        for (int y = 0; y < a.getHeight(); ++y)
+            for (int x = 0; x < a.getWidth(); ++x)
+                if (a.getPixelAt (x, y) != b.getPixelAt (x, y))
+                    return true;
+        return false;
+    };
+    CHECK (different (render (false), render (true)));
+    selector.setEnabled (false);
+    CHECK_FALSE (different (render (false), render (true)));
+    CHECK_FALSE (selector.getWantsKeyboardFocus());
+    CHECK_FALSE (selector.getMouseClickGrabsKeyboardFocus());
+    selector.setEnabled (true);
+    CHECK (different (render (false), render (true)));
+    CHECK (selector.getWantsKeyboardFocus());
+    CHECK (selector.getMouseClickGrabsKeyboardFocus());
+    juce::Component parent;
+    parent.addAndMakeVisible (selector);
+    parent.setEnabled (false);
+    CHECK_FALSE (selector.isEnabled());
+    CHECK_FALSE (different (render (false), render (true)));
+    CHECK_FALSE (selector.getMouseClickGrabsKeyboardFocus());
+    parent.setEnabled (true);
+    CHECK (selector.getMouseClickGrabsKeyboardFocus());
 }
 
 TEST_CASE ("Cut nodes stay at zero dB ignore vertical edits and disable first-order Q wheel", "[cuts][nodes][ui]")

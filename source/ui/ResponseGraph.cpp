@@ -436,8 +436,9 @@ namespace openq
                 for (size_t trace = 0; trace < spectrum.fills.size(); ++trace)
                 {
                     const auto color = trace == 0 ? palette::analyzerPre : palette::analyzerPost;
-                    g.setColour (color.withAlpha (0.16f));
-                    g.fillPath (spectrum.fills[trace], translation);
+                    // Temporary diagnostic: omit fills to isolate popup delay; restore after the comparison.
+                    // g.setColour (color.withAlpha (0.16f));
+                    // g.fillPath (spectrum.fills[trace], translation);
                     g.setColour (color.withAlpha (0.6f));
                     g.strokePath (spectrum.outlines[trace], juce::PathStrokeType (1.0f), translation);
                 }

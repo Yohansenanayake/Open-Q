@@ -22,8 +22,6 @@ namespace openq
         slopeSelector.setTooltip ("Cut slope. Bell and shelf responses retain their existing design.");
         slopeSelector.onChange = [this] { updateControlEnablement(); };
         addAndMakeVisible (slopeSelector);
-        slopeLabel.setText ("Slope", juce::dontSendNotification);
-        addAndMakeVisible (slopeLabel);
         auto power = juce::Drawable::createFromImageData (BinaryData::bypass_svg, BinaryData::bypass_svgSize);
         auto close = juce::Drawable::createFromImageData (BinaryData::close_svg, BinaryData::close_svgSize);
         auto trash = juce::Drawable::createFromImageData (BinaryData::trash_svg, BinaryData::trash_svgSize);
@@ -67,7 +65,7 @@ namespace openq
         {
             auto& control = controls[i];
             control.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-            control.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 98, 22);
+            control.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 74, 22);
             control.setTitle (names[i]);
             control.setComponentID ("band." + names[i].toLowerCase());
             control.onDragStart = [this] { if (onDragStateChanged) onDragStateChanged (true); };
@@ -88,6 +86,8 @@ namespace openq
 
     void BandControlCard::setBand (size_t band)
     {
+        typeSelector.closePopup();
+        slopeSelector.closePopup();
         for (auto& control : controls)
             control.hideTextBox (false);
         statusAttachment.reset();
@@ -126,7 +126,6 @@ namespace openq
         const bool cut = isCut (type);
         const bool qEnabled = !cut || slopeSelector.getSelectedItemIndex() != static_cast<int> (CutSlope::Db6);
         slopeSelector.setEnabled (cut);
-        slopeLabel.setAlpha (cut ? 1.0f : 0.5f);
         controls[1].setEnabled (!cut);
         labels[1].setAlpha (cut ? 0.5f : 1.0f);
         controls[2].setEnabled (qEnabled);
@@ -145,6 +144,15 @@ namespace openq
         g.drawRoundedRectangle (bounds, 8.0f, 1.0f);
     }
 
+    void BandControlCard::visibilityChanged()
+    {
+        if (!isVisible())
+        {
+            typeSelector.closePopup();
+            slopeSelector.closePopup();
+        }
+    }
+
     void BandControlCard::resized()
     {
         auto area = getLocalBounds().reduced (10);
@@ -157,12 +165,15 @@ namespace openq
         header.removeFromRight (spacing);
         powerButton.setBounds (header.removeFromLeft (buttonSize));
         header.removeFromLeft (spacing);
-        typeSelector.setBounds (header.removeFromRight (140));
         title.setBounds (header);
         area.removeFromTop (spacing);
-        auto slopeRow = area.removeFromTop (buttonSize);
-        slopeSelector.setBounds (slopeRow.removeFromRight (140));
-        slopeLabel.setBounds (slopeRow);
+        constexpr int selectorColumnWidth = 78;
+        auto selectors = area.removeFromLeft (selectorColumnWidth);
+        selectors.removeFromTop (18);
+        typeSelector.setBounds (selectors.removeFromTop (buttonSize));
+        selectors.removeFromTop (spacing);
+        slopeSelector.setBounds (selectors.removeFromTop (buttonSize));
+        area.removeFromLeft (spacing);
         const auto width = area.getWidth() / static_cast<int> (controls.size());
         for (size_t i = 0; i < controls.size(); ++i)
         {
