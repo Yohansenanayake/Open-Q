@@ -451,10 +451,12 @@ namespace openq
 
     void ResponseGraph::paint (juce::Graphics& g)
     {
-        paintStartedMilliseconds = g.getClipBounds().contains (getLocalBounds()) ? juce::Time::getMillisecondCounterHiRes() : 0.0;
+        const auto plot = plotBounds();
+        // Opaque editor bars clip the graph edges even during a complete plot redraw.
+        const bool repaintingPlot = !plot.isEmpty() && g.getClipBounds().contains (plot) && g.clipRegionIntersects (plot);
+        paintStartedMilliseconds = repaintingPlot ? juce::Time::getMillisecondCounterHiRes() : 0.0;
         worker.pullFrame();
         const auto& frame = worker.getFrame();
-        const auto plot = plotBounds();
         artwork.setDisplay (plot, frame.valid ? frame.response.sampleRate : 0.0, analyzer != nullptr, uiScale);
         g.fillAll (palette::background);
         if (plot.isEmpty())
@@ -470,7 +472,8 @@ namespace openq
                 && juce::exactlyEqual (spectrum.sampleRate, sampleRate.load (std::memory_order_relaxed)))
             {
                 juce::Graphics::ScopedSaveState save (g);
-                g.reduceClipRegion (plot);
+                if (!g.reduceClipRegion (plot))
+                    return;
                 const auto translation = juce::AffineTransform::translation (static_cast<float> (plot.getX()), static_cast<float> (plot.getY()));
                 for (size_t trace = 0; trace < spectrum.fills.size(); ++trace)
                 {

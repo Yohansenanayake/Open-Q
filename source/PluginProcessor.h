@@ -1,6 +1,8 @@
 #pragma once
 
-#include "BandParameters.h"
+#include "PluginParameters.h"
+#include "dsp/GainStage.h"
+#include "dsp/LevelMeterTransport.h"
 #include "EditorSize.h"
 #include "dsp/BandFilter.h"
 #include "dsp/analyzer/AnalyzerTransport.h"
@@ -53,6 +55,7 @@ public:
         editorSize.store ((static_cast<std::uint64_t> (size.width) << 32) | static_cast<unsigned> (size.height), std::memory_order_relaxed);
     }
     openq::AnalyzerTransport& getAnalyzerTransport() { return analyzer; }
+    openq::LevelMeterTransport& getLevelMeters() { return levelMeters; }
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -60,6 +63,10 @@ private:
     std::array<openq::BandFilter, openq::bandCount> bands;
     std::atomic<double> responseSampleRate { 0.0 };
     openq::AnalyzerTransport analyzer;
+    openq::LevelMeterTransport levelMeters;
+    openq::GainStage inputGain, outputGain;
+    std::atomic<float>* inputGainParameter = nullptr;
+    std::atomic<float>* outputGainParameter = nullptr;
     std::atomic<std::uint64_t> editorSize { (static_cast<std::uint64_t> (openq::EditorSize::defaultWidth) << 32) | openq::EditorSize::defaultHeight };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)

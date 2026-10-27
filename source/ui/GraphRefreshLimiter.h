@@ -36,7 +36,10 @@ namespace openq
             constexpr double estimateDecay = 0.9, maximumSampleSeconds = 0.1;
             paintSeconds = std::max (std::min (seconds, maximumSampleSeconds), paintSeconds * estimateDecay);
             if (lastTimestamp && nextFrame && interval() > 1.0 / targetFramesPerSecond)
-                nextFrame = std::max (*nextFrame, *lastTimestamp + interval());
+            {
+                // Include the actual duration so a paint beyond the estimate cap still gets an idle window.
+                nextFrame = std::max (*nextFrame, *lastTimestamp + seconds + paintSeconds);
+            }
         }
 
         void reset()

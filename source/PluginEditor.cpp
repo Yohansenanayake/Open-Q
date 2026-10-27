@@ -3,7 +3,7 @@
 #include "ui/UiScale.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), analyzerTransport (p.getAnalyzerTransport()), headerBar (p.getAnalyzerTransport()), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
+    : AudioProcessorEditor (&p), processor (p), analyzerTransport (p.getAnalyzerTransport()), headerBar (p.getAnalyzerTransport()), bottomBar (p.parameters), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
 {
     setLookAndFeel (&lookAndFeel);
     // Panel dismissal returns focus here instead of selecting a graph node.
@@ -12,6 +12,11 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible (responseGraph);
     addAndMakeVisible (headerBar);
     addAndMakeVisible (bottomBar);
+    inputMeter.setComponentID ("meter.input");
+    outputMeter.setComponentID ("meter.output");
+    addAndMakeVisible (inputMeter);
+    addAndMakeVisible (outputMeter);
+    (void) processor.getLevelMeters().read();
     headerBar.onFillChanged = [this] { responseGraph.repaint(); };
     bottomBar.analyzer.onClick = [this] {
         // Hosts may create probe editors before their event loop can drain startup notifications.
@@ -40,7 +45,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         }
     };
     timerCallback();
-    startTimerHz (10);
+    startTimerHz (30);
     addChildComponent (bandCard);
     responseGraph.onBandSelected = [this] (size_t band) { selectBand (band); };
     responseGraph.onNodeLayoutChanged = [this] { positionBandCard(); };
@@ -102,7 +107,7 @@ void PluginEditor::positionBandCard (bool resizing)
     const auto scaled = [this] (int value) { return juce::roundToInt (static_cast<float> (value) * uiScale); };
     const int cardAreaHorizontalInset = scaled (18), cardAreaVerticalInset = scaled (44);
     const int nodeClearance = scaled (12);
-    const auto graph = responseGraph.getBounds().withTop (headerBar.getBottom()).withBottom (bottomBar.getY())
+    const auto graph = responseGraph.getBounds().withLeft (inputMeter.getRight()).withRight (outputMeter.getX()).withTop (headerBar.getBottom()).withBottom (bottomBar.getY())
                            .reduced (cardAreaHorizontalInset, cardAreaVerticalInset);
     const auto node = responseGraph.getSelectedNodeBounds().translated (responseGraph.getX(), responseGraph.getY()).expanded (nodeClearance);
     const int width = scaled (openq::BandControlCard::preferredWidth), height = scaled (openq::BandControlCard::preferredHeight);
@@ -168,6 +173,24 @@ void PluginEditor::timerCallback()
     const auto size = processor.getEditorSize();
     if (getWidth() > 0 && openq::EditorSize { getWidth(), getHeight() } != size)
         setSize (size.width, size.height);
+    const auto now = juce::Time::getMillisecondCounterHiRes() * 0.001;
+    bottomBar.messageThreadTick (now);
+    const auto reading = processor.getLevelMeters().read();
+    if ((isShowing() && lastMeterTime <= 0.0) || (!isShowing() && lastMeterTime > 0.0) || reading.generation != meterGeneration)
+    {
+        inputMeter.reset();
+        outputMeter.reset();
+        meterGeneration = reading.generation;
+    }
+    if (isShowing())
+    {
+        const auto elapsed = lastMeterTime > 0.0 ? now - lastMeterTime : 0.0;
+        inputMeter.update (reading.peaks[0], reading.channels, elapsed);
+        outputMeter.update (reading.peaks[1], reading.channels, elapsed);
+        lastMeterTime = now;
+    }
+    else
+        lastMeterTime = 0.0;
     headerBar.refresh();
     if (analyzerPanel != nullptr)
         analyzerPanel->refresh();
@@ -203,7 +226,11 @@ void PluginEditor::resized()
     const auto area = getLocalBounds();
     headerBar.setBounds (area.withHeight (juce::roundToInt (openq::HeaderBar::preferredHeight * scales.header())));
     bottomBar.setBounds (area.withTop (area.getBottom() - juce::roundToInt (openq::BottomBar::preferredHeight * scales.bottom())));
-    responseGraph.setContentInsets ({ headerBar.getHeight() + scaled (4), scaled (12), bottomBar.getHeight() + scaled (4), scaled (12) });
+    const auto meterWidth = juce::roundToInt (openq::LevelMeter::preferredWidth * scales.bottom());
+    const auto meterHeight = bottomBar.getY() - headerBar.getBottom();
+    inputMeter.setBounds (0, headerBar.getBottom(), meterWidth, meterHeight);
+    outputMeter.setBounds (getWidth() - meterWidth, headerBar.getBottom(), meterWidth, meterHeight);
+    responseGraph.setContentInsets ({ headerBar.getHeight() + scaled (4), meterWidth + scaled (6), bottomBar.getHeight() + scaled (4), meterWidth + scaled (6) });
     responseGraph.setBounds (area);
     positionBandCard (true);
     positionAnalyzerPanel();

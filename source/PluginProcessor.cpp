@@ -6,7 +6,7 @@
 
 namespace
 {
-    constexpr int stateSchemaVersion = 5;
+    constexpr int stateSchemaVersion = openq::stateSchemaVersion;
     constexpr double tailSecondsPerBand = 5.0;
     constexpr auto bellDesignRevision = "zle-ivantsov-v1";
     constexpr auto shelfDesignRevision = "zle-ivantsov-shelf-v1";
@@ -25,6 +25,8 @@ PluginProcessor::PluginProcessor()
               ),
       parameters (*this, nullptr, "OpenQState", createParameterLayout())
 {
+    inputGainParameter = parameters.getRawParameterValue (openq::gainParameterIds[0]);
+    outputGainParameter = parameters.getRawParameterValue (openq::gainParameterIds[1]);
     parameters.state.setProperty ("schemaVersion", stateSchemaVersion, nullptr);
     parameters.state.setProperty ("bandCount", static_cast<int> (openq::bandCount), nullptr);
     for (size_t i = 0; i < openq::bandCount; ++i)
@@ -114,6 +116,9 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
         const auto target = bandParameters[i].load();
         bands[i].prepare (sampleRate, target.frequency, target.gain, target.q, target.status, target.type, target.slope);
     }
+    inputGain.prepare (sampleRate, inputGainParameter->load (std::memory_order_relaxed));
+    outputGain.prepare (sampleRate, outputGainParameter->load (std::memory_order_relaxed));
+    levelMeters.prepare (getTotalNumInputChannels());
     responseSampleRate.store (sampleRate, std::memory_order_relaxed);
     analyzer.prepare (sampleRate);
 }
@@ -155,6 +160,9 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (int channel = inputs; channel < buffer.getNumChannels(); ++channel)
         buffer.clear (channel, 0, buffer.getNumSamples());
 
+    inputGain.setGainDb (inputGainParameter->load (std::memory_order_relaxed));
+    outputGain.setGainDb (outputGainParameter->load (std::memory_order_relaxed));
+    const auto inputPeaks = inputGain.process (buffer, inputs);
     analyzer.beginBlock (buffer, inputs);
     for (size_t i = 0; i < bands.size(); ++i)
     {
@@ -162,7 +170,9 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         bands[i].setParameters (target.frequency, target.gain, target.q, target.status, target.type, target.slope);
         bands[i].process (buffer, inputs);
     }
-    // Keep this tap after the eventual global warm-bypass output mix.
+    const auto outputPeaks = outputGain.process (buffer, inputs);
+    levelMeters.publish (inputPeaks, outputPeaks);
+    // Keep these output taps after the eventual global warm-bypass output mix.
     analyzer.endBlock (buffer);
 }
 
@@ -200,36 +210,34 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     if (xml == nullptr || !xml->hasTagName ("OpenQState"))
         return;
     const auto state = juce::ValueTree::fromXml (*xml);
-    if (static_cast<int> (state.getProperty ("schemaVersion")) != stateSchemaVersion
-        || static_cast<int> (state.getProperty ("bandCount")) != static_cast<int> (openq::bandCount)
+    if (state.getProperty ("schemaVersion").toString() != juce::String (stateSchemaVersion)
+        || state.getProperty ("bandCount").toString() != juce::String (static_cast<int> (openq::bandCount))
         || state.getProperty ("bellDesign").toString() != bellDesignRevision
         || state.getProperty ("shelfDesign").toString() != shelfDesignRevision
         || state.getProperty ("cutDesign").toString() != cutDesignRevision
-        || state.getNumChildren() != static_cast<int> (openq::bandCount * openq::bandParameterNames.size()))
+        || state.getNumChildren() != static_cast<int> (openq::parameterCount))
         return;
 
-    for (size_t band = 0; band < openq::bandCount; ++band)
+    for (auto* parameter : getParameters())
     {
-        for (const auto* name : openq::bandParameterNames)
-        {
-            const auto id = openq::bandParameterId (band, name);
-            const auto child = state.getChildWithProperty ("id", id);
-            if (!child.isValid() || !child.hasType ("PARAM"))
-                return;
-            const auto text = child.getProperty ("value").toString().trim().toStdString();
-            double value = 0.0;
-            // Xcode 15's libc++ does not provide floating-point std::from_chars.
-            std::istringstream input (text);
-            input.imbue (std::locale::classic());
-            input >> std::noskipws >> value;
-            const auto range = parameters.getParameter (id)->getNormalisableRange();
-            if (input.fail() || !input.eof()
-                || !std::isfinite (value) || value < range.start || value > range.end
-                || ((juce::String (name) == "status" || juce::String (name) == "type" || juce::String (name) == "slope") && !juce::exactlyEqual (value, std::round (value))))
-                return;
-        }
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter);
+        if (ranged == nullptr)
+            return;
+        const auto child = state.getChildWithProperty ("id", ranged->getParameterID());
+        if (!child.isValid() || !child.hasType ("PARAM"))
+            return;
+        const auto text = child.getProperty ("value").toString().trim().toStdString();
+        double value = 0.0;
+        // Xcode 15's libc++ does not provide floating-point std::from_chars.
+        std::istringstream input (text);
+        input.imbue (std::locale::classic());
+        input >> std::noskipws >> value;
+        const auto range = ranged->getNormalisableRange();
+        if (input.fail() || !input.eof() || !std::isfinite (value) || value < range.start || value > range.end
+            || (dynamic_cast<juce::AudioParameterChoice*> (parameter) != nullptr && !juce::exactlyEqual (value, std::round (value))))
+            return;
     }
-    // Optional display preferences preserve schema-5 sessions and are not host automation parameters.
+    // Optional display preferences belong to schema 6 and are not host automation parameters.
     double settings = 3.0;
     std::istringstream settingsInput (state.getProperty ("analyzerSettings", 3).toString().trim().toStdString());
     settingsInput.imbue (std::locale::classic());
@@ -299,5 +307,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParam
         slopeNames.add (name);
     for (size_t band = 0; band < openq::bandCount; ++band)
         layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { openq::bandParameterId (band, "slope"), 1 }, "Band " + juce::String (band + 1) + " Slope", slopeNames, static_cast<int> (openq::defaultCutSlope)));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::gainParameterIds[0], 1 }, "Input Gain", openq::gainLimits::minimumDb, openq::gainLimits::maximumDb, openq::gainLimits::defaultDb));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::gainParameterIds[1], 1 }, "Output Gain", openq::gainLimits::minimumDb, openq::gainLimits::maximumDb, openq::gainLimits::defaultDb));
     return layout;
 }

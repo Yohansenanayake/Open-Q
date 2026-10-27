@@ -5,6 +5,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <chrono>
+#include <cstdio>
 #include <thread>
 
 namespace
@@ -462,4 +463,73 @@ TEST_CASE ("Slow full graph paints leave time for input and recover without repa
     limiter.reset();
     CHECK (limiter.tick (0.0));
     CHECK (limiter.tick (1.0 / openq::GraphRefreshLimiter::targetFramesPerSecond));
+}
+
+TEST_CASE ("Opaque editor bars do not disable expensive plot paint pacing", "[response][ui][pacing][regression]")
+{
+    if (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() == nullptr)
+        SKIP ("Real peer paint pacing requires a display.");
+    class SlowPlot final : public juce::Component
+    {
+    public:
+        void paint (juce::Graphics&) override
+        {
+            const auto start = juce::Time::getMillisecondCounterHiRes();
+            juce::Thread::sleep (45);
+            paintMilliseconds += juce::Time::getMillisecondCounterHiRes() - start;
+            ++paints;
+        }
+        double paintMilliseconds = 0.0;
+        int paints = 0;
+    } slow;
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    PluginEditor editor (processor);
+    auto* graph = editor.findChildWithID ("response.graph");
+    REQUIRE (graph != nullptr);
+    graph->addAndMakeVisible (slow);
+    slow.setBounds (graph->getLocalBounds().withSizeKeepingCentre (20, 20));
+    editor.addToDesktop (juce::ComponentPeer::windowIsTemporary);
+    editor.setVisible (true);
+    class MovingPeaks final : private juce::Timer
+    {
+    public:
+        explicit MovingPeaks (openq::LevelMeterTransport& target) : transport (target) {}
+        void start() { startTimerHz (30); }
+    private:
+        void timerCallback() override
+        {
+            high = !high;
+            const auto peak = high ? 0.9f : 0.2f;
+            transport.publish ({ peak, peak * 0.5f }, { peak * 0.7f, peak * 0.3f });
+        }
+        openq::LevelMeterTransport& transport;
+        bool high = false;
+    } moving (processor.getLevelMeters());
+    for (bool metersMoving : { false, true })
+    {
+        if (metersMoving)
+            moving.start();
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (200);
+        slow.paints = 0;
+        slow.paintMilliseconds = 0.0;
+        const auto start = juce::Time::getMillisecondCounterHiRes();
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (800);
+        const auto elapsed = juce::Time::getMillisecondCounterHiRes() - start;
+        INFO ("moving=" << metersMoving << ", paints=" << slow.paints << ", paint_ms=" << slow.paintMilliseconds << ", elapsed_ms=" << elapsed);
+        REQUIRE (slow.paints >= 2);
+        std::printf ("moving_meters=%d, plot paints=%d, controlled_paint_ms=%.2f, elapsed_ms=%.2f\n", static_cast<int> (metersMoving), slow.paints, slow.paintMilliseconds, elapsed);
+        CHECK (slow.paintMilliseconds / elapsed < 0.6);
+    }
+    graph->removeChildComponent (&slow);
+}
+
+TEST_CASE ("Paints longer than the estimate cap still leave an input window", "[response][ui][pacing]")
+{
+    openq::GraphRefreshLimiter limiter;
+    REQUIRE (limiter.tick (0.0));
+    limiter.recordPaintDuration (0.3);
+    CHECK_FALSE (limiter.tick (0.3));
+    CHECK_FALSE (limiter.tick (0.399));
+    CHECK (limiter.tick (0.4));
 }

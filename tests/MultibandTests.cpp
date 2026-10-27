@@ -41,7 +41,7 @@ namespace
 TEST_CASE ("All configured band slots survive recall and reject incomplete states", "[multiband][state]")
 {
     PluginProcessor processor;
-    REQUIRE (processor.getParameters().size() == static_cast<int> (openq::bandCount * openq::bandParameterNames.size()));
+    REQUIRE (processor.getParameters().size() == static_cast<int> (openq::parameterCount));
     for (size_t band = 0; band < openq::bandCount; ++band)
     {
         const auto initial = openq::getBandParameterPointers (processor.parameters, band).load();
@@ -520,8 +520,8 @@ TEST_CASE ("Shared band constants preserve registered parameter ranges defaults 
         CHECK_THAT (q.convertFrom0to1 (0.5f), Catch::Matchers::WithinAbs (1.0, 1e-6));
     }
     const auto state = processor.parameters.copyState();
-    CHECK (static_cast<int> (state.getProperty ("schemaVersion")) == 5);
+    CHECK (static_cast<int> (state.getProperty ("schemaVersion")) == openq::stateSchemaVersion);
     CHECK (state.getProperty ("bellDesign").toString() == "zle-ivantsov-v1");
     CHECK (state.getProperty ("shelfDesign").toString() == "zle-ivantsov-shelf-v1");
-    CHECK (state.getNumChildren() == static_cast<int> (openq::bandCount * openq::bandParameterNames.size()));
+    CHECK (state.getNumChildren() == static_cast<int> (openq::parameterCount));
 }

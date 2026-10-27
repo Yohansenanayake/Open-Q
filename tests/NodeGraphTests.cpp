@@ -350,7 +350,7 @@ TEST_CASE ("Band card opens on selection, preserves settings when hidden and del
     const auto saved = settings (processor, 0);
     CHECK (saved.status == openq::BandStatus::Bypass);
     CHECK_THAT (saved.gain, Catch::Matchers::WithinAbs (6.0, 0.001));
-    graph->mouseDown (mouse (*graph, { 100.0f, static_cast<float> (graph->getHeight()) * 0.5f }));
+    graph->mouseDown (mouse (*graph, { static_cast<float> (graph->getWidth()) * 0.25f, static_cast<float> (graph->getHeight()) * 0.5f }));
     CHECK_FALSE (card->isVisible());
     CHECK (settings (processor, 0) == saved);
     first.mouseDown (mouse (first, { 12.0f, 12.0f }));
@@ -401,7 +401,7 @@ TEST_CASE ("Band card opens on selection, preserves settings when hidden and del
 TEST_CASE ("Band card retains a clear position after knob release and node motion", "[nodes][ui][card]")
 {
     PluginProcessor processor;
-    set (processor, 0, "frequency", 200.0f);
+    set (processor, 0, "frequency", 100.0f);
     set (processor, 0, "gain", -12.0f);
     processor.prepareToPlay (44100.0, 64);
     auto editor = std::unique_ptr<juce::AudioProcessorEditor> (processor.createEditor());

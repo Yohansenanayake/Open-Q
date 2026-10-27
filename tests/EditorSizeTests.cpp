@@ -108,12 +108,12 @@ TEST_CASE ("Editor bars scale independently and analyzer opens above its footer 
         CHECK (bottom->getBottom() == editor.getHeight());
         CHECK (editor.getIndexOfChildComponent (header) > editor.getIndexOfChildComponent (graph));
         CHECK (editor.getIndexOfChildComponent (bottom) > editor.getIndexOfChildComponent (graph));
-        CHECK_FALSE (bottom->hitTest (bottom->getWidth() / 2, 1));
+        CHECK (bottom->hitTest (bottom->getWidth() / 2, 1));
         CHECK (bottom->hitTest (bottom->getWidth() / 2, bottom->getHeight() - 2));
         CHECK (bottom->hitTest (2, 2));
         auto* throughFooter = editor.getComponentAt (bottom->getWidth() / 2, bottom->getY() + 1);
         REQUIRE (throughFooter != nullptr);
-        CHECK ((throughFooter == graph || graph->isParentOf (throughFooter)));
+        CHECK ((throughFooter == bottom || bottom->isParentOf (throughFooter)));
         auto* throughHeader = editor.getComponentAt (header->getWidth() / 2, 1);
         REQUIRE (throughHeader != nullptr);
         CHECK ((throughHeader == graph || graph->isParentOf (throughHeader)));

@@ -8,6 +8,7 @@
 #include "ui/ResponseGraph.h"
 #include "ui/HeaderBar.h"
 #include "ui/BottomBar.h"
+#include "ui/LevelMeter.h"
 
 //==============================================================================
 class PluginEditor : public juce::AudioProcessorEditor, private juce::Timer
@@ -39,6 +40,9 @@ private:
     std::unique_ptr<openq::AnalyzerPanel> analyzerPanel;
     openq::ResponseGraph responseGraph;
     openq::BandControlCard bandCard;
+    openq::LevelMeter inputMeter { "IN" }, outputMeter { "OUT" };
+    double lastMeterTime = 0.0;
+    std::uint64_t meterGeneration = 0;
     bool knobDragging = false;
     std::unique_ptr<melatonin::Inspector> inspector;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginEditor)
