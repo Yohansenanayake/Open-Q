@@ -4,6 +4,7 @@
 #include "CompactComboBox.h"
 #include "IconButton.h"
 #include "BinaryData.h"
+#include <optional>
 
 namespace openq
 {
@@ -26,6 +27,6 @@ namespace openq
         std::array<juce::Label, 4> labels;
         CompactComboBox quality, smoothing, amount, decay;
         IconButton close { "Close analyzer settings", BinaryData::close_svg, BinaryData::close_svgSize };
-        AnalyzerSmoothing shownMode = AnalyzerSmoothing::Erb;
+        std::optional<AnalyzerSettings> shownSettings;
     };
 }

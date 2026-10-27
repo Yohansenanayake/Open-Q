@@ -138,7 +138,7 @@ namespace openq
             resized();
         }
         const auto before = positions();
-        seconds = std::clamp (seconds, 0.0, 0.1);
+        seconds = std::isfinite (seconds) ? std::max (0.0, seconds) : 0.0;
         for (size_t channel = 0; channel < levels.size(); ++channel)
         {
             auto& shown = levels[channel];

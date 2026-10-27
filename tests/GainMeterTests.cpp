@@ -343,7 +343,7 @@ TEST_CASE ("Meter decay is refresh independent and reset clears held readings", 
             meter.update ({}, 2, 1.0 / fps);
         return meter.createComponentSnapshot (meter.getLocalBounds());
     };
-    const auto a = render (30), b = render (60);
+    const auto a = render (2), b = render (60);
     int differences = 0;
     for (int y = 0; y < a.getHeight(); ++y)
         for (int x = 0; x < a.getWidth(); ++x)

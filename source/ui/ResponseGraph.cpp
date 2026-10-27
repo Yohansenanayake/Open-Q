@@ -190,11 +190,13 @@ namespace openq
             if (worker.start())
             {
                 refreshLimiter.reset();
-                vblank = std::make_unique<juce::VBlankAttachment> (this, [this] (double timestamp) {
+                vblank = std::make_unique<juce::VBlankAttachment> (this, [this] (double) {
                     // Limit software painting independently of the monitor's refresh rate, as ZLE does.
-                    if (refreshLimiter.tick (timestamp))
+                    if (refreshLimiter.tick (juce::Time::getMillisecondCounterHiRes() * 0.001))
                     {
                         updateNodes();
+                        if (onFrameRefresh)
+                            onFrameRefresh();
                         repaint();
                     }
                 });
@@ -443,7 +445,8 @@ namespace openq
     {
         if (paintStartedMilliseconds > 0.0)
         {
-            refreshLimiter.recordPaintDuration ((juce::Time::getMillisecondCounterHiRes() - paintStartedMilliseconds) * 0.001);
+            const auto completed = juce::Time::getMillisecondCounterHiRes();
+            refreshLimiter.recordPaintDuration ((completed - paintStartedMilliseconds) * 0.001, completed * 0.001);
             paintStartedMilliseconds = 0.0;
         }
         worker.requestUpdate();

@@ -17,6 +17,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible (inputMeter);
     addAndMakeVisible (outputMeter);
     (void) processor.getLevelMeters().read();
+    responseGraph.onFrameRefresh = [this] { refreshMeters(); };
     headerBar.onFillChanged = [this] { responseGraph.repaint(); };
     bottomBar.analyzer.onClick = [this] {
         // Hosts may create probe editors before their event loop can drain startup notifications.
@@ -156,6 +157,7 @@ PluginEditor::~PluginEditor()
     responseGraph.onBandSelected = nullptr;
     responseGraph.onDragStateChanged = nullptr;
     responseGraph.onNodeLayoutChanged = nullptr;
+    responseGraph.onFrameRefresh = nullptr;
     bandCard.onDragStateChanged = nullptr;
     bandCard.onDelete = nullptr;
     bandCard.onClose = nullptr;
@@ -175,6 +177,19 @@ void PluginEditor::timerCallback()
         setSize (size.width, size.height);
     const auto now = juce::Time::getMillisecondCounterHiRes() * 0.001;
     bottomBar.messageThreadTick (now);
+    if (!isShowing())
+    {
+        (void) processor.getLevelMeters().read();
+        lastMeterTime = 0.0;
+    }
+    headerBar.refresh();
+    if (analyzerPanel != nullptr)
+        analyzerPanel->refresh();
+}
+
+void PluginEditor::refreshMeters()
+{
+    const auto now = juce::Time::getMillisecondCounterHiRes() * 0.001;
     const auto reading = processor.getLevelMeters().read();
     if ((isShowing() && lastMeterTime <= 0.0) || (!isShowing() && lastMeterTime > 0.0) || reading.generation != meterGeneration)
     {
@@ -191,9 +206,6 @@ void PluginEditor::timerCallback()
     }
     else
         lastMeterTime = 0.0;
-    headerBar.refresh();
-    if (analyzerPanel != nullptr)
-        analyzerPanel->refresh();
 }
 
 void PluginEditor::paint (juce::Graphics& g)

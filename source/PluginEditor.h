@@ -34,6 +34,7 @@ private:
     PluginProcessor& processor;
     float uiScale = 1.0f;
     void timerCallback() override;
+    void refreshMeters();
     openq::AnalyzerTransport& analyzerTransport;
     openq::HeaderBar headerBar;
     openq::BottomBar bottomBar;

@@ -62,20 +62,25 @@ namespace openq
     void AnalyzerPanel::refresh()
     {
         const auto settings = transport.getSettings();
-        quality.setSelectedId (settings.quality == AnalyzerQuality::High ? 2 : 1, juce::dontSendNotification);
-        smoothing.setSelectedId (settings.smoothing == AnalyzerSmoothing::Erb ? 1 : 2, juce::dontSendNotification);
-        if (shownMode != settings.smoothing || amount.getNumItems() == 0)
+        // An unchanged model must not overwrite a selection whose asynchronous onChange is still queued.
+        if (!shownSettings || shownSettings->quality != settings.quality)
+            quality.setSelectedId (settings.quality == AnalyzerQuality::High ? 2 : 1, juce::dontSendNotification);
+        const bool modeChanged = !shownSettings || shownSettings->smoothing != settings.smoothing;
+        if (modeChanged)
         {
+            smoothing.setSelectedId (settings.smoothing == AnalyzerSmoothing::Erb ? 1 : 2, juce::dontSendNotification);
             amount.closePopup();
-            shownMode = settings.smoothing;
             amount.clear (juce::dontSendNotification);
-            if (shownMode == AnalyzerSmoothing::Erb)
+            if (settings.smoothing == AnalyzerSmoothing::Erb)
                 amount.addItemList ({ "1/4 ERB", "1/2 ERB", "1 ERB" }, 1);
             else
                 amount.addItemList ({ "1/24 octave", "1/12 octave", "1/6 octave", "1/3 octave" }, 1);
         }
-        amount.setSelectedId (static_cast<int> (shownMode == AnalyzerSmoothing::Erb ? settings.erbAmount : settings.octaveAmount) + 1, juce::dontSendNotification);
-        decay.setSelectedId (static_cast<int> (settings.decay) + 1, juce::dontSendNotification);
+        if (modeChanged || (settings.smoothing == AnalyzerSmoothing::Erb ? shownSettings->erbAmount != settings.erbAmount : shownSettings->octaveAmount != settings.octaveAmount))
+            amount.setSelectedId (static_cast<int> (settings.smoothing == AnalyzerSmoothing::Erb ? settings.erbAmount : settings.octaveAmount) + 1, juce::dontSendNotification);
+        if (!shownSettings || shownSettings->decay != settings.decay)
+            decay.setSelectedId (static_cast<int> (settings.decay) + 1, juce::dontSendNotification);
+        shownSettings = settings;
     }
 
     void AnalyzerPanel::dismissPopups()

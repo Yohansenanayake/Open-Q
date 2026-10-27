@@ -28,18 +28,15 @@ namespace openq
             return true;
         }
 
-        void recordPaintDuration (double seconds)
+        void recordPaintDuration (double seconds, double completedAtSeconds)
         {
-            if (!std::isfinite (seconds) || seconds < 0.0)
+            if (!std::isfinite (seconds) || seconds < 0.0 || !std::isfinite (completedAtSeconds))
                 return;
             // Reserve time for input; recover gradually after an expensive full redraw.
             constexpr double estimateDecay = 0.9, maximumSampleSeconds = 0.1;
             paintSeconds = std::max (std::min (seconds, maximumSampleSeconds), paintSeconds * estimateDecay);
-            if (lastTimestamp && nextFrame && interval() > 1.0 / targetFramesPerSecond)
-            {
-                // Include the actual duration so a paint beyond the estimate cap still gets an idle window.
-                nextFrame = std::max (*nextFrame, *lastTimestamp + seconds + paintSeconds);
-            }
+            // Queueing delay and the recovery estimate cap must not shorten the input window after a paint.
+            nextFrame = std::max (nextFrame.value_or (completedAtSeconds), completedAtSeconds + std::max (seconds, paintSeconds));
         }
 
         void reset()

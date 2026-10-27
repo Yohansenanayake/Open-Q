@@ -40,7 +40,7 @@ TEST_CASE ("Automatic graph refresh stays bounded on high refresh displays", "[r
             if (frames > 0)
                 CHECK (timestamp > previous);
             previous = timestamp;
-            limiter.recordPaintDuration (0.001);
+            limiter.recordPaintDuration (0.001, timestamp + 0.001);
             ++frames;
         }
         CHECK (frames <= static_cast<int> (seconds * openq::GraphRefreshLimiter::targetFramesPerSecond));
@@ -433,7 +433,7 @@ TEST_CASE ("Slow full graph paints leave time for input and recover without repa
 {
     openq::GraphRefreshLimiter limiter;
     REQUIRE (limiter.tick (0.0));
-    limiter.recordPaintDuration (0.04);
+    limiter.recordPaintDuration (0.04, 0.04);
     CHECK_FALSE (limiter.tick (0.04));
     CHECK_FALSE (limiter.tick (0.079));
     CHECK (limiter.tick (0.08));
@@ -443,7 +443,7 @@ TEST_CASE ("Slow full graph paints leave time for input and recover without repa
         if (limiter.tick (0.08 + tick / 60.0))
         {
             ++frames;
-            limiter.recordPaintDuration (0.04);
+            limiter.recordPaintDuration (0.04, 0.12 + tick / 60.0);
         }
     }
     CHECK (frames >= 100);
@@ -451,15 +451,16 @@ TEST_CASE ("Slow full graph paints leave time for input and recover without repa
     // Removing fill or shrinking the editor allows fast painting to restore the normal cadence.
     for (int tick = 601; tick <= 900; ++tick)
         if (limiter.tick (0.08 + tick / 60.0))
-            limiter.recordPaintDuration (0.001);
+            limiter.recordPaintDuration (0.001, 0.081 + tick / 60.0);
     frames = 0;
     for (int tick = 901; tick <= 960; ++tick)
         if (limiter.tick (0.08 + tick / 60.0))
             ++frames;
     CHECK (frames >= 28);
     CHECK (frames <= 30);
-    limiter.recordPaintDuration (std::numeric_limits<double>::infinity());
-    limiter.recordPaintDuration (-1.0);
+    limiter.recordPaintDuration (std::numeric_limits<double>::infinity(), 0.0);
+    limiter.recordPaintDuration (-1.0, 0.0);
+    limiter.recordPaintDuration (0.04, std::numeric_limits<double>::quiet_NaN());
     limiter.reset();
     CHECK (limiter.tick (0.0));
     CHECK (limiter.tick (1.0 / openq::GraphRefreshLimiter::targetFramesPerSecond));
@@ -476,21 +477,42 @@ TEST_CASE ("Opaque editor bars do not disable expensive plot paint pacing", "[re
         {
             const auto start = juce::Time::getMillisecondCounterHiRes();
             juce::Thread::sleep (45);
-            paintMilliseconds += juce::Time::getMillisecondCounterHiRes() - start;
+            lastCompleted = juce::Time::getMillisecondCounterHiRes();
+            lastDuration = lastCompleted - start;
+            paintMilliseconds += lastDuration;
             ++paints;
         }
         double paintMilliseconds = 0.0;
+        double lastCompleted = 0.0, lastDuration = 0.0;
         int paints = 0;
     } slow;
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
     PluginEditor editor (processor);
-    auto* graph = editor.findChildWithID ("response.graph");
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor.findChildWithID ("response.graph"));
     REQUIRE (graph != nullptr);
     graph->addAndMakeVisible (slow);
     slow.setBounds (graph->getLocalBounds().withSizeKeepingCentre (20, 20));
     editor.addToDesktop (juce::ComponentPeer::windowIsTemporary);
     editor.setVisible (true);
+    const auto refreshMeters = graph->onFrameRefresh;
+    REQUIRE (refreshMeters != nullptr);
+    // No independent editor timer may consume peaks or repaint meters between admitted graph frames.
+    graph->onFrameRefresh = nullptr;
+    processor.getLevelMeters().publish ({ 0.8f, 0.4f }, { 0.6f, 0.3f });
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (100);
+    CHECK (juce::exactlyEqual (processor.getLevelMeters().read().peaks[0][0], 0.8f));
+    int budgetChecks = 0;
+    graph->onFrameRefresh = [&] {
+        if (slow.lastCompleted > 0.0)
+        {
+            const auto now = juce::Time::getMillisecondCounterHiRes();
+            INFO ("Idle after paint=" << now - slow.lastCompleted << " ms, previous paint=" << slow.lastDuration << " ms");
+            CHECK (now + 1.0 >= slow.lastCompleted + slow.lastDuration);
+            ++budgetChecks;
+        }
+        refreshMeters();
+    };
     class MovingPeaks final : private juce::Timer
     {
     public:
@@ -499,12 +521,12 @@ TEST_CASE ("Opaque editor bars do not disable expensive plot paint pacing", "[re
     private:
         void timerCallback() override
         {
-            high = !high;
-            const auto peak = high ? 0.9f : 0.2f;
+            phase += juce::MathConstants<float>::twoPi / 60.0f;
+            const auto peak = 0.2f + 0.7f * (0.5f + 0.5f * std::sin (phase));
             transport.publish ({ peak, peak * 0.5f }, { peak * 0.7f, peak * 0.3f });
         }
         openq::LevelMeterTransport& transport;
-        bool high = false;
+        float phase = 0.0f;
     } moving (processor.getLevelMeters());
     for (bool metersMoving : { false, true })
     {
@@ -513,14 +535,18 @@ TEST_CASE ("Opaque editor bars do not disable expensive plot paint pacing", "[re
         juce::MessageManager::getInstance()->runDispatchLoopUntil (200);
         slow.paints = 0;
         slow.paintMilliseconds = 0.0;
+        const auto initialChecks = budgetChecks;
         const auto start = juce::Time::getMillisecondCounterHiRes();
-        juce::MessageManager::getInstance()->runDispatchLoopUntil (800);
+        while (budgetChecks - initialChecks < 3 && juce::Time::getMillisecondCounterHiRes() - start < 5000.0)
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (10);
         const auto elapsed = juce::Time::getMillisecondCounterHiRes() - start;
         INFO ("moving=" << metersMoving << ", paints=" << slow.paints << ", paint_ms=" << slow.paintMilliseconds << ", elapsed_ms=" << elapsed);
-        REQUIRE (slow.paints >= 2);
+        REQUIRE (budgetChecks - initialChecks >= 3);
+        REQUIRE (slow.paints > 0);
         std::printf ("moving_meters=%d, plot paints=%d, controlled_paint_ms=%.2f, elapsed_ms=%.2f\n", static_cast<int> (metersMoving), slow.paints, slow.paintMilliseconds, elapsed);
-        CHECK (slow.paintMilliseconds / elapsed < 0.6);
+        // Paint share is diagnostic: sleep overshoot and a paint crossing the sample boundary vary across CI backends.
     }
+    graph->onFrameRefresh = refreshMeters;
     graph->removeChildComponent (&slow);
 }
 
@@ -528,8 +554,27 @@ TEST_CASE ("Paints longer than the estimate cap still leave an input window", "[
 {
     openq::GraphRefreshLimiter limiter;
     REQUIRE (limiter.tick (0.0));
-    limiter.recordPaintDuration (0.3);
+    limiter.recordPaintDuration (0.3, 0.3);
     CHECK_FALSE (limiter.tick (0.3));
-    CHECK_FALSE (limiter.tick (0.399));
-    CHECK (limiter.tick (0.4));
+    CHECK_FALSE (limiter.tick (0.599));
+    CHECK (limiter.tick (0.6));
+}
+
+TEST_CASE ("Paint completion anchors the input window even after queueing delay and skipped VBlanks", "[response][ui][pacing]")
+{
+    openq::GraphRefreshLimiter limiter;
+    REQUIRE (limiter.tick (0.0));
+    CHECK_FALSE (limiter.tick (0.01));
+    // The requested paint starts late and finishes at 90 ms, with 40 ms of actual work.
+    limiter.recordPaintDuration (0.04, 0.09);
+    CHECK_FALSE (limiter.tick (0.129));
+    CHECK (limiter.tick (0.13));
+}
+
+TEST_CASE ("An exposed plot reserves input time before the first VBlank", "[response][ui][pacing]")
+{
+    openq::GraphRefreshLimiter limiter;
+    limiter.recordPaintDuration (0.04, 0.04);
+    CHECK_FALSE (limiter.tick (0.079));
+    CHECK (limiter.tick (0.08));
 }

@@ -31,6 +31,7 @@ namespace openq
         std::function<void (size_t)> onBandSelected;
         std::function<void (bool)> onDragStateChanged;
         std::function<void()> onNodeLayoutChanged;
+        std::function<void()> onFrameRefresh;
 
     private:
         class Node;

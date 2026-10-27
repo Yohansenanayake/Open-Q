@@ -118,6 +118,50 @@ TEST_CASE ("Analyzer panel remembers each smoothing amount and keeps preferences
     CHECK ((processor.getAnalyzerTransport().session() & 1u) == 0);
 }
 
+TEST_CASE ("Analyzer refresh preserves pending selector changes while unrelated settings update", "[analyzer][ui][regression]")
+{
+    openq::AnalyzerTransport transport;
+    openq::AnalyzerPanel panel (transport);
+    const auto select = [&] (const char* id, int selectedId, openq::AnalyzerSettings expected) {
+        auto* box = dynamic_cast<openq::CompactComboBox*> (panel.findChildWithID (id));
+        REQUIRE (box != nullptr);
+        box->setSelectedId (selectedId, juce::sendNotificationAsync);
+        // Force the editor timer's ordering before the queued ComboBox callback, even with another model change.
+        auto external = transport.getSettings();
+        external.pre = !external.pre;
+        expected.pre = external.pre;
+        REQUIRE (transport.setSettings (external));
+        panel.refresh();
+        CHECK (box->getSelectedId() == selectedId);
+        const auto deadline = juce::Time::getMillisecondCounterHiRes() + 1000.0;
+        while (transport.getSettings().encode() != expected.encode() && juce::Time::getMillisecondCounterHiRes() < deadline)
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (1);
+        CHECK (transport.getSettings().encode() == expected.encode());
+        panel.refresh();
+        CHECK (box->getSelectedId() == selectedId);
+    };
+    auto expected = transport.getSettings();
+    expected.quality = openq::AnalyzerQuality::High;
+    select ("analyzer.quality", 2, expected);
+    expected = transport.getSettings();
+    expected.smoothing = openq::AnalyzerSmoothing::Octave;
+    select ("analyzer.smoothing", 2, expected);
+    expected = transport.getSettings();
+    expected.octaveAmount = 3;
+    select ("analyzer.amount", 4, expected);
+    expected = transport.getSettings();
+    expected.decay = openq::AnalyzerDecay::VerySlow;
+    select ("analyzer.decay", 5, expected);
+
+    auto recalled = transport.getSettings();
+    recalled.quality = openq::AnalyzerQuality::Normal;
+    REQUIRE (transport.setSettings (recalled));
+    panel.refresh();
+    auto* quality = dynamic_cast<openq::CompactComboBox*> (panel.findChildWithID ("analyzer.quality"));
+    REQUIRE (quality != nullptr);
+    CHECK (quality->getSelectedId() == 1);
+}
+
 TEST_CASE ("Analyzer panel menus remain editor children and close safely on hide and resize", "[analyzer][ui][popup]")
 {
     PluginProcessor processor;
