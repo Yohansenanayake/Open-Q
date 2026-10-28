@@ -380,12 +380,14 @@ void PluginEditor::componentPainted (juce::Component& component, const juce::Com
         if (!diagnostics.paintDuration.isEmpty())
             trace.record ("card_background_paint", band, own);
     }
-    else if (!diagnostics.paintDuration.isEmpty() || diagnostics.readFromCache)
+    else
     {
+        // A zero body duration can still include SVG-child painting or a sub-tick paint.
         const auto id = component.getComponentID();
         if (id == "band.power")
         {
             trace.record ("card_power_paint", band, total);
+            trace.record ("card_power_own_paint", band, own);
             const auto& button = static_cast<juce::DrawableButton&> (component);
             trace.record ("card_power_on", band, button.getToggleState() ? 1.0 : 0.0);
             trace.record ("card_power_enabled", band, button.isEnabled() ? 1.0 : 0.0);

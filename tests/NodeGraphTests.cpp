@@ -180,13 +180,47 @@ TEST_CASE ("Node presses keep card accents visible and pointer access unchanged"
     CHECK_FALSE (gain->isEnabled());
 }
 
-TEST_CASE ("Card timing capture links node input binding colours and completed paints without playback", "[nodes][ui][timing]")
+TEST_CASE ("Card timing capture links node input binding colours and paint cycles without playback", "[nodes][ui][timing]")
 {
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
     PluginEditor editor (processor);
     auto* graph = dynamic_cast<openq::ResponseGraph*> (editor.findChildWithID ("response.graph"));
     REQUIRE (graph != nullptr);
+    auto* card = editor.findChildWithID ("band.card");
+    REQUIRE (card != nullptr);
+    auto* power = card->findChildWithID ("band.power");
+    REQUIRE (power != nullptr);
+    class OpaquePowerBody final : public juce::Component
+    {
+    public:
+        OpaquePowerBody() { setOpaque (true); }
+        void paint (juce::Graphics& g) override { g.fillAll (openq::palette::cardBackground); }
+    } powerBody;
+    // Cull the button's own paint while retaining the SVG child's paint cycle.
+    power->addAndMakeVisible (powerBody, 0);
+    class PowerPaintProbe final : public juce::ComponentListener
+    {
+    public:
+        explicit PowerPaintProbe (juce::Component& component) : target (component) { target.addComponentListener (this); }
+        ~PowerPaintProbe() override { target.removeComponentListener (this); }
+        void componentPainted (juce::Component&, const juce::ComponentPaintDiagnostics& diagnostics) override
+        {
+            sawZeroBody = sawZeroBody || diagnostics.paintDuration.isEmpty();
+        }
+        bool sawZeroBody = false;
+    private:
+        juce::Component& target;
+    } powerProbe (*power);
+    const auto checkPowerGlyph = [&] {
+        const auto image = power->createComponentSnapshot (power->getLocalBounds());
+        const auto colour = openq::palette::bandColour (graph->getSelectedBand());
+        bool hasAccent = false;
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+                hasAccent = hasAccent || image.getPixelAt (x, y) == colour;
+        CHECK (hasAccent);
+    };
     auto& trace = openq::GainTimingTrace::instance();
     const auto shortcut = juce::KeyPress ('T', juce::ModifierKeys::ctrlModifier | juce::ModifierKeys::shiftModifier, 0);
     REQUIRE (editor.keyPressed (shortcut));
@@ -194,15 +228,20 @@ TEST_CASE ("Card timing capture links node input binding colours and completed p
     auto& first = node (*graph, 0);
     first.mouseDown (mouse (first, first.getLocalBounds().getCentre().toFloat()));
     first.mouseUp (mouse (first, first.getLocalBounds().getCentre().toFloat()));
+    powerBody.setBounds (power->getLocalBounds());
     editor.createComponentSnapshot (editor.getLocalBounds());
+    checkPowerGlyph();
     graph->mouseDoubleClick (mouse (*graph, { 500.0f, 200.0f }));
     REQUIRE (graph->getSelectedBand() == 1);
     graph->mouseDown (mouse (*graph, { 500.0f, 200.0f }));
     auto& second = node (*graph, 1);
     second.mouseDown (mouse (second, second.getLocalBounds().getCentre().toFloat()));
     second.mouseUp (mouse (second, second.getLocalBounds().getCentre().toFloat()));
+    powerBody.setBounds (power->getLocalBounds());
     editor.createComponentSnapshot (editor.getLocalBounds());
+    checkPowerGlyph();
     trace.stop();
+    CHECK (powerProbe.sawZeroBody);
     const auto csv = trace.toCsv();
     CHECK (csv.contains ("graph_double_click"));
     CHECK (csv.contains ("editor_paint"));
@@ -219,7 +258,10 @@ TEST_CASE ("Card timing capture links node input binding colours and completed p
         CHECK (ready > begin);
         CHECK (end > ready);
         for (const auto* event : { "card_frequency_paint", "card_gain_paint", "card_q_paint", "card_power_paint", "card_paint_cycle" })
+        {
+            CAPTURE (band, event);
             CHECK (csv.indexOf (juce::String (event) + suffix) > end);
+        }
         const auto position = csv.indexOf ("card_frequency_colour" + suffix);
         REQUIRE (position >= 0);
         const auto fields = juce::StringArray::fromTokens (csv.substring (position).upToFirstOccurrenceOf ("\n", false, false), ",", "");
