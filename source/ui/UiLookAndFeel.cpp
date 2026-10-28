@@ -2,6 +2,7 @@
 #include "UiLookAndFeel.h"
 #include "Palette.h"
 #include "ControlDrawing.h"
+#include "RotaryStyle.h"
 namespace openq
 {
     namespace
@@ -90,9 +91,38 @@ namespace openq
     void UiLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float position, float start, float end, juce::Slider& slider)
     {
         juce::Graphics::ScopedSaveState save (g);
-        g.addTransform (juce::AffineTransform::scale (scale));
-        // Scale JUCE's capped stroke/padding metrics along with the knob bounds.
-        juce::LookAndFeel_V4::drawRotarySlider (g, juce::roundToInt (x / scale), juce::roundToInt (y / scale), juce::roundToInt (width / scale), juce::roundToInt (height / scale), position, start, end, slider);
+        const auto bounds = juce::Rectangle<float> (static_cast<float> (x), static_cast<float> (y), static_cast<float> (width), static_cast<float> (height));
+        const auto radius = std::min (bounds.getWidth(), bounds.getHeight()) * 0.5f - rotaryStyle::padding * scale;
+        const auto trackWidth = rotaryStyle::trackWidth * scale;
+        const auto faceRadius = radius - trackWidth - rotaryStyle::faceGap * scale;
+        if (faceRadius <= 0.0f)
+            return;
+        const auto centre = bounds.getCentre();
+        const auto trackRadius = radius - trackWidth * 0.5f;
+        const auto angle = start + juce::jlimit (0.0f, 1.0f, position) * (end - start);
+        const auto enabled = slider.isEnabled();
+        const auto opacity = enabled ? 1.0f : controlStyle::disabledOpacity;
+        const auto highlighted = enabled && (slider.isMouseOver (false) || slider.isMouseButtonDown() || slider.hasKeyboardFocus (true));
+        const juce::PathStrokeType stroke (trackWidth, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
+        juce::Path track;
+        track.addCentredArc (centre.x, centre.y, trackRadius, trackRadius, 0.0f, start, end, true);
+        g.setColour (slider.findColour (juce::Slider::rotarySliderOutlineColourId).withMultipliedAlpha (opacity));
+        g.strokePath (track, stroke);
+        if (enabled && position > 0.0f)
+        {
+            juce::Path value;
+            value.addCentredArc (centre.x, centre.y, trackRadius, trackRadius, 0.0f, start, angle, true);
+            g.setColour (slider.findColour (juce::Slider::rotarySliderFillColourId));
+            g.strokePath (value, stroke);
+        }
+        const auto face = juce::Rectangle<float> (faceRadius * 2.0f, faceRadius * 2.0f).withCentre (centre);
+        g.setColour (palette::knobFace.withMultipliedAlpha (opacity));
+        g.fillEllipse (face);
+        g.setColour ((highlighted ? palette::knobRimHover : palette::knobRim).withMultipliedAlpha (opacity));
+        g.drawEllipse (face, rotaryStyle::rimWidth * scale);
+        const juce::Point<float> direction { std::sin (angle), -std::cos (angle) };
+        g.setColour (palette::knobIndicator.withMultipliedAlpha (opacity));
+        g.drawLine ({ centre + direction * (faceRadius * rotaryStyle::indicatorInnerRadiusRatio), centre + direction * (faceRadius * rotaryStyle::indicatorOuterRadiusRatio) }, rotaryStyle::indicatorWidth * scale);
     }
     void UiLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool down)
     {

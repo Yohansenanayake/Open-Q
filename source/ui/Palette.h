@@ -18,6 +18,10 @@ namespace openq::palette
     inline const juce::Colour controlHover { 0xff383940 };
     inline const juce::Colour controlHoverBorder { 0xff85858f };
     inline const juce::Colour knobTrack { 0xff131417 };
+    inline const juce::Colour knobFace { 0xff34353b };
+    inline const juce::Colour knobRim { 0xff55565f };
+    inline const juce::Colour knobRimHover { 0xff85858f };
+    inline const juce::Colour knobIndicator { 0xffededf0 };
     inline const juce::Colour selection { 0xff48415f };
     inline constexpr float globalBypassBlend = 0.55f;
     inline juce::Colour dynamicColour (juce::Colour colour, bool globallyBypassed) noexcept
