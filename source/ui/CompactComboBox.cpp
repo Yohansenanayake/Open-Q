@@ -17,7 +17,7 @@ namespace openq
         setColour (juce::ComboBox::textColourId, palette::text);
         setColour (juce::PopupMenu::backgroundColourId, palette::cardBackground);
         setColour (juce::PopupMenu::textColourId, palette::text);
-        setColour (juce::PopupMenu::highlightedBackgroundColourId, palette::cardBackground.interpolatedWith (palette::accent, 0.25f));
+        setColour (juce::PopupMenu::highlightedBackgroundColourId, palette::selection);
         setColour (juce::PopupMenu::highlightedTextColourId, palette::text);
     }
 
@@ -36,9 +36,9 @@ namespace openq
         const auto s = static_cast<float> (height) / 26.0f;
         const auto bounds = juce::Rectangle<float> (static_cast<float> (width), static_cast<float> (height)).reduced (0.5f * s);
         const bool highlighted = box.isEnabled() && (buttonDown || box.isPopupActive() || box.isMouseOver (true) || box.hasKeyboardFocus (true));
-        g.setColour (highlighted ? palette::grid : palette::background);
+        g.setColour (highlighted ? palette::controlHover : palette::background);
         g.fillRoundedRectangle (bounds, 4.0f * s);
-        g.setColour (highlighted ? palette::accent : palette::inactiveIcon);
+        g.setColour (highlighted ? palette::accent : palette::controlBorder);
         g.drawRoundedRectangle (bounds, 4.0f * s, s);
         const auto centreY = static_cast<float> (height) * 0.5f;
         const auto arrowX = static_cast<float> (width) - 10.0f * s;
@@ -72,7 +72,7 @@ namespace openq
     void CompactComboBox::LookAndFeel::drawPopupMenuBackground (juce::Graphics& g, int width, int height)
     {
         g.fillAll (palette::cardBackground);
-        g.setColour (palette::inactiveIcon);
+        g.setColour (palette::controlBorder);
         g.drawRect (0, 0, width, height);
     }
 

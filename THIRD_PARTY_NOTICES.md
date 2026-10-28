@@ -1,6 +1,6 @@
 # Third-party notices
 
-Open-Q is licensed under **AGPL-3.0-only**. Copyright (c) 2026 Yohan Senanayake for Open-Q contributions. Third-party material retains its original notices and applicable licenses.
+Open-Q source code is licensed under **AGPL-3.0-only**. Copyright (c) 2026 Yohan Senanayake for Open-Q contributions. The Open-Q logo in `assets/OpenQ_Logo_White.svg` is excluded from AGPL coverage; all rights reserved, as stated in [its separate notice](licenses/OpenQ-Logo.txt). Third-party material retains its original notices and applicable licenses.
 
 ## ZLEqualizer bell, shelf and cut coefficient designs
 

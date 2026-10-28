@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
+#include "UiLookAndFeel.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -15,10 +16,9 @@ namespace openq
         void closePopup();
 
     private:
-        struct LookAndFeel final : juce::LookAndFeel_V4
+        struct LookAndFeel final : UiLookAndFeel
         {
             LookAndFeel();
-            float scale = 1.0f;
             juce::Font getPopupMenuFont() override;
             juce::Font getComboBoxFont (juce::ComboBox&) override;
             void drawComboBox (juce::Graphics&, int width, int height, bool buttonDown, int, int, int, int, juce::ComboBox&) override;

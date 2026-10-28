@@ -1,7 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "UiLookAndFeel.h"
+#include "Palette.h"
 namespace openq
 {
+    UiLookAndFeel::UiLookAndFeel()
+        : juce::LookAndFeel_V4 (ColourScheme {
+              palette::background, palette::controlBackground, palette::cardBackground,
+              palette::controlBorder, palette::text, palette::accent,
+              palette::text, palette::selection, palette::text })
+    {
+        setColour (juce::Slider::rotarySliderFillColourId, palette::accent);
+        setColour (juce::Slider::rotarySliderOutlineColourId, palette::knobTrack);
+        setColour (juce::Slider::textBoxBackgroundColourId, palette::background);
+        setColour (juce::Slider::textBoxHighlightColourId, palette::selection);
+        setColour (juce::TextEditor::highlightColourId, palette::selection);
+        setColour (juce::TooltipWindow::backgroundColourId, palette::cardBackground);
+    }
     juce::Font UiLookAndFeel::getTextButtonFont (juce::TextButton&, int)
     {
         return juce::Font (juce::FontOptions (16.0f * scale));

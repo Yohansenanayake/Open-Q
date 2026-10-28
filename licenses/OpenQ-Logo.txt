@@ -1,0 +1,10 @@
+Open-Q logo
+
+Copyright (c) 2026 Yohan Senanayake. All rights reserved.
+
+The logo artwork in assets/OpenQ_Logo_White.svg is excluded from the
+AGPL-3.0-only license covering Open-Q source code.
+
+The project's AGPL license grants no permission to use, copy, modify or
+redistribute this logo artwork. Separate permission from the copyright
+holder is required.

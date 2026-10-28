@@ -188,10 +188,13 @@ TEST_CASE ("Preset entry is in the header and browser creation stays lazy", "[pr
     CHECK (editor.findChildWithID ("preset.browser") == nullptr);
     auto& header = child<juce::Component> (editor, "editor.header");
     auto& entry = child<juce::Button> (header, "preset.open");
+    auto& branding = child<juce::Component> (header, "header.branding");
+    CHECK (branding.getCachedComponentImage() != nullptr);
     for (int width : { openq::EditorSize::minimumWidth, openq::EditorSize::maximumWidth })
     {
         editor.setSize (width, openq::EditorSize::defaultHeight);
         CHECK (header.getLocalBounds().contains (entry.getBounds()));
+        CHECK (header.getLocalBounds().contains (branding.getBounds()));
         CHECK (std::abs (entry.getBounds().getCentreX() - header.getWidth() / 2) <= 8);
         for (auto* other : header.getChildren())
             if (other != &entry && other->isVisible())

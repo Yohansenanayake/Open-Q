@@ -6,6 +6,8 @@ namespace openq
     IconButton::IconButton (const juce::String& name, const void* svg, int bytes)
         : DrawableButton (name, juce::DrawableButton::ImageFitted)
     {
+        setColour (juce::DrawableButton::backgroundColourId, juce::Colours::transparentBlack);
+        setColour (juce::DrawableButton::backgroundOnColourId, juce::Colours::transparentBlack);
         image = juce::Drawable::createFromImageData (svg, static_cast<size_t> (bytes));
         jassert (image != nullptr);
         if (image == nullptr)

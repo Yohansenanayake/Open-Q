@@ -3,7 +3,7 @@
 #include "Palette.h"
 namespace openq
 {
-    inline void drawPanelBackground (juce::Graphics& g, juce::Rectangle<float> bounds, float scale, juce::Colour border = palette::accent)
+    inline void drawPanelBackground (juce::Graphics& g, juce::Rectangle<float> bounds, float scale, juce::Colour border = palette::controlBorder)
     {
         bounds = bounds.reduced (0.5f * scale);
         g.setColour (palette::cardBackground);

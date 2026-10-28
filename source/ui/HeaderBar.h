@@ -24,6 +24,17 @@ namespace openq
 
     private:
         UiLookAndFeel lookAndFeel;
+        struct Branding final : juce::Component
+        {
+            Branding();
+            void paint (juce::Graphics&) override;
+            void lookAndFeelChanged() override { repaint(); }
+            static constexpr int width = 188, height = 48;
+            static constexpr float leftShoulder = 42.0f, rightShoulder = 24.0f;
+            static constexpr float logoInset = 30.0f, logoVerticalPadding = 2.0f;
+            std::unique_ptr<juce::Drawable> logo;
+        } branding;
+        static constexpr int horizontalPadding = 12;
         AnalyzerTransport& transport;
         juce::ToggleButton pre { "Pre" }, post { "Post" }, fill { "Fill" };
         // juce::TextButton inspect { "Inspect the UI" };

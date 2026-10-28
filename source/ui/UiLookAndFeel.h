@@ -6,6 +6,7 @@ namespace openq
     class UiLookAndFeel : public juce::LookAndFeel_V4
     {
     public:
+        UiLookAndFeel();
         float scale = 1.0f;
         juce::Font getTextButtonFont (juce::TextButton&, int) override;
         juce::Font getComboBoxFont (juce::ComboBox&) override;

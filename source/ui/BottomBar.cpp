@@ -22,7 +22,7 @@ namespace openq
     BottomBar::~BottomBar() { setLookAndFeel (nullptr); }
     void BottomBar::paint (juce::Graphics& g)
     {
-        g.setGradientFill (juce::ColourGradient (palette::bottomBarBackground.brighter (0.12f), 0.0f, 0.0f, palette::bottomBarBackground, 0.0f, static_cast<float> (getHeight()), false));
+        g.setGradientFill (juce::ColourGradient (palette::bottomBarTop, 0.0f, 0.0f, palette::bottomBarBackground, 0.0f, static_cast<float> (getHeight()), false));
         g.fillAll();
     }
     void BottomBar::setUiScale (float scale)

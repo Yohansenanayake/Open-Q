@@ -1,0 +1,29 @@
+<!--
+  SPDX-License-Identifier: LicenseRef-OpenQ-Logo
+  Copyright (c) 2026 Yohan Senanayake. All rights reserved.
+  Excluded from AGPL-3.0-only; see licenses/OpenQ-Logo.txt.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 300" width="100%" height="100%">
+  <!-- Top Ring -->
+  <path d="M 82, 154 A 72.5,72.5 0 1,1 221, 141" fill="none" stroke="#EDFAFC" stroke-width="25" stroke-linecap="butt" />
+  
+  <!-- Bottom Ring -->
+  <path d="M 79, 159 A 72.5,72.5 0 0,0 218, 146" fill="none" stroke="#7073FF" stroke-width="25" stroke-linecap="butt" />
+  
+  <!-- Wave -->
+  <path d="M 30,140 C 80,140 100,110 150,140 C 200,170 220,140 270,140 L 270,165 C 220,165 200,195 150,165 C 100,135 80,165 30,165 Z" fill="#7486FB" />
+  
+  <!-- Wordmark "pen-" -->
+  <path d="M 280,110 H 298 V 230 H 280 Z" fill="#FDFDFD" />
+  <path d="M 315,110 A 35,35 0 1,1 314.9,110 Z M 315,128 A 17,17 0 1,0 315.1,128 Z" fill="#FDFDFD" fill-rule="evenodd" />
+  <path d="M 428.8, 154 A 35,35 0 1,1 428.8, 136 L 380.6, 136 A 17,17 0 0,0 380.6, 154 Z" fill="#FDFDFD" fill-rule="evenodd" />
+<!-- n -->
+  <path d="M 445,110 H 463 V 180 H 445 Z" fill="#FDFDFD" />
+  <path d="M 445,145 A 33,33 0 0,1 511,145 V 180 H 493 V 145 A 15,15 0 0,0 463,145 Z" fill="#FDFDFD" />
+
+  <path d="M 525,136 H 555 V 154 H 525 Z" fill="#FDFDFD" />
+  
+  <!-- Q -->
+  <path d="M 630,80 A 50,50 0 1,1 629.9,80 Z M 630,100 A 30,30 0 1,0 630.1,100 Z" fill="#8242E3" fill-rule="evenodd" />
+  <path d="M 645,145 L 685,185 L 670,200 L 630,160 Z" fill="#8242E3" />
+</svg>
