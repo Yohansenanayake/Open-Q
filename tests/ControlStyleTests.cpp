@@ -24,7 +24,7 @@ TEST_CASE ("Flat control borders stay neutral on hover and focus while disabled 
             REQUIRE (disabled.getPixelAt (x, y) == disabledHover.getPixelAt (x, y));
 }
 
-TEST_CASE ("Icon button hover outlines preserve transparent On and Off backgrounds", "[ui][controls]")
+TEST_CASE ("Icon buttons stay borderless with transparent On and Off backgrounds", "[ui][controls]")
 {
     openq::UiLookAndFeel lookAndFeel;
     openq::IconButton button ("Power", BinaryData::bypass_svg, BinaryData::bypass_svgSize);
@@ -37,12 +37,15 @@ TEST_CASE ("Icon button hover outlines preserve transparent On and Off backgroun
             button.setEnabled (enabled);
             for (bool hovered : { false, true })
             {
-                juce::Image image (juce::Image::ARGB, button.getWidth(), button.getHeight(), true);
-                juce::Graphics g (image);
-                lookAndFeel.drawDrawableButton (g, button, hovered, false);
-                const auto centre = image.getHeight() / 2;
-                CHECK (image.getPixelAt (centre, centre).isTransparent());
-                CHECK (image.getPixelAt (0, centre) == (enabled && hovered ? openq::palette::controlHoverBorder : juce::Colours::transparentBlack));
+                for (bool pressed : { false, true })
+                {
+                    juce::Image image (juce::Image::ARGB, button.getWidth(), button.getHeight(), true);
+                    juce::Graphics g (image);
+                    lookAndFeel.drawDrawableButton (g, button, hovered, pressed);
+                    const auto centre = image.getHeight() / 2;
+                    CHECK (image.getPixelAt (centre, centre).isTransparent());
+                    CHECK (image.getPixelAt (0, centre).isTransparent());
+                }
             }
         }
     }

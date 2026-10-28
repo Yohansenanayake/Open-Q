@@ -46,7 +46,7 @@ namespace openq
     {
         auto* label = juce::LookAndFeel_V4::createSliderTextBox (slider);
         label->setFont (juce::FontOptions (14.0f * scale));
-        label->setJustificationType (juce::Justification::centredRight);
+        label->setJustificationType (juce::Justification::centred);
         label->setBorderSize (juce::BorderSize<int> (0, juce::roundToInt (controlStyle::textPadding * scale), 0, juce::roundToInt (controlStyle::textPadding * scale)));
         label->setRepaintsOnMouseActivity (true);
         label->onEditorShow = [label] {
@@ -59,16 +59,6 @@ namespace openq
     {
         drawControlBackground (g, button.getLocalBounds().toFloat(), scale, button.isEnabled(), highlighted || down,
             button.hasKeyboardFocus (true), button.getToggleState() || down);
-    }
-    void UiLookAndFeel::drawDrawableButton (juce::Graphics& g, juce::DrawableButton& button, bool highlighted, bool down)
-    {
-        juce::LookAndFeel_V4::drawDrawableButton (g, button, highlighted, down);
-        if (button.isEnabled() && (highlighted || down || button.hasKeyboardFocus (true)))
-        {
-            g.setColour (palette::controlHoverBorder);
-            g.drawRoundedRectangle (button.getLocalBounds().toFloat().reduced (controlStyle::borderWidth * scale * 0.5f),
-                controlStyle::cornerRadius * scale, controlStyle::borderWidth * scale);
-        }
     }
     void UiLookAndFeel::drawLabel (juce::Graphics& g, juce::Label& label)
     {
