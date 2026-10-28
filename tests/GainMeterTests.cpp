@@ -487,7 +487,8 @@ TEST_CASE ("Gain fields support exact entry reset cancellation and host gestures
         editor.addToDesktop (juce::ComponentPeer::windowHasTitleBar);
         editor.setVisible (true);
        #if JUCE_MAC
-        // Synthetic key calls do not perform AppKit's normal activation on a real mouse click.
+        // CTest launches a console executable; first make it eligible for foreground activation.
+        juce::Process::setDockIconVisible (true);
         juce::Process::makeForegroundProcess();
         REQUIRE (waitFor ([] { return juce::Process::isForegroundProcess(); }));
        #endif
@@ -705,7 +706,7 @@ TEST_CASE ("Gain timing capture records updates rejections and completed readout
     gain.setBounds (0, 0, 110, 26);
     auto& trace = openq::GainTimingTrace::instance();
     trace.start();
-    juce::MouseWheelDetails wheel;
+    juce::MouseWheelDetails wheel {};
     wheel.deltaY = 0.2f;
     const auto event = click (gain, 0);
     gain.mouseWheelMove (event, wheel);
@@ -714,13 +715,22 @@ TEST_CASE ("Gain timing capture records updates rejections and completed readout
     trace.stop();
     const auto csv = trace.toCsv();
     const auto begin = csv.indexOf ("wheel_begin");
-    const auto updated = csv.indexOf ("wheel_end,0,0.500000000");
+    const auto updated = csv.indexOf ("wheel_end,0,");
     const auto rejected = csv.indexOf ("wheel_rejected_zero_or_duplicate");
-    const auto painted = csv.indexOf ("readout_painted,0,0.500000000");
+    const auto painted = csv.indexOf ("readout_painted,0,");
     CHECK (begin >= 0);
     CHECK (updated > begin);
     CHECK (rejected > updated);
     CHECK (painted > rejected);
+    CHECK_THAT (gain.getValue(), Catch::Matchers::WithinAbs (0.5, 1e-5));
+    for (const auto position : { updated, painted })
+    {
+        REQUIRE (position >= 0);
+        const auto row = csv.substring (position).upToFirstOccurrenceOf ("\n", false, false);
+        const auto fields = juce::StringArray::fromTokens (row, ",", "");
+        REQUIRE (fields.size() == 4);
+        CHECK_THAT (fields[2].getDoubleValue(), Catch::Matchers::WithinAbs (gain.getValue(), 1e-8));
+    }
     trace.record ("should_not_record");
     CHECK_FALSE (trace.toCsv().contains ("should_not_record"));
 

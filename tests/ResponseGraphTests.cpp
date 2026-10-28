@@ -561,11 +561,10 @@ TEST_CASE ("Opaque editor bars do not disable expensive plot paint pacing", "[re
     auto* outputGain = dynamic_cast<openq::GainControl*> (bottom->findChildWithID (openq::gainParameterIds[1]));
     REQUIRE (inputGain != nullptr);
     REQUIRE (outputGain != nullptr);
-    class MovingMetersAndGains final : private juce::Timer
+    class MovingMeters final : private juce::Timer
     {
     public:
-        MovingMetersAndGains (openq::LevelMeterTransport& target, openq::GainControl& input, openq::GainControl& output)
-            : transport (target), inputGain (input), outputGain (output) {}
+        explicit MovingMeters (openq::LevelMeterTransport& target) : transport (target) {}
         void start() { startTimerHz (30); }
     private:
         void timerCallback() override
@@ -573,20 +572,11 @@ TEST_CASE ("Opaque editor bars do not disable expensive plot paint pacing", "[re
             phase += juce::MathConstants<float>::twoPi / 60.0f;
             const auto peak = 0.2f + 0.7f * (0.5f + 0.5f * std::sin (phase));
             transport.publish ({ peak, peak * 0.5f }, { peak * 0.7f, peak * 0.3f });
-            for (auto* control : { &inputGain, &outputGain })
-            {
-                const auto before = control->getValue();
-                const auto time = juce::Time::getCurrentTime();
-                const juce::MouseEvent event { juce::Desktop::getInstance().getMainMouseSource(), {}, {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, control, control, time, {}, time, 0, false };
-                control->mouseWheelMove (event, { 0.0f, 0.01f, false, true, false });
-                CHECK (control->getValue() > before);
-            }
         }
         openq::LevelMeterTransport& transport;
-        openq::GainControl& inputGain;
-        openq::GainControl& outputGain;
         float phase = 0.0f;
-    } moving (processor.getLevelMeters(), *inputGain, *outputGain);
+    } moving (processor.getLevelMeters());
+    juce::int64 eventTimestamp = 0;
     for (bool metersMoving : { false, true })
     {
         if (metersMoving)
@@ -595,6 +585,16 @@ TEST_CASE ("Opaque editor bars do not disable expensive plot paint pacing", "[re
         slow.paints = 0;
         slow.paintMilliseconds = 0.0;
         const auto initialChecks = budgetChecks;
+        // A finite input burst may repaint immediately; measure autonomous pacing after it settles.
+        // Continuous synthetic edits at both footer ends can force native plot redraws outside that budget.
+        for (auto* control : { inputGain, outputGain })
+        {
+            const auto before = control->getValue();
+            const juce::Time time (++eventTimestamp);
+            const juce::MouseEvent event { juce::Desktop::getInstance().getMainMouseSource(), {}, {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, control, control, time, {}, time, 0, false };
+            control->mouseWheelMove (event, { 0.0f, 0.01f, false, true, false });
+            CHECK (control->getValue() > before);
+        }
         const auto start = juce::Time::getMillisecondCounterHiRes();
         while (budgetChecks - initialChecks < 3 && juce::Time::getMillisecondCounterHiRes() - start < 5000.0)
             juce::MessageManager::getInstance()->runDispatchLoopUntil (10);

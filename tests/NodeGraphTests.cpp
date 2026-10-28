@@ -227,7 +227,7 @@ TEST_CASE ("Node axis locks, fine motion, wheel and boundaries use display mappi
     CHECK_THAT (settings (processor, 0).frequency, Catch::Matchers::WithinAbs (3920.0, 0.01));
     CHECK_THAT (settings (processor, 0).gain, Catch::Matchers::WithinAbs (24.0, 0.001));
     first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
-    juce::MouseWheelDetails wheel;
+    juce::MouseWheelDetails wheel {};
     wheel.deltaY = 0.25f;
     first.mouseWheelMove (mouse (first, { 12.0f, 12.0f }, 0), wheel);
     CHECK (settings (processor, 0).q > 1.0);
@@ -693,7 +693,7 @@ TEST_CASE ("Cut nodes stay at zero dB ignore vertical edits and disable first-or
         CHECK (gestures.active() == 0);
         set (processor, 0, "slope", static_cast<float> (openq::CutSlope::Db6));
         const auto qBefore = settings (processor, 0).q;
-        juce::MouseWheelDetails wheel;
+        juce::MouseWheelDetails wheel {};
         wheel.deltaY = 0.25f;
         first.mouseWheelMove (mouse (first, { 12.0f, 12.0f }, 0), wheel);
         CHECK_THAT (settings (processor, 0).q, Catch::Matchers::WithinAbs (qBefore, 0.0));
