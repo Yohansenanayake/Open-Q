@@ -73,6 +73,18 @@ namespace openq::presets
         delete_preset_button_.setComponentID ("preset.delete");
         group_label_.setText ("Groups", juce::dontSendNotification);
         preset_label_.setText ("Presets", juce::dontSendNotification);
+        default_button_.setComponentID ("preset.default");
+        default_button_.setTooltip ("Load built-in Default: flat bands and unity trims; preserve bypass and display settings.");
+        addAndMakeVisible (default_button_);
+        default_button_.onClick = [this] {
+            if (!processor_.loadDefaultPreset())
+            {
+                showError ("Could not load Default.");
+                return;
+            }
+            selected_preset_file_ = juce::File {};
+            refreshPresets();
+        };
         for (auto* label : { &group_label_, &preset_label_ })
         {
             label->setJustificationType (juce::Justification::centredLeft);
@@ -186,6 +198,8 @@ namespace openq::presets
         const auto preset_label_width = juce::jmin (header.getWidth() / 3,
             juce::roundToInt (font_size * 7.5f));
         preset_label_.setBounds (header.removeFromLeft (preset_label_width));
+        default_button_.setBounds (header.removeFromLeft (juce::roundToInt (font_size * 6.0f)));
+        header.removeFromLeft (padding);
         search_editor_.setBounds (header);
 
         bounds.removeFromTop (list_top_margin);
@@ -465,6 +479,12 @@ namespace openq::presets
 
     void PresetBrowser::writePreset (const juce::File& file)
     {
+        const auto name = file.getFileNameWithoutExtension();
+        if (!PluginProcessor::isValidPresetName (name))
+        {
+            showError ("Enter a single-line preset name of up to 256 characters.");
+            return;
+        }
         juce::MemoryBlock state;
         processor_.getStateInformation (state);
         if (const auto result = PresetJson::write (file, state); result.failed())
@@ -473,6 +493,8 @@ namespace openq::presets
             return;
         }
 
+        (void) processor_.setAppliedPresetName (name);
+        processor_.updateHostDisplay (juce::AudioProcessorListener::ChangeDetails().withNonParameterStateChanged (true));
         selected_group_ = file.getParentDirectory().getFileName();
         selected_preset_file_ = file;
         search_editor_.setText ({}, juce::dontSendNotification);
@@ -483,6 +505,12 @@ namespace openq::presets
 
     void PresetBrowser::loadPreset (const juce::File& file)
     {
+        const auto name = file.getFileNameWithoutExtension();
+        if (!PluginProcessor::isValidPresetName (name))
+        {
+            showError ("The preset filename cannot be displayed as a single-line preset name.");
+            return;
+        }
         const auto iterator = std::find_if (presets_.begin(), presets_.end(), [&file] (const auto& preset) {
             return preset.file == file;
         });
@@ -504,6 +532,7 @@ namespace openq::presets
             showError ("Preset state is incompatible or invalid.");
             return;
         }
+        (void) processor_.setAppliedPresetName (name);
         processor_.updateHostDisplay (juce::AudioProcessorListener::ChangeDetails()
                 .withNonParameterStateChanged (true));
         selectPreset (file);

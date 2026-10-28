@@ -1,10 +1,10 @@
 #pragma once
 
+#include "EditorSize.h"
 #include "PluginParameters.h"
+#include "dsp/BandFilter.h"
 #include "dsp/GainStage.h"
 #include "dsp/LevelMeterTransport.h"
-#include "EditorSize.h"
-#include "dsp/BandFilter.h"
 #include "dsp/analyzer/AnalyzerTransport.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -46,6 +46,10 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
     bool restoreStateInformation (const void* data, int sizeInBytes);
 
+    juce::String getAppliedPresetName() const;
+    bool setAppliedPresetName (const juce::String&);
+    static bool isValidPresetName (const juce::String&);
+    bool loadDefaultPreset();
     juce::AudioProcessorValueTreeState parameters;
 
     const std::atomic<double>& getResponseSampleRate() const { return responseSampleRate; }
@@ -63,6 +67,9 @@ public:
     openq::LevelMeterTransport& getLevelMeters() { return levelMeters; }
 
 private:
+    // UI/session metadata only; audio processing never accesses this lock or string.
+    mutable juce::CriticalSection presetNameLock;
+    juce::String appliedPresetName { "Default" };
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     void processAudio (juce::AudioBuffer<float>&, bool forceBypass);
     static constexpr int bypassChunkSamples = 256;

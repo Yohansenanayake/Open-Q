@@ -166,6 +166,9 @@ TEST_CASE ("Ported browser saves groups searches loads and confirms overwrite an
     REQUIRE (warning.isVisible());
     child<juce::Button> (warning, "preset.confirm").onClick();
     CHECK_FALSE (file.exists());
+    child<juce::Button> (browser, "preset.default").onClick();
+    CHECK (p.getAppliedPresetName() == "Default");
+    CHECK_THAT (p.parameters.getRawParameterValue ("band.0.gain")->load(), Catch::Matchers::WithinAbs (0.0, 1e-6));
     child<juce::Button> (browser, "preset.group.delete").onClick();
     REQUIRE (warning.isVisible());
     CHECK (warning.keyPressed (juce::KeyPress (juce::KeyPress::returnKey)));
@@ -189,9 +192,133 @@ TEST_CASE ("Preset entry is in the header and browser creation stays lazy", "[pr
     {
         editor.setSize (width, openq::EditorSize::defaultHeight);
         CHECK (header.getLocalBounds().contains (entry.getBounds()));
+        CHECK (std::abs (entry.getBounds().getCentreX() - header.getWidth() / 2) <= 8);
         for (auto* other : header.getChildren())
             if (other != &entry && other->isVisible())
                 CHECK_FALSE (other->getBounds().intersects (entry.getBounds()));
     }
     CHECK (editor.findChildWithID ("preset.browser") == nullptr);
+}
+
+TEST_CASE ("Default preset resets sound while preserving comparison and display preferences", "[preset][state]")
+{
+    PluginProcessor p;
+    CHECK (p.getAppliedPresetName() == "Default");
+    parameter (p, "band.0.gain", 12.0f);
+    parameter (p, "band.1.status", 2.0f);
+    parameter (p, "band.1.type", 3.0f);
+    parameter (p, "input.gain", 8.0f);
+    parameter (p, "output.gain", -4.0f);
+    parameter (p, openq::bypassParameterId, 1.0f);
+    REQUIRE (p.setAppliedPresetName ("Mastering 1"));
+    p.setEditorSize ({ 1440, 900 });
+    p.getAnalyzerTransport().setFillEnabled (false);
+    const auto options = p.getAnalyzerTransport().getSettings();
+    REQUIRE (p.loadDefaultPreset());
+    CHECK (p.getAppliedPresetName() == "Default");
+    for (auto* original : p.getParameters())
+        if (original != p.getBypassParameter())
+            CHECK_THAT (original->getValue(), Catch::Matchers::WithinAbs (original->getDefaultValue(), 1e-6));
+    CHECK (juce::exactlyEqual (p.getBypassParameter()->getValue(), 1.0f));
+    CHECK (p.getEditorSize() == openq::EditorSize { 1440, 900 });
+    CHECK (p.getAnalyzerTransport().getSettings().encode() == options.encode());
+    CHECK_FALSE (p.getAnalyzerTransport().getFillEnabled());
+    parameter (p, "input.gain", 2.0f);
+    CHECK (p.getAppliedPresetName() == "Default");
+}
+
+TEST_CASE ("Preset Save As and file loads update identity only after success and recall needs no file", "[preset][state][ui]")
+{
+    juce::MemoryBlock session;
+    {
+        Library library;
+        PluginProcessor p;
+        openq::presets::PresetBrowser browser (p, library.directory);
+        browser.setSize (browser.getIdealWidth(), browser.getIdealHeight());
+        browser.setVisible (true);
+        auto& name = child<juce::TextEditor> (browser, "preset.name");
+        auto& list = child<openq::presets::PresetList> (browser, "preset.list");
+        name.setText ("Mastering 1", false);
+        name.onReturnKey();
+        CHECK (p.getAppliedPresetName() == "Mastering 1");
+        parameter (p, "band.0.gain", 6.0f);
+        CHECK (p.getAppliedPresetName() == "Mastering 1");
+        name.setText ("Mastering 2", false);
+        name.onReturnKey();
+        CHECK (p.getAppliedPresetName() == "Mastering 2");
+        const auto first = library.directory.getChildFile ("User/Mastering 1.json");
+        const auto second = library.directory.getChildFile ("User/Mastering 2.json");
+        REQUIRE (first.existsAsFile());
+        REQUIRE (second.existsAsFile());
+        CHECK_FALSE (second.loadFileAsString().contains ("presetName"));
+        list.onPresetSelected (first);
+        CHECK (p.getAppliedPresetName() == "Mastering 2");
+        REQUIRE (first.replaceWithText ("{broken"));
+        const auto unchanged = p.parameters.copyState();
+        list.onPresetLoad (first);
+        CHECK (p.getAppliedPresetName() == "Mastering 2");
+        CHECK (p.parameters.copyState().isEquivalentTo (unchanged));
+        auto& warning = child<juce::Component> (browser, "preset.warning");
+        child<juce::Button> (warning, "preset.confirm").onClick();
+        // A failed Save As must not change the identity either.
+        const auto blocked = library.directory.getChildFile ("User/Blocked.json");
+        REQUIRE (blocked.createDirectory().wasOk());
+        REQUIRE (blocked.getChildFile ("Keep.txt").replaceWithText ("keep"));
+        name.setText ("Blocked", false);
+        name.onReturnKey();
+        CHECK (p.getAppliedPresetName() == "Mastering 2");
+        CHECK (blocked.getChildFile ("Keep.txt").existsAsFile());
+        child<juce::Button> (warning, "preset.confirm").onClick();
+        // External renaming is observed only when that file is explicitly loaded.
+        const auto renamed = library.directory.getChildFile ("User/Renamed.json");
+        REQUIRE (second.moveFileTo (renamed));
+        CHECK (p.getAppliedPresetName() == "Mastering 2");
+        browser.refresh();
+        list.onPresetLoad (renamed);
+        CHECK (p.getAppliedPresetName() == "Renamed");
+        browser.setVisible (false);
+        CHECK (p.getAppliedPresetName() == "Renamed");
+        p.getStateInformation (session);
+    }
+    PluginProcessor restored;
+    REQUIRE (restored.restoreStateInformation (session.getData(), static_cast<int> (session.getSize())));
+    CHECK (restored.getAppliedPresetName() == "Renamed");
+    for (int reopening = 0; reopening < 2; ++reopening)
+    {
+        PluginEditor editor (restored);
+        auto& header = child<juce::Component> (editor, "editor.header");
+        CHECK (child<juce::Button> (header, "preset.open").getButtonText() == "Renamed");
+    }
+}
+
+TEST_CASE ("Preset name metadata is optional validated and cannot partially restore invalid state", "[preset][state]")
+{
+    PluginProcessor p;
+    REQUIRE (p.setAppliedPresetName ("Session Name"));
+    auto saved = state (p);
+    const auto xml = juce::AudioProcessor::getXmlFromBinary (saved.getData(), static_cast<int> (saved.getSize()));
+    REQUIRE (xml != nullptr);
+    const auto original = juce::ValueTree::fromXml (*xml);
+    CHECK (original.getProperty ("presetName").toString() == "Session Name");
+    const auto unchanged = p.parameters.copyState();
+    for (const auto& invalid : std::array<juce::var, 5> { juce::var ("bad\tname"), juce::var (""), juce::var (" padded "), juce::var ("bad\nname"), juce::var (juce::String::repeatedString ("x", 257)) })
+    {
+        auto broken = original.createCopy();
+        broken.setProperty ("presetName", invalid, nullptr);
+        broken.getChildWithProperty ("id", "band.0.gain").setProperty ("value", 9.0f, nullptr);
+        juce::MemoryBlock bytes;
+        juce::AudioProcessor::copyXmlToBinary (*broken.createXml(), bytes);
+        CHECK_FALSE (p.restoreStateInformation (bytes.getData(), static_cast<int> (bytes.getSize())));
+        CHECK (p.getAppliedPresetName() == "Session Name");
+        CHECK (p.parameters.copyState().isEquivalentTo (unchanged));
+    }
+    REQUIRE (p.setAppliedPresetName ("12"));
+    auto numeric = state (p);
+    REQUIRE (p.restoreStateInformation (numeric.getData(), static_cast<int> (numeric.getSize())));
+    CHECK (p.getAppliedPresetName() == "12");
+    auto unnamed = original.createCopy();
+    unnamed.removeProperty ("presetName", nullptr);
+    juce::AudioProcessor::copyXmlToBinary (*unnamed.createXml(), saved);
+    REQUIRE (p.restoreStateInformation (saved.getData(), static_cast<int> (saved.getSize())));
+    CHECK (p.getAppliedPresetName() == "Default");
 }

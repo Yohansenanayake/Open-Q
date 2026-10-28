@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
-#include "../dsp/analyzer/AnalyzerTransport.h"
-#include "UiLookAndFeel.h"
-#include "IconButton.h"
 #include "../PluginParameters.h"
+#include "../dsp/analyzer/AnalyzerTransport.h"
+#include "IconButton.h"
+#include "PresetNameButton.h"
+#include "UiLookAndFeel.h"
 namespace openq
 {
     class HeaderBar final : public juce::Component
@@ -12,11 +13,12 @@ namespace openq
         HeaderBar (AnalyzerTransport&, juce::AudioProcessorValueTreeState&);
         ~HeaderBar() override;
         void refresh();
+        void setPresetName (const juce::String&);
         void setUiScale (float);
         void paint (juce::Graphics&) override;
         void resized() override;
         std::function<void()> onInspect, onFillChanged, onPresets;
-        juce::TextButton presets { "Presets" };
+        PresetNameButton presets;
         static constexpr int preferredHeight = 52;
 
     private:

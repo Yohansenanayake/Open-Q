@@ -228,6 +228,7 @@ void PluginEditor::timerCallback()
         lastMeterTime = 0.0;
     }
     headerBar.refresh();
+    headerBar.setPresetName (processor.getAppliedPresetName());
     if (analyzerPanel != nullptr)
         analyzerPanel->refresh();
 }

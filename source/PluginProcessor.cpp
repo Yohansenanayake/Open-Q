@@ -209,7 +209,7 @@ void PluginProcessor::processAudio (juce::AudioBuffer<float>& buffer, bool force
                 const auto dry = drySamples[index][static_cast<size_t> (sample)];
                 // Explicit endpoints preserve bit-exact active and dry audio.
                 const auto output = wet <= 0.0 ? dry : wet >= 1.0 ? chunk.getSample (channel, sample)
-                    : static_cast<float> ((1.0 - wet) * dry + wet * chunk.getSample (channel, sample));
+                                                                  : static_cast<float> ((1.0 - wet) * dry + wet * chunk.getSample (channel, sample));
                 chunk.setSample (channel, sample, output);
                 outputPeaks[index] = std::max (outputPeaks[index], std::abs (output));
             }
@@ -231,9 +231,52 @@ juce::AudioProcessorEditor* PluginProcessor::createEditor()
 }
 
 //==============================================================================
+bool PluginProcessor::isValidPresetName (const juce::String& name)
+{
+    return name.isNotEmpty() && name.length() <= 256 && name == name.trim() && !name.containsAnyOf ("\r\n\t");
+}
+
+juce::String PluginProcessor::getAppliedPresetName() const
+{
+    const juce::ScopedLock lock (presetNameLock);
+    return appliedPresetName;
+}
+
+bool PluginProcessor::setAppliedPresetName (const juce::String& name)
+{
+    if (!isValidPresetName (name))
+        return false;
+    const juce::ScopedLock lock (presetNameLock);
+    appliedPresetName = name;
+    return true;
+}
+
+bool PluginProcessor::loadDefaultPreset()
+{
+    juce::MemoryBlock bytes;
+    getStateInformation (bytes);
+    const auto xml = getXmlFromBinary (bytes.getData(), static_cast<int> (bytes.getSize()));
+    if (xml == nullptr)
+        return false;
+    auto state = juce::ValueTree::fromXml (*xml);
+    for (auto* parameter : getParameters())
+    {
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter);
+        if (ranged != nullptr && ranged->getParameterID() != openq::bypassParameterId)
+            state.getChildWithProperty ("id", ranged->getParameterID()).setProperty ("value", ranged->convertFrom0to1 (ranged->getDefaultValue()), nullptr);
+    }
+    state.setProperty ("presetName", "Default", nullptr);
+    copyXmlToBinary (*state.createXml(), bytes);
+    if (!restoreStateInformation (bytes.getData(), static_cast<int> (bytes.getSize())))
+        return false;
+    updateHostDisplay (juce::AudioProcessorListener::ChangeDetails().withNonParameterStateChanged (true));
+    return true;
+}
+
 void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = parameters.copyState();
+    state.setProperty ("presetName", getAppliedPresetName(), nullptr);
     const auto analyzerSettings = analyzer.getSettings();
     state.setProperty ("analyzerSettings", static_cast<int> (analyzerSettings.flags()), nullptr);
     state.setProperty ("analyzerConfiguration", static_cast<int> (analyzerSettings.configuration()), nullptr);
@@ -285,6 +328,10 @@ bool PluginProcessor::restoreStateInformation (const void* data, int sizeInBytes
             || ((dynamic_cast<juce::AudioParameterChoice*> (parameter) != nullptr || dynamic_cast<juce::AudioParameterBool*> (parameter) != nullptr) && !juce::exactlyEqual (value, std::round (value))))
             return false;
     }
+    const auto nameProperty = state.getProperty ("presetName", "Default");
+    if (!nameProperty.isString() || !isValidPresetName (nameProperty.toString()))
+        return false;
+    const auto presetName = nameProperty.toString();
     // Display preferences are not host automation parameters.
     double settings = 3.0;
     std::istringstream settingsInput (state.getProperty ("analyzerSettings", 3).toString().trim().toStdString());
@@ -321,6 +368,7 @@ bool PluginProcessor::restoreStateInformation (const void* data, int sizeInBytes
             return false;
     }
     parameters.replaceState (state);
+    (void) setAppliedPresetName (presetName);
     analyzer.setSettings (analyzerSettings);
     analyzer.setFillEnabled (fill == "1");
     setEditorSize (size);

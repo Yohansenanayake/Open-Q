@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "HeaderBar.h"
-#include "Palette.h"
 #include "BinaryData.h"
+#include "Palette.h"
 namespace openq
 {
     HeaderBar::HeaderBar (AnalyzerTransport& source, juce::AudioProcessorValueTreeState& parameters)
@@ -14,6 +14,7 @@ namespace openq
             addAndMakeVisible (*button);
         addAndMakeVisible (inspect);
         presets.setComponentID ("preset.open");
+        presets.setTooltip ("Default (last loaded or saved preset). Click to browse presets.");
         presets.setClickingTogglesState (true);
         presets.onClick = [this] { if (onPresets) onPresets(); };
         addAndMakeVisible (presets);
@@ -48,6 +49,14 @@ namespace openq
         inspect.onClick = [this] { if (onInspect) onInspect(); };
     }
     HeaderBar::~HeaderBar() { setLookAndFeel (nullptr); }
+    void HeaderBar::setPresetName (const juce::String& name)
+    {
+        if (presets.getButtonText() == name)
+            return;
+        presets.setButtonText (name);
+        presets.setTitle ("Presets: " + name);
+        presets.setTooltip (name + " (last loaded or saved preset). Click to browse presets.");
+    }
     void HeaderBar::refresh()
     {
         const auto settings = transport.getSettings();
@@ -70,7 +79,7 @@ namespace openq
         g.fillRect (getLocalBounds());
         g.setColour (palette::text);
         g.setFont (24.0f * lookAndFeel.scale);
-        g.drawText ("Open-Q", getLocalBounds().reduced (juce::roundToInt (12.0f * lookAndFeel.scale), 0).withWidth (juce::roundToInt (120.0f * lookAndFeel.scale)), juce::Justification::centredLeft);
+        g.drawText ("Open-Q", getLocalBounds().reduced (juce::roundToInt (12.0f * lookAndFeel.scale), 0).withWidth (juce::roundToInt (96.0f * lookAndFeel.scale)), juce::Justification::centredLeft);
     }
     void HeaderBar::resized()
     {
@@ -80,10 +89,13 @@ namespace openq
         area.removeFromRight (scaled (8));
         inspect.setBounds (area.removeFromRight (scaled (130)).reduced (0, scaled (6)));
         area.removeFromRight (scaled (8));
-        post.setBounds (area.removeFromRight (scaled (66)));
-        pre.setBounds (area.removeFromRight (scaled (60)));
-        fill.setBounds (area.removeFromRight (scaled (60)));
-        area.removeFromLeft (scaled (120));
-        presets.setBounds (area.removeFromLeft (scaled (110)).reduced (0, scaled (6)));
+        area.removeFromLeft (scaled (104));
+        fill.setBounds (area.removeFromLeft (scaled (48)));
+        pre.setBounds (area.removeFromLeft (scaled (48)));
+        post.setBounds (area.removeFromLeft (scaled (54)));
+        area.reduce (scaled (8), 0);
+        const auto nameWidth = std::min (scaled (180), area.getWidth());
+        const auto nameX = std::clamp ((getWidth() - nameWidth) / 2, area.getX(), area.getRight() - nameWidth);
+        presets.setBounds (nameX, area.getCentreY() - scaled (13), nameWidth, scaled (26));
     }
 }

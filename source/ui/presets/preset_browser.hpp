@@ -66,6 +66,7 @@ namespace openq::presets
 
         juce::Label group_label_;
         juce::Label preset_label_;
+        juce::TextButton default_button_ { "Default" };
         RoundedTextEditor search_editor_;
         RoundedTextEditor group_name_editor_;
         RoundedTextEditor preset_name_editor_;
