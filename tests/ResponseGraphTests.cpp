@@ -466,6 +466,48 @@ TEST_CASE ("Slow full graph paints leave time for input and recover without repa
     CHECK (limiter.tick (1.0 / openq::GraphRefreshLimiter::targetFramesPerSecond));
 }
 
+TEST_CASE ("Pending gain feedback gets one eligible VBlank without bypassing paint budgets", "[response][ui][pacing][feedback]")
+{
+    openq::GraphRefreshLimiter limiter;
+    CHECK_FALSE (limiter.tick (0.0, true));
+    CHECK_FALSE (limiter.tick (0.0, true));
+    CHECK (limiter.tick (0.016, true));
+    limiter.recordPaintDuration (0.04, 0.056);
+    CHECK_FALSE (limiter.tick (0.095, true));
+    CHECK_FALSE (limiter.tick (0.096, true));
+    CHECK (limiter.tick (0.112, true));
+    limiter.reset();
+    CHECK_FALSE (limiter.tick (0.0, true));
+    // A painted readout releases priority immediately; no additional cooldown is imposed.
+    CHECK (limiter.tick (0.016, false));
+    limiter.reset();
+    CHECK (limiter.tick (0.0));
+}
+
+TEST_CASE ("Continuous unpainted gain feedback cannot starve animation and normal cadence recovers", "[response][ui][pacing][feedback]")
+{
+    openq::GraphRefreshLimiter limiter;
+    constexpr double monitorHz = 60.0, seconds = 10.0;
+    int frames = 0;
+    for (int tick = 0; tick < static_cast<int> (monitorHz * seconds); ++tick)
+    {
+        const auto timestamp = tick / monitorHz;
+        if (limiter.tick (timestamp, true))
+        {
+            ++frames;
+            limiter.recordPaintDuration (0.001, timestamp + 0.001);
+        }
+    }
+    CHECK (frames >= static_cast<int> (seconds * openq::GraphRefreshLimiter::targetFramesPerSecond / 2.0));
+    CHECK (frames <= static_cast<int> (seconds * openq::GraphRefreshLimiter::targetFramesPerSecond));
+    frames = 0;
+    for (int tick = 0; tick < static_cast<int> (monitorHz); ++tick)
+        if (limiter.tick (seconds + tick / monitorHz))
+            ++frames;
+    CHECK (frames >= 28);
+    CHECK (frames <= 30);
+}
+
 TEST_CASE ("Opaque editor bars do not disable expensive plot paint pacing", "[response][ui][pacing][regression]")
 {
     if (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() == nullptr)

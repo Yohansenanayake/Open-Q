@@ -11,18 +11,31 @@ namespace openq
     public:
         static constexpr double targetFramesPerSecond = 30.0;
 
-        bool tick (double timestampSeconds)
+        bool tick (double timestampSeconds, bool controlFeedbackPending = false)
         {
             if (!std::isfinite (timestampSeconds))
                 return false;
             constexpr double roundingToleranceSeconds = 1.0e-9;
             const auto intervalSeconds = interval();
+            if (lastTimestamp && std::abs (timestampSeconds - *lastTimestamp) <= roundingToleranceSeconds)
+                return false;
             if (lastTimestamp && timestampSeconds < *lastTimestamp)
+            {
                 nextFrame.reset();
+                yieldedForFeedback = false;
+            }
             lastTimestamp = timestampSeconds;
             if (nextFrame && timestampSeconds + roundingToleranceSeconds < *nextFrame)
                 return false;
-            const auto nextDeadline = nextFrame.value_or (timestampSeconds) + intervalSeconds;
+            // Yield once for pending control pixels, but admit the following frame even under continuous input.
+            if (controlFeedbackPending && !yieldedForFeedback)
+            {
+                yieldedForFeedback = true;
+                return false;
+            }
+            const auto scheduledFrom = yieldedForFeedback ? timestampSeconds : nextFrame.value_or (timestampSeconds);
+            yieldedForFeedback = false;
+            const auto nextDeadline = scheduledFrom + intervalSeconds;
             // Skip missed frames rather than scheduling a burst after a UI stall.
             nextFrame = nextDeadline > timestampSeconds + roundingToleranceSeconds ? nextDeadline : timestampSeconds + intervalSeconds;
             return true;
@@ -44,6 +57,7 @@ namespace openq
             paintSeconds = 0.0;
             lastTimestamp.reset();
             nextFrame.reset();
+            yieldedForFeedback = false;
         }
 
     private:
@@ -53,6 +67,7 @@ namespace openq
             return std::max (1.0 / targetFramesPerSecond, paintSeconds / maximumPaintTimeShare);
         }
         double paintSeconds = 0.0;
+        bool yieldedForFeedback = false;
         std::optional<double> lastTimestamp, nextFrame;
     };
 }

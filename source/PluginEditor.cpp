@@ -1,3 +1,4 @@
+#include "ui/GainTimingTrace.h"
 #include "PluginEditor.h"
 #include "ui/Palette.h"
 #include "ui/UiScale.h"
@@ -18,6 +19,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible (outputMeter);
     (void) processor.getLevelMeters().read();
     responseGraph.onFrameRefresh = [this] { refreshMeters(); };
+    responseGraph.hasPendingControlFeedback = [this] { return bottomBar.hasPendingGainFeedback(); };
     headerBar.onFillChanged = [this] { responseGraph.repaint(); };
     bottomBar.analyzer.onClick = [this] {
         // Hosts may create probe editors before their event loop can drain startup notifications.
@@ -158,6 +160,7 @@ PluginEditor::~PluginEditor()
     responseGraph.onDragStateChanged = nullptr;
     responseGraph.onNodeLayoutChanged = nullptr;
     responseGraph.onFrameRefresh = nullptr;
+    responseGraph.hasPendingControlFeedback = nullptr;
     bandCard.onDragStateChanged = nullptr;
     bandCard.onDelete = nullptr;
     bandCard.onClose = nullptr;
@@ -268,4 +271,25 @@ void PluginEditor::BoundsConstrainer::checkBounds (juce::Rectangle<int>& bounds,
     if (top)
         bounds.setTop (bounds.getBottom() - size.height);
     bounds.setSize (size.width, size.height);
+}
+
+bool PluginEditor::keyPressed (const juce::KeyPress& key)
+{
+    if (key.getKeyCode() != 'T' || !key.getModifiers().isCtrlDown() || !key.getModifiers().isShiftDown())
+        return false;
+    auto& trace = openq::GainTimingTrace::instance();
+    if (!trace.isRecording())
+    {
+        trace.start();
+        juce::Logger::writeToLog ("Open-Q gain timing capture started; Ctrl+Shift+T stops and exports.");
+    }
+    else
+    {
+        trace.stop();
+        const auto file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                              .getChildFile ("Open-Q-gain-timing.csv").getNonexistentSibling();
+        const bool saved = file.replaceWithText (trace.toCsv());
+        juce::Logger::writeToLog (saved ? "Open-Q gain timing saved: " + file.getFullPathName() : "Open-Q gain timing export failed: " + file.getFullPathName());
+    }
+    return true;
 }

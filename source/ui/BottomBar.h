@@ -11,6 +11,7 @@ namespace openq
         ~BottomBar() override;
         void setUiScale (float);
         void messageThreadTick (double seconds);
+        bool hasPendingGainFeedback() const { return inputGain.hasPendingUserFeedback() || outputGain.hasPendingUserFeedback(); }
         void paint (juce::Graphics&) override;
         void resized() override;
         juce::TextButton analyzer { "Analyzer" };

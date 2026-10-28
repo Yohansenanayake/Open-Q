@@ -3,6 +3,7 @@
 // See THIRD_PARTY_NOTICES.md for reference attribution.
 #include "GainControl.h"
 #include "Palette.h"
+#include "GainTimingTrace.h"
 #include <cmath>
 #include <locale>
 #include <sstream>
@@ -11,6 +12,7 @@ namespace openq
     GainControl::GainControl (juce::AudioProcessorValueTreeState& parameters, const char* id)
     {
         setComponentID (id);
+        timingControl = juce::String (id).startsWith ("input") ? 0 : 1;
         setTitle (juce::String (id).startsWith ("input") ? "Input gain" : "Output gain");
         setSliderStyle (juce::Slider::RotaryVerticalDrag);
         setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
@@ -26,7 +28,11 @@ namespace openq
         value.setColour (juce::Label::textColourId, palette::text);
         addAndMakeVisible (value);
         value.onTextChange = [this] { commitText(); };
-        onValueChange = [this] { updateText(); };
+        onValueChange = [this] {
+            updateText();
+            if (changingValueFromUser)
+                pendingUserFeedback = true;
+        };
         attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (parameters, id, *this);
         updateText();
     }
@@ -46,10 +52,15 @@ namespace openq
         input >> std::noskipws >> db;
         if (!input.fail() && input.eof() && std::isfinite (db))
         {
-            juce::Slider::ScopedDragNotification gesture (*this);
-            setValue (db, juce::sendNotificationSync);
+            setValueWithUserGesture (db);
         }
         updateText();
+    }
+    void GainControl::setValueWithUserGesture (double db)
+    {
+        const juce::ScopedValueSetter<bool> userEdit (changingValueFromUser, true);
+        juce::Slider::ScopedDragNotification gesture (*this);
+        setValue (db, juce::sendNotificationSync);
     }
     void GainControl::paint (juce::Graphics& g)
     {
@@ -67,6 +78,14 @@ namespace openq
         value.setBounds (getLocalBounds());
         setMouseDragSensitivity (std::max (1, juce::roundToInt (250.0f * scale)));
     }
+    void GainControl::paintOverChildren (juce::Graphics& g)
+    {
+        if (g.getClipBounds().contains (value.getBounds()) && g.clipRegionIntersects (value.getBounds()))
+        {
+            GainTimingTrace::instance().record ("readout_painted", timingControl, getValue());
+            pendingUserFeedback = false;
+        }
+    }
     void GainControl::mouseDown (const juce::MouseEvent& event)
     {
         const auto scale = static_cast<float> (getHeight()) / 26.0f;
@@ -74,6 +93,7 @@ namespace openq
         dragging = true;
         discardDrag = false;
         lastMessageTick = juce::Time::getMillisecondCounterHiRes() * 0.001;
+        const juce::ScopedValueSetter<bool> userEdit (changingValueFromUser, true);
         juce::Slider::mouseDown (event);
     }
     void GainControl::messageThreadTick (double seconds)
@@ -94,38 +114,52 @@ namespace openq
             dragging = false;
             return;
         }
+        GainTimingTrace::instance().record ("drag_begin", timingControl, getValue(), event.eventTime.toMilliseconds());
+        const juce::ScopedValueSetter<bool> userEdit (changingValueFromUser, true);
         juce::Slider::mouseDrag (event);
+        GainTimingTrace::instance().record ("drag_end", timingControl, getValue());
     }
     void GainControl::mouseUp (const juce::MouseEvent& event)
     {
+        const juce::ScopedValueSetter<bool> userEdit (changingValueFromUser, true);
         juce::Slider::mouseUp (event);
         dragging = false;
         discardDrag = false;
     }
     void GainControl::mouseWheelMove (const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
     {
+        auto& trace = GainTimingTrace::instance();
+        trace.record ("wheel_begin", timingControl, getValue(), event.eventTime.toMilliseconds());
         if (!isEnabled() || !isScrollWheelEnabled() || dragging || event.mods.isAnyMouseButtonDown() || value.isBeingEdited() || wheel.isInertial
             || !std::isfinite (wheel.deltaX) || !std::isfinite (wheel.deltaY))
+        {
+            trace.record ("wheel_rejected_guard", timingControl);
             return;
+        }
         const auto delta = (std::abs (wheel.deltaX) > std::abs (wheel.deltaY) ? -wheel.deltaX : wheel.deltaY) * (wheel.isReversed ? -1.0f : 1.0f);
         const auto timestamp = event.eventTime.toMilliseconds();
         if (juce::exactlyEqual (delta, 0.0f) || timestamp == lastWheelEventMilliseconds)
+        {
+            trace.record ("wheel_rejected_zero_or_duplicate", timingControl);
             return;
+        }
         lastWheelEventMilliseconds = timestamp;
         // Stepped wheel scales vary between JUCE backends; smooth input keeps its fractional magnitude.
         const auto steps = wheel.isSmooth ? static_cast<double> (delta) / smoothWheelUnitsPerStep : std::copysign (1.0, delta);
         const auto db = std::clamp (getValue() + steps * (event.mods.isShiftDown() ? fineWheelStepDb : wheelStepDb), getMinimum(), getMaximum());
         if (juce::exactlyEqual (db, getValue()))
+        {
+            trace.record ("wheel_rejected_clamped", timingControl);
             return;
-        juce::Slider::ScopedDragNotification gesture (*this);
-        setValue (db, juce::sendNotificationSync);
+        }
+        setValueWithUserGesture (db);
+        trace.record ("wheel_end", timingControl, getValue());
     }
     void GainControl::mouseDoubleClick (const juce::MouseEvent& event)
     {
         if (event.mods.isCommandDown())
         {
-            juce::Slider::ScopedDragNotification gesture (*this);
-            setValue (gainLimits::defaultDb, juce::sendNotificationSync);
+            setValueWithUserGesture (gainLimits::defaultDb);
         }
         else
             value.showEditor();
@@ -144,6 +178,7 @@ namespace openq
         if (!isVisible())
         {
             discardDrag = true;
+            pendingUserFeedback = false;
             value.hideEditor (true);
         }
     }

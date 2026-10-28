@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "PluginEditor.h"
+#include "ui/GainTimingTrace.h"
 #include "dsp/GainStage.h"
 #include "dsp/PeakLatch.h"
 #include <catch2/catch_test_macros.hpp>
@@ -392,6 +393,52 @@ TEST_CASE ("Gain wheels ignore inactive invalid inertial dragging and editing in
     }
 }
 
+TEST_CASE ("Only local gain edits request priority until each readout paints", "[gain][ui][feedback]")
+{
+    PluginProcessor processor;
+    PluginEditor editor (processor);
+    auto* bottom = editor.findChildWithID ("editor.bottom");
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor.findChildWithID ("response.graph"));
+    REQUIRE (bottom != nullptr);
+    REQUIRE (graph != nullptr);
+    REQUIRE (graph->hasPendingControlFeedback != nullptr);
+    CHECK_FALSE (graph->hasPendingControlFeedback());
+    for (size_t stage = 0; stage < openq::gainParameterIds.size(); ++stage)
+    {
+        auto* control = dynamic_cast<openq::GainControl*> (bottom->findChildWithID (openq::gainParameterIds[stage]));
+        REQUIRE (control != nullptr);
+        setGain (processor, stage, 1.0f);
+        CHECK_FALSE (control->hasPendingUserFeedback());
+        GestureCounter gestures (*processor.parameters.getParameter (openq::gainParameterIds[stage]));
+        control->mouseWheelMove (click (*control, 0, juce::Time (3000)), { 0.0f, 0.1f, false, false, false });
+        CHECK_THAT (control->getValue(), Catch::Matchers::WithinAbs (1.5, 1e-5));
+        auto* label = dynamic_cast<juce::Label*> (control->findChildWithID ("gain.value"));
+        REQUIRE (label != nullptr);
+        CHECK (label->getText() == "1.5 dB");
+        CHECK (control->hasPendingUserFeedback());
+        CHECK (graph->hasPendingControlFeedback());
+        CHECK (gestures.starts == 1);
+        CHECK (gestures.active == 0);
+        // A border-only paint is not acknowledgement of the new readout.
+        juce::Image partial (juce::Image::ARGB, control->getWidth(), control->getHeight(), true);
+        juce::Graphics g (partial);
+        g.reduceClipRegion ({ 0, 0, 1, 1 });
+        control->paintEntireComponent (g, true);
+        CHECK (control->hasPendingUserFeedback());
+        (void) control->createComponentSnapshot (control->getLocalBounds());
+        CHECK_FALSE (control->hasPendingUserFeedback());
+        CHECK_FALSE (graph->hasPendingControlFeedback());
+        label->setText ("3.0 dB", juce::sendNotificationSync);
+        CHECK (control->hasPendingUserFeedback());
+        (void) control->createComponentSnapshot (control->getLocalBounds());
+        control->mouseDoubleClick (click (*control, juce::ModifierKeys::commandModifier));
+        CHECK (control->hasPendingUserFeedback());
+        control->setVisible (false);
+        CHECK_FALSE (control->hasPendingUserFeedback());
+        control->setVisible (true);
+    }
+}
+
 TEST_CASE ("Gain fields support exact entry reset cancellation and host gestures", "[gain][ui]")
 {
     PluginProcessor processor;
@@ -649,4 +696,57 @@ TEST_CASE ("Stalled gain drags discard catch-up movement and keep host gestures 
         CHECK (gestures.active == 0);
         CHECK (gestures.starts == 3);
     }
+}
+
+TEST_CASE ("Gain timing capture records updates rejections and completed readout paints", "[gain][ui][timing]")
+{
+    PluginProcessor processor;
+    openq::GainControl gain (processor.parameters, openq::gainParameterIds[0]);
+    gain.setBounds (0, 0, 110, 26);
+    auto& trace = openq::GainTimingTrace::instance();
+    trace.start();
+    juce::MouseWheelDetails wheel;
+    wheel.deltaY = 0.2f;
+    const auto event = click (gain, 0);
+    gain.mouseWheelMove (event, wheel);
+    gain.mouseWheelMove (event, wheel);
+    gain.createComponentSnapshot (gain.getLocalBounds());
+    trace.stop();
+    const auto csv = trace.toCsv();
+    const auto begin = csv.indexOf ("wheel_begin");
+    const auto updated = csv.indexOf ("wheel_end,0,0.500000000");
+    const auto rejected = csv.indexOf ("wheel_rejected_zero_or_duplicate");
+    const auto painted = csv.indexOf ("readout_painted,0,0.500000000");
+    CHECK (begin >= 0);
+    CHECK (updated > begin);
+    CHECK (rejected > updated);
+    CHECK (painted > rejected);
+    trace.record ("should_not_record");
+    CHECK_FALSE (trace.toCsv().contains ("should_not_record"));
+
+    trace.start();
+    const auto down = click (gain);
+    gain.mouseDown (down);
+    gain.mouseDrag (down.withNewPosition (juce::Point<float> { 5.0f, -20.0f }));
+    gain.mouseUp (down);
+    trace.stop();
+    CHECK (trace.toCsv().contains ("drag_begin"));
+    CHECK (trace.toCsv().contains ("drag_end"));
+}
+
+TEST_CASE ("Gain timing capture is bounded and restarting clears old samples", "[gain][timing]")
+{
+    auto trace = std::make_unique<openq::GainTimingTrace>();
+    trace->start();
+    for (size_t i = 0; i < openq::GainTimingTrace::capacity + 3; ++i)
+        trace->record ("sample");
+    trace->stop();
+    CHECK (trace->toCsv().contains ("# dropped_events,3"));
+    trace->start();
+    trace->record ("fresh");
+    trace->stop();
+    const auto csv = trace->toCsv();
+    CHECK_FALSE (csv.contains ("sample"));
+    CHECK (csv.contains ("fresh"));
+    CHECK (csv.contains ("# dropped_events,0"));
 }

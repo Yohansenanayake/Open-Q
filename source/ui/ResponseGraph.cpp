@@ -2,6 +2,7 @@
 // Node interaction follows ZLEqualizer (C) 2026 zsliu98, revision 3ce598ee065b3d3847121e76e196feda7ed8f56d.
 // Open-Q adaptation by Yohan Senanayake; see THIRD_PARTY_NOTICES.md.
 #include "ResponseGraph.h"
+#include "GainTimingTrace.h"
 #include "Palette.h"
 #include "ResponseMapping.h"
 
@@ -192,7 +193,7 @@ namespace openq
                 refreshLimiter.reset();
                 vblank = std::make_unique<juce::VBlankAttachment> (this, [this] (double) {
                     // Limit software painting independently of the monitor's refresh rate, as ZLE does.
-                    if (refreshLimiter.tick (juce::Time::getMillisecondCounterHiRes() * 0.001))
+                    if (refreshLimiter.tick (juce::Time::getMillisecondCounterHiRes() * 0.001, hasPendingControlFeedback && hasPendingControlFeedback()))
                     {
                         updateNodes();
                         if (onFrameRefresh)
@@ -445,6 +446,7 @@ namespace openq
     {
         if (paintStartedMilliseconds > 0.0)
         {
+            GainTimingTrace::instance().record ("plot_end");
             const auto completed = juce::Time::getMillisecondCounterHiRes();
             refreshLimiter.recordPaintDuration ((completed - paintStartedMilliseconds) * 0.001, completed * 0.001);
             paintStartedMilliseconds = 0.0;
@@ -458,6 +460,8 @@ namespace openq
         // Opaque editor bars clip the graph edges even during a complete plot redraw.
         const bool repaintingPlot = !plot.isEmpty() && g.getClipBounds().contains (plot) && g.clipRegionIntersects (plot);
         paintStartedMilliseconds = repaintingPlot ? juce::Time::getMillisecondCounterHiRes() : 0.0;
+        if (repaintingPlot)
+            GainTimingTrace::instance().record ("plot_begin");
         worker.pullFrame();
         const auto& frame = worker.getFrame();
         artwork.setDisplay (plot, frame.valid ? frame.response.sampleRate : 0.0, analyzer != nullptr, uiScale);

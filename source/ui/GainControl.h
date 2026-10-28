@@ -9,6 +9,8 @@ namespace openq
         GainControl (juce::AudioProcessorValueTreeState&, const char* id);
         ~GainControl() override;
         void paint (juce::Graphics&) override;
+        void paintOverChildren (juce::Graphics&) override;
+        bool hasPendingUserFeedback() const { return pendingUserFeedback; }
         void resized() override;
         void mouseDown (const juce::MouseEvent&) override;
         void mouseDrag (const juce::MouseEvent&) override;
@@ -22,11 +24,14 @@ namespace openq
     private:
         void updateText();
         void commitText();
+        void setValueWithUserGesture (double);
         static constexpr double maximumMessageGapSeconds = 0.2;
         static constexpr double wheelStepDb = 0.5, fineWheelStepDb = 0.1, smoothWheelUnitsPerStep = 0.1;
         juce::int64 lastWheelEventMilliseconds = -1;
         double lastMessageTick = 0.0;
+        int timingControl = 0;
         bool dragging = false, discardDrag = false;
+        bool changingValueFromUser = false, pendingUserFeedback = false;
         juce::Label value;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
     };

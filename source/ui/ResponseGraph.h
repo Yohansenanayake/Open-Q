@@ -32,6 +32,7 @@ namespace openq
         std::function<void (bool)> onDragStateChanged;
         std::function<void()> onNodeLayoutChanged;
         std::function<void()> onFrameRefresh;
+        std::function<bool()> hasPendingControlFeedback;
 
     private:
         class Node;
