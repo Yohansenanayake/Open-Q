@@ -1,0 +1,20 @@
+title: "Show and tell: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share a workflow, setup, or project involving Open-Q. Only post screenshots, presets, or audio that you have permission to share.
+  - type: textarea
+    id: showcase
+    attributes:
+      label: What would you like to share?
+      description: Describe your setup or workflow and what others might learn from it.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Setup details
+      description: Optionally include Open-Q version, host, operating system, or settings.
+    validations:
+      required: false

@@ -1,0 +1,35 @@
+language: "en-US"
+
+reviews:
+  profile: "chill"
+  high_level_summary: true
+  poem: false
+  auto_approvals:
+    enabled: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "source/dsp/**"
+      instructions: |
+        Review DSP changes for real-time safety: audio-thread processing must not allocate,
+        lock, wait, or perform unbounded work. Check numerical stability, finite-value
+        handling, channel-state independence, and behavior at parameter limits. Preserve
+        pinned coefficient designs and saved-session behavior unless the change explicitly
+        intends otherwise. Check that relevant tests cover the changed behavior.
+    - path: "source/PluginProcessor.*"
+      instructions: |
+        Treat processBlock and processBlockBypassed as real-time audio-thread code. Check
+        for allocations, locks, waits, unbounded work, and incorrect processing order for
+        bypass, trims, metering, and analyzer taps. Preserve host parameter identity and
+        state compatibility unless the change explicitly intends otherwise.
+    - path: "source/ui/**"
+      instructions: |
+        UI components and layout are message-thread owned. Check thread boundaries,
+        repaint and refresh pacing, gesture cleanup, popup lifetime, and behavior during
+        resize or teardown. Do not suggest reading live filter state from the UI.
+    - path: "tests/**"
+      instructions: |
+        Check that tests verify externally observable behavior and meaningful numeric
+        tolerances, cover relevant edge cases, and avoid timing assumptions that can be
+        flaky across platforms.

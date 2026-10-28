@@ -1,0 +1,27 @@
+title: "Idea: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this space to explore an idea before turning it into a feature request. For reproducible defects, please [open a bug report](https://github.com/Yohansenanayake/Open-Q/issues/new?template=bug_report.yml).
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What workflow or problem prompted this idea?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea
+      description: What would you like Open-Q to do?
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Trade-offs and examples
+      description: Consider usability, audio behavior, automation, performance, or compatibility.
+    validations:
+      required: false

@@ -1,0 +1,28 @@
+title: "Question: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the README and existing discussions first. Include your host and plugin format when asking about a problem.
+        If you can reproduce a defect, please [open a bug report](https://github.com/Yohansenanayake/Open-Q/issues/new?template=bug_report.yml).
+  - type: textarea
+    id: question
+    attributes:
+      label: What would you like to know?
+      description: Describe what you are trying to do and where you are stuck.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment, if relevant
+      description: Open-Q version, operating system, DAW/host version, and plugin format.
+    validations:
+      required: false
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: Include any relevant steps, settings, or error messages.
+    validations:
+      required: false

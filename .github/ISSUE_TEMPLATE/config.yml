@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question or get help
+    url: https://github.com/Yohansenanayake/Open-Q/discussions
+    about: Use GitHub Discussions for setup, usage, and troubleshooting questions.
+  - name: Read the project documentation
+    url: https://github.com/Yohansenanayake/Open-Q#readme
+    about: Check the README for plugin behavior, supported formats, and build instructions.

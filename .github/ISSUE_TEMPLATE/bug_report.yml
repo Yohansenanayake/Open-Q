@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a reproducible problem with Open-Q.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening an issue, search existing issues for the same problem.
+        For usage and setup questions, start a [Discussion](https://github.com/Yohansenanayake/Open-Q/discussions).
+  - type: input
+    id: version
+    attributes:
+      label: Open-Q version
+      description: Include the release version or the commit/build you are using.
+      placeholder: "e.g. 0.1.0 or commit hash"
+    validations:
+      required: true
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+      description: Include version and architecture where known.
+      placeholder: "e.g. Ubuntu 24.04, x86_64"
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: DAW or host
+      description: Include the host version and plugin format (VST3, CLAP, Standalone, AU).
+      placeholder: "e.g. REAPER 7.x, VST3"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Give concise, numbered steps. Include relevant band type, frequency, gain, Q, slope, or analyzer settings.
+      placeholder: |
+        1. Load Open-Q in ...
+        2. Set ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: What happened instead? Include any error messages.
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Reproducibility and additional context
+      description: Does this happen every time? Add relevant logs or screenshots. Do not attach private session data or copyrighted audio you do not have permission to share.
+    validations:
+      required: false

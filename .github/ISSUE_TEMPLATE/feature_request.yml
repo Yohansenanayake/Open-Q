@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest an improvement to Open-Q.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For questions or broader design discussion, use a [Discussion](https://github.com/Yohansenanayake/Open-Q/discussions).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and what limitation are you running into?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Mention any current workaround or alternative approach.
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add relevant examples or screenshots. For DSP requests, include the expected response or behavior if possible.
+    validations:
+      required: false
