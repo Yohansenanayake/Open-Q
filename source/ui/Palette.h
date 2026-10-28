@@ -8,6 +8,11 @@ namespace openq::palette
     inline const juce::Colour background { 0xff161b23 };
     inline const juce::Colour bottomBarBackground { 0xff353638 };
     inline const juce::Colour cardBackground { 0xff222b35 };
+    inline constexpr float globalBypassBlend = 0.55f;
+    inline juce::Colour dynamicColour (juce::Colour colour, bool globallyBypassed) noexcept
+    {
+        return globallyBypassed ? colour.interpolatedWith (background, globalBypassBlend).withAlpha (colour.getFloatAlpha()) : colour;
+    }
     inline constexpr float bypassBandAccentBlend = 0.6f;
     inline const juce::Colour meterLow { 0xff4da5ba };
     inline const juce::Colour meterWarning { 0xffe4bc60 };

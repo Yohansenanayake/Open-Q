@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "HeaderBar.h"
 #include "Palette.h"
+#include "BinaryData.h"
 namespace openq
 {
-    HeaderBar::HeaderBar (AnalyzerTransport& source) : transport (source)
+    HeaderBar::HeaderBar (AnalyzerTransport& source, juce::AudioProcessorValueTreeState& parameters)
+        : transport (source), bypass ("Total Bypass", BinaryData::bypass_svg, BinaryData::bypass_svgSize)
     {
         setComponentID ("editor.header");
         setLookAndFeel (&lookAndFeel);
@@ -11,6 +13,11 @@ namespace openq
         for (auto* button : { &pre, &post, &fill })
             addAndMakeVisible (*button);
         addAndMakeVisible (inspect);
+        bypass.setComponentID (bypassParameterId);
+        bypass.setClickingTogglesState (true);
+        bypass.setTooltip ("Total bypass, including Input and Output gain. Lit means bypassed; the EQ keeps processing warm.");
+        addAndMakeVisible (bypass);
+        bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (parameters, bypassParameterId, bypass);
         pre.setComponentID ("analyzer.pre");
         post.setComponentID ("analyzer.post");
         fill.setComponentID ("analyzer.fill");
@@ -65,6 +72,8 @@ namespace openq
     {
         const auto scaled = [this] (int v) { return juce::roundToInt (static_cast<float> (v) * lookAndFeel.scale); };
         auto area = getLocalBounds().reduced (scaled (12), scaled (6));
+        bypass.setBounds (area.removeFromRight (scaled (28)).withSizeKeepingCentre (scaled (26), scaled (26)));
+        area.removeFromRight (scaled (8));
         inspect.setBounds (area.removeFromRight (scaled (130)).reduced (0, scaled (6)));
         area.removeFromRight (scaled (8));
         post.setBounds (area.removeFromRight (scaled (66)));

@@ -36,7 +36,7 @@ namespace openq
             const auto circle = getLocalBounds().toFloat().reduced (4.0f * graph.uiScale);
             g.setColour (palette::background);
             g.fillEllipse (circle);
-            g.setColour (palette::bandColour (band));
+            g.setColour (palette::dynamicColour (palette::bandColour (band), graph.globallyBypassed));
             g.drawEllipse (circle, graph.selectedBand == band || highlighted || hasKeyboardFocus (true) ? 2.5f * graph.uiScale : graph.uiScale);
             g.setFont (14.0f * graph.uiScale);
             g.drawText (getButtonText(), getLocalBounds(), juce::Justification::centred);
@@ -114,6 +114,14 @@ namespace openq
             addChildComponent (*nodes[band]);
         }
         startTimer (visibilityPollMilliseconds);
+    }
+
+    void ResponseGraph::setGloballyBypassed (bool bypassed)
+    {
+        if (globallyBypassed == bypassed)
+            return;
+        globallyBypassed = bypassed;
+        repaint();
     }
 
     ResponseGraph::~ResponseGraph()
@@ -484,7 +492,7 @@ namespace openq
                 const auto translation = juce::AffineTransform::translation (static_cast<float> (plot.getX()), static_cast<float> (plot.getY()));
                 for (size_t trace = 0; trace < spectrum.fills.size(); ++trace)
                 {
-                    const auto color = trace == 0 ? palette::analyzerPre : palette::analyzerPost;
+                    const auto color = palette::dynamicColour (trace == 0 ? palette::analyzerPre : palette::analyzerPost, globallyBypassed);
                     if (analyzerTransport->getFillEnabled())
                     {
                         g.setColour (color.withAlpha (0.16f));
@@ -516,10 +524,10 @@ namespace openq
             if (selectedBand < bandCount && bandParameters[selectedBand].load().status != BandStatus::Off
                 && frame.settings[selectedBand] == bandParameters[selectedBand].load())
             {
-                g.setColour (palette::bandColour (selectedBand).withAlpha (frame.settings[selectedBand].status == BandStatus::Bypass ? 0.2f : 0.45f));
+                g.setColour (palette::dynamicColour (palette::bandColour (selectedBand), globallyBypassed).withAlpha (frame.settings[selectedBand].status == BandStatus::Bypass ? 0.2f : 0.45f));
                 g.strokePath (frame.bandCurves[selectedBand], juce::PathStrokeType (uiScale), juce::AffineTransform::translation (static_cast<float> (plot.getX()), static_cast<float> (plot.getY())));
             }
-            g.setColour (palette::text);
+            g.setColour (palette::dynamicColour (palette::text, globallyBypassed));
             g.strokePath (frame.curve, juce::PathStrokeType (2.0f * uiScale), juce::AffineTransform::translation (static_cast<float> (plot.getX()), static_cast<float> (plot.getY())));
         }
     }

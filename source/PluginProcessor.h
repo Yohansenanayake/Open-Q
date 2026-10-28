@@ -22,6 +22,10 @@ public:
     using juce::AudioProcessor::processBlock;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
+    using juce::AudioProcessor::processBlockBypassed;
+    void processBlockBypassed (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    juce::AudioProcessorParameter* getBypassParameter() const override;
+
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override;
 
@@ -59,6 +63,11 @@ public:
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    void processAudio (juce::AudioBuffer<float>&, bool forceBypass);
+    static constexpr int bypassChunkSamples = 256;
+    std::array<std::array<float, bypassChunkSamples>, 2> drySamples {};
+    juce::SmoothedValue<double, juce::ValueSmoothingTypes::Linear> bypassWet { 1.0 };
+    std::atomic<float>* bypassParameter = nullptr;
     std::array<openq::BandParameterPointers, openq::bandCount> bandParameters;
     std::array<openq::BandFilter, openq::bandCount> bands;
     std::atomic<double> responseSampleRate { 0.0 };

@@ -11,6 +11,7 @@ namespace openq
         void resized() override;
         void update (const std::array<float, 2>& peaks, int channels, double elapsedSeconds);
         void reset();
+        void setGloballyBypassed (bool);
         void mouseDown (const juce::MouseEvent&) override;
         static constexpr int preferredWidth = 52;
 
@@ -32,7 +33,8 @@ namespace openq
         std::array<Channel, 2> levels;
         std::array<juce::Rectangle<float>, 2> bars;
         juce::Rectangle<int> meterArea, readoutArea;
-        juce::ColourGradient gradient;
+        juce::ColourGradient gradient, bypassGradient;
+        bool globallyBypassed = false;
         juce::String name, readout { "-inf" };
         int channelCount = 2;
         double readoutElapsed = 0.0;

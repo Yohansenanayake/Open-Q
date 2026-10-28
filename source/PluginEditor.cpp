@@ -4,7 +4,7 @@
 #include "ui/UiScale.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), analyzerTransport (p.getAnalyzerTransport()), headerBar (p.getAnalyzerTransport()), bottomBar (p.parameters), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
+    : AudioProcessorEditor (&p), processor (p), analyzerTransport (p.getAnalyzerTransport()), headerBar (p.getAnalyzerTransport(), p.parameters), bottomBar (p.parameters), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
 {
     setLookAndFeel (&lookAndFeel);
     // Panel dismissal returns focus here instead of selecting a graph node.
@@ -17,8 +17,14 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     outputMeter.setComponentID ("meter.output");
     addAndMakeVisible (inputMeter);
     addAndMakeVisible (outputMeter);
-    (void) processor.getLevelMeters().read();
-    responseGraph.onFrameRefresh = [this] { refreshMeters(); };
+    responseGraph.onFrameRefresh = [this, bypass = p.parameters.getRawParameterValue (openq::bypassParameterId)] {
+        const bool bypassed = bypass->load (std::memory_order_relaxed) > 0.5f;
+        responseGraph.setGloballyBypassed (bypassed);
+        inputMeter.setGloballyBypassed (bypassed);
+        outputMeter.setGloballyBypassed (bypassed);
+        refreshMeters();
+    };
+    responseGraph.onFrameRefresh();
     responseGraph.hasPendingControlFeedback = [this] { return bottomBar.hasPendingGainFeedback(); };
     headerBar.onFillChanged = [this] { responseGraph.repaint(); };
     bottomBar.analyzer.onClick = [this] {

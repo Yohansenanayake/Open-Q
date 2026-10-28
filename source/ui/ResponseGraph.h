@@ -24,6 +24,7 @@ namespace openq
         size_t getSelectedBand() const { return selectedBand; }
         void cancelDrag();
         void setUiScale (float scale);
+        void setGloballyBypassed (bool);
         void setContentInsets (juce::BorderSize<int>);
         void deleteSelectedBand();
         void setAnalyzerTransport (AnalyzerTransport& transport);
@@ -38,6 +39,7 @@ namespace openq
         class Node;
         class ResponseLayer;
         void paintResponse (juce::Graphics&);
+        bool globallyBypassed = false;
         float uiScale = 1.0f;
         juce::BorderSize<int> contentInsets;
         GraphArtwork artwork;

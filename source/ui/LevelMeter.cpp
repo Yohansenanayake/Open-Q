@@ -58,12 +58,12 @@ namespace openq
                 const auto bar = meter.bars[index];
                 if (meter.levels[index].peak > minimumDb)
                 {
-                    g.setGradientFill (meter.gradient);
+                    g.setGradientFill (meter.globallyBypassed ? meter.bypassGradient : meter.gradient);
                     g.fillRect (bar.withTop (meter.yOf (meter.levels[index].peak)));
                 }
                 if (meter.levels[index].tick > minimumDb)
                 {
-                    g.setColour (meter.levels[index].tick > 0.0f ? palette::meterOver : palette::text);
+                    g.setColour (palette::dynamicColour (meter.levels[index].tick > 0.0f ? palette::meterOver : palette::text, meter.globallyBypassed));
                     g.fillRect (bar.withY (meter.yOf (meter.levels[index].tick)).withHeight (2.0f * meter.scale));
                 }
             }
@@ -81,7 +81,9 @@ namespace openq
         setOpaque (true);
         setTitle (label + " sample peak meter");
         artwork = std::make_unique<Artwork> (*this);
+        artwork->setComponentID ("meter.artwork");
         display = std::make_unique<Display> (*this);
+        display->setComponentID ("meter.display");
         addAndMakeVisible (*artwork);
         addAndMakeVisible (*display);
     }
@@ -106,10 +108,20 @@ namespace openq
         gradient = juce::ColourGradient (palette::meterLow, 0.0f, static_cast<float> (meterArea.getBottom()), palette::meterOver, 0.0f, static_cast<float> (meterArea.getY()), false);
         gradient.addColour ((-6.0f - minimumDb) / (maximumDb - minimumDb), palette::meterWarning);
         gradient.addColour ((0.0f - minimumDb) / (maximumDb - minimumDb), palette::meterOver);
+        bypassGradient = gradient;
+        for (int i = 0; i < bypassGradient.getNumColours(); ++i)
+            bypassGradient.setColour (i, palette::dynamicColour (gradient.getColour (i), true));
         artwork->setBounds (getLocalBounds());
         artwork->repaint();
         display->setBounds (getLocalBounds());
         display->repaint();
+    }
+    void LevelMeter::setGloballyBypassed (bool bypassed)
+    {
+        if (globallyBypassed == bypassed)
+            return;
+        globallyBypassed = bypassed;
+        display->repaint (meterArea.expanded (0, juce::roundToInt (2.0f * scale)));
     }
     void LevelMeter::reset()
     {

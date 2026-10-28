@@ -25,6 +25,7 @@ PluginProcessor::PluginProcessor()
               ),
       parameters (*this, nullptr, "OpenQState", createParameterLayout())
 {
+    bypassParameter = parameters.getRawParameterValue (openq::bypassParameterId);
     inputGainParameter = parameters.getRawParameterValue (openq::gainParameterIds[0]);
     outputGainParameter = parameters.getRawParameterValue (openq::gainParameterIds[1]);
     parameters.state.setProperty ("schemaVersion", stateSchemaVersion, nullptr);
@@ -111,6 +112,8 @@ void PluginProcessor::changeProgramName (int index, const juce::String& newName)
 void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     juce::ignoreUnused (samplesPerBlock);
+    bypassWet.reset (sampleRate, openq::bypassFadeSeconds);
+    bypassWet.setCurrentAndTargetValue (bypassParameter->load (std::memory_order_relaxed) > 0.5f ? 0.0 : 1.0);
     for (size_t i = 0; i < bands.size(); ++i)
     {
         const auto target = bandParameters[i].load();
@@ -155,25 +158,65 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     juce::MidiBuffer& midiMessages)
 {
     juce::ignoreUnused (midiMessages);
+    processAudio (buffer, false);
+}
+
+void PluginProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    juce::ignoreUnused (midiMessages);
+    processAudio (buffer, true);
+}
+
+juce::AudioProcessorParameter* PluginProcessor::getBypassParameter() const
+{
+    return parameters.getParameter (openq::bypassParameterId);
+}
+
+void PluginProcessor::processAudio (juce::AudioBuffer<float>& buffer, bool forceBypass)
+{
     juce::ScopedNoDenormals noDenormals;
     const auto inputs = std::min (getTotalNumInputChannels(), buffer.getNumChannels());
     for (int channel = inputs; channel < buffer.getNumChannels(); ++channel)
         buffer.clear (channel, 0, buffer.getNumSamples());
 
+    bypassWet.setTargetValue (forceBypass || bypassParameter->load (std::memory_order_relaxed) > 0.5f ? 0.0 : 1.0);
     inputGain.setGainDb (inputGainParameter->load (std::memory_order_relaxed));
     outputGain.setGainDb (outputGainParameter->load (std::memory_order_relaxed));
-    const auto inputPeaks = inputGain.process (buffer, inputs);
-    analyzer.beginBlock (buffer, inputs);
     for (size_t i = 0; i < bands.size(); ++i)
     {
         const auto target = bandParameters[i].load();
         bands[i].setParameters (target.frequency, target.gain, target.q, target.status, target.type, target.slope);
-        bands[i].process (buffer, inputs);
     }
-    const auto outputPeaks = outputGain.process (buffer, inputs);
-    levelMeters.publish (inputPeaks, outputPeaks);
-    // Keep these output taps after the eventual global warm-bypass output mix.
-    analyzer.endBlock (buffer);
+    // Fixed chunks also handle blocks larger than the host's preparation hint without allocation.
+    for (int offset = 0; offset < buffer.getNumSamples(); offset += bypassChunkSamples)
+    {
+        const auto samples = std::min (bypassChunkSamples, buffer.getNumSamples() - offset);
+        juce::AudioBuffer<float> chunk (buffer.getArrayOfWritePointers(), inputs, offset, samples);
+        for (int channel = 0; channel < inputs; ++channel)
+            std::copy_n (chunk.getReadPointer (channel), samples, drySamples[static_cast<size_t> (channel)].begin());
+        const auto inputPeaks = inputGain.process (chunk, inputs);
+        analyzer.beginBlock (chunk, inputs);
+        for (auto& band : bands)
+            band.process (chunk, inputs);
+        (void) outputGain.process (chunk, inputs);
+        std::array<float, 2> outputPeaks {};
+        for (int sample = 0; sample < samples; ++sample)
+        {
+            const auto wet = bypassWet.getNextValue();
+            for (int channel = 0; channel < inputs; ++channel)
+            {
+                const auto index = static_cast<size_t> (channel);
+                const auto dry = drySamples[index][static_cast<size_t> (sample)];
+                // Explicit endpoints preserve bit-exact active and dry audio.
+                const auto output = wet <= 0.0 ? dry : wet >= 1.0 ? chunk.getSample (channel, sample)
+                    : static_cast<float> ((1.0 - wet) * dry + wet * chunk.getSample (channel, sample));
+                chunk.setSample (channel, sample, output);
+                outputPeaks[index] = std::max (outputPeaks[index], std::abs (output));
+            }
+        }
+        levelMeters.publish (inputPeaks, outputPeaks);
+        analyzer.endBlock (chunk);
+    }
 }
 
 //==============================================================================
@@ -234,10 +277,10 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         input >> std::noskipws >> value;
         const auto range = ranged->getNormalisableRange();
         if (input.fail() || !input.eof() || !std::isfinite (value) || value < range.start || value > range.end
-            || (dynamic_cast<juce::AudioParameterChoice*> (parameter) != nullptr && !juce::exactlyEqual (value, std::round (value))))
+            || ((dynamic_cast<juce::AudioParameterChoice*> (parameter) != nullptr || dynamic_cast<juce::AudioParameterBool*> (parameter) != nullptr) && !juce::exactlyEqual (value, std::round (value))))
             return;
     }
-    // Optional display preferences belong to schema 6 and are not host automation parameters.
+    // Display preferences are not host automation parameters.
     double settings = 3.0;
     std::istringstream settingsInput (state.getProperty ("analyzerSettings", 3).toString().trim().toStdString());
     settingsInput.imbue (std::locale::classic());
@@ -311,5 +354,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParam
     const juce::NormalisableRange<float> trimRange (openq::gainLimits::minimumDb, openq::gainLimits::maximumDb);
     layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::gainParameterIds[0], 1 }, "Input Gain", trimRange, openq::gainLimits::defaultDb));
     layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { openq::gainParameterIds[1], 1 }, "Output Gain", trimRange, openq::gainLimits::defaultDb));
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { openq::bypassParameterId, 1 }, "Total Bypass", false));
     return layout;
 }

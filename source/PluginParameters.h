@@ -3,9 +3,11 @@
 #include "BandParameters.h"
 namespace openq
 {
-    inline constexpr int stateSchemaVersion = 6;
+    inline constexpr int stateSchemaVersion = 7;
     inline constexpr std::array<const char*, 2> gainParameterIds { "input.gain", "output.gain" };
-    inline constexpr size_t parameterCount = bandCount * bandParameterNames.size() + gainParameterIds.size();
+    inline constexpr auto bypassParameterId = "global.bypass";
+    inline constexpr double bypassFadeSeconds = 0.02;
+    inline constexpr size_t parameterCount = bandCount * bandParameterNames.size() + gainParameterIds.size() + 1;
     namespace gainLimits
     {
         inline constexpr float minimumDb = -30.0f, maximumDb = 30.0f, defaultDb = 0.0f;
