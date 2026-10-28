@@ -22,6 +22,11 @@ namespace openq
         std::function<void()> onClose;
 
     private:
+        struct OpaqueInterior final : juce::Component
+        {
+            OpaqueInterior();
+            void paint (juce::Graphics&) override;
+        } interior;
         juce::AudioProcessorValueTreeState& parameters;
         juce::Colour bandColour;
         void updateControlEnablement();

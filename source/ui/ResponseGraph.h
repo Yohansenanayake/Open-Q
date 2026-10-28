@@ -30,7 +30,6 @@ namespace openq
         void setAnalyzerTransport (AnalyzerTransport& transport);
         juce::Rectangle<int> getSelectedNodeBounds() const;
         std::function<void (size_t)> onBandSelected;
-        std::function<void (bool)> onDragStateChanged;
         std::function<void()> onNodeLayoutChanged;
         std::function<void()> onFrameRefresh;
         std::function<bool()> hasPendingControlFeedback;

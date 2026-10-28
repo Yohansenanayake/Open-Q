@@ -3,13 +3,28 @@
 #include "BinaryData.h"
 #include "Palette.h"
 #include "PanelDrawing.h"
+#include "ControlDrawing.h"
+#include "GainTimingTrace.h"
 
 namespace openq
 {
+    BandControlCard::OpaqueInterior::OpaqueInterior()
+    {
+        setOpaque (true);
+        setInterceptsMouseClicks (false, false);
+    }
+
+    void BandControlCard::OpaqueInterior::paint (juce::Graphics& g)
+    {
+        g.fillAll (palette::cardBackground);
+    }
+
     BandControlCard::BandControlCard (juce::AudioProcessorValueTreeState& state) : parameters (state), bandColour (palette::accent)
     {
         setComponentID ("band.card");
         setTitle ("Selected band controls");
+        // Stop control-only damage from rasterizing the spectrum behind the rounded card.
+        addAndMakeVisible (interior);
         title.setJustificationType (juce::Justification::centredLeft);
         addAndMakeVisible (title);
         typeSelector.setComponentID ("band.type");
@@ -45,7 +60,7 @@ namespace openq
         {
             auto& control = controls[i];
             control.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-            control.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 74, 22);
+            control.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 74, controlStyle::height);
             control.setTitle (names[i]);
             control.setComponentID ("band." + names[i].toLowerCase());
             control.onDragStart = [this] { if (onDragStateChanged) onDragStateChanged (true); };
@@ -66,6 +81,9 @@ namespace openq
 
     void BandControlCard::setBand (size_t band)
     {
+        GainTimingTrace::instance().record ("card_bind_begin", static_cast<int> (band));
+        if (GainTimingTrace::instance().isRecording())
+            GainTimingTrace::instance().record ("card_bind_message_thread", static_cast<int> (band), juce::MessageManager::getInstance()->isThisTheMessageThread() ? 1.0 : 0.0);
         typeSelector.closePopup();
         slopeSelector.closePopup();
         for (auto& control : controls)
@@ -77,7 +95,10 @@ namespace openq
             attachment.reset();
         setVisible (band < bandCount);
         if (band >= bandCount)
+        {
+            GainTimingTrace::instance().record ("card_bind_hidden", static_cast<int> (band));
             return;
+        }
         const auto colour = palette::bandColour (band);
         powerButton.setAccentColour (colour);
         title.setText ("Band " + juce::String (band + 1), juce::dontSendNotification);
@@ -93,7 +114,7 @@ namespace openq
             controls[i].textFromValueFunction = nullptr;
             controls[i].setNumDecimalPlacesToDisplay (i == 0 ? 1 : 2);
         }
-        statusAttachment = std::make_unique<juce::ParameterAttachment> (*parameters.getParameter (bandParameterId (band, "status")), [this, colour] (float value) {
+        statusAttachment = std::make_unique<juce::ParameterAttachment> (*parameters.getParameter (bandParameterId (band, "status")), [this, colour, band] (float value) {
             const auto bandStatus = static_cast<BandStatus> (juce::roundToInt (value));
             bandColour = bandStatus == BandStatus::On ? colour : colour.interpolatedWith (palette::cardBackground, palette::bypassBandAccentBlend);
             for (auto& control : controls)
@@ -104,9 +125,15 @@ namespace openq
             repaint();
             powerButton.setToggleState (bandStatus == BandStatus::On, juce::dontSendNotification);
             powerButton.setEnabled (bandStatus != BandStatus::Off);
-            powerButton.setTooltip (bandStatus == BandStatus::On ? "Bypass this band" : bandStatus == BandStatus::Bypass ? "Enable this band" : "Band deleted. Double-click empty graph space to create a band."); }, nullptr);
+            powerButton.setTooltip (bandStatus == BandStatus::On ? "Bypass this band" : bandStatus == BandStatus::Bypass ? "Enable this band" : "Band deleted. Double-click empty graph space to create a band.");
+            GainTimingTrace::instance().record ("card_colours_ready", static_cast<int> (band), static_cast<double> (bandColour.getARGB()));
+            GainTimingTrace::instance().record ("card_status_ready", static_cast<int> (band), value); }, nullptr);
         statusAttachment->sendInitialUpdate();
         updateControlEnablement();
+        if (GainTimingTrace::instance().isRecording())
+            for (size_t i = 0; i < controls.size(); ++i)
+                GainTimingTrace::instance().record (i == 0 ? "card_frequency_bound" : i == 1 ? "card_gain_bound" : "card_q_bound", static_cast<int> (band), controls[i].getValue());
+        GainTimingTrace::instance().record ("card_bind_end", static_cast<int> (band));
     }
 
     void BandControlCard::updateControlEnablement()
@@ -148,9 +175,10 @@ namespace openq
     void BandControlCard::resized()
     {
         const auto scale = static_cast<float> (getWidth()) / static_cast<float> (preferredWidth);
+        interior.setBounds (getLocalBounds().reduced (static_cast<int> (std::ceil (panelCornerRadius * scale))));
         const auto scaled = [scale] (int value) { return juce::roundToInt (static_cast<float> (value) * scale); };
         auto area = getLocalBounds().reduced (scaled (10));
-        const int buttonSize = scaled (26), spacing = scaled (6);
+        const int buttonSize = scaled (controlStyle::height), spacing = scaled (6);
         title.setFont (juce::FontOptions (15.0f * scale));
         auto header = area.removeFromTop (buttonSize);
         closeButton.setBounds (header.removeFromRight (buttonSize));
@@ -174,7 +202,7 @@ namespace openq
             auto column = area.removeFromLeft (width).reduced (scaled (3), 0);
             labels[i].setFont (juce::FontOptions (15.0f * scale));
             labels[i].setBounds (column.removeFromTop (scaled (18)));
-            controls[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, scaled (74), scaled (22));
+            controls[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, scaled (74), scaled (controlStyle::height));
             controls[i].setMouseDragSensitivity (scaled (250));
             controls[i].setBounds (column);
         }

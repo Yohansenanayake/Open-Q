@@ -508,6 +508,55 @@ TEST_CASE ("Continuous unpainted gain feedback cannot starve animation and norma
     CHECK (frames <= 30);
 }
 
+TEST_CASE ("Band card control repaints do not redraw the spectrum underneath", "[response][ui][card][regression]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    class PaintProbe final : public openq::ResponseGraph
+    {
+    public:
+        using ResponseGraph::ResponseGraph;
+        void paint (juce::Graphics& g) override
+        {
+            ++paints;
+            ResponseGraph::paint (g);
+        }
+        int paints = 0;
+    } graph (processor.parameters, processor.getResponseSampleRate());
+    openq::UiLookAndFeel lookAndFeel;
+    juce::Component root;
+    root.setLookAndFeel (&lookAndFeel);
+    root.setSize (openq::EditorSize::defaultWidth, openq::EditorSize::defaultHeight);
+    root.addAndMakeVisible (graph);
+    graph.setBounds (root.getLocalBounds());
+    openq::BandControlCard card (processor.parameters);
+    root.addAndMakeVisible (card);
+    card.setBounds (180, 200, openq::BandControlCard::preferredWidth, openq::BandControlCard::preferredHeight);
+    card.setBand (0);
+    for (const auto* id : { "band.power", "band.delete", "band.close", "band.type", "band.slope", "band.frequency", "band.gain", "band.q" })
+    {
+        CAPTURE (id);
+        auto* control = card.findChildWithID (id);
+        REQUIRE (control != nullptr);
+        juce::Image image (juce::Image::ARGB, root.getWidth(), root.getHeight(), true);
+        juce::Graphics g (image);
+        g.reduceClipRegion (root.getLocalArea (control, control->getLocalBounds()));
+        graph.paints = 0;
+        root.paintEntireComponent (g, false);
+        CHECK (graph.paints == 0);
+    }
+    juce::Image image (juce::Image::ARGB, root.getWidth(), root.getHeight(), true);
+    juce::Graphics g (image);
+    root.paintEntireComponent (g, false);
+    CHECK (image.getPixelAt (card.getX(), card.getY()) == openq::palette::background);
+    card.setVisible (false);
+    g.reduceClipRegion (card.getBounds());
+    graph.paints = 0;
+    root.paintEntireComponent (g, false);
+    CHECK (graph.paints == 1);
+    root.setLookAndFeel (nullptr);
+}
+
 TEST_CASE ("Opaque editor bars do not disable expensive plot paint pacing", "[response][ui][pacing][regression]")
 {
     if (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() == nullptr)

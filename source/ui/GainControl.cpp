@@ -68,7 +68,7 @@ namespace openq
         const bool active = isMouseOver (true) || hasKeyboardFocus (true) || isMouseButtonDown (true);
         g.setColour (palette::background);
         g.fillRoundedRectangle (getLocalBounds().toFloat(), 3.0f * scale);
-        g.setColour (active ? palette::accent : palette::inactiveIcon);
+        g.setColour (active ? palette::controlHoverBorder : palette::inactiveIcon);
         g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f * scale), 3.0f * scale, scale);
     }
     void GainControl::resized()

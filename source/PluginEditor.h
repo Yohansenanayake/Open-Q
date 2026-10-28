@@ -15,7 +15,7 @@ namespace openq::presets
 #include "ui/ResponseGraph.h"
 
 //==============================================================================
-class PluginEditor : public juce::AudioProcessorEditor, private juce::Timer
+class PluginEditor : public juce::AudioProcessorEditor, private juce::Timer, private juce::ComponentListener
 {
 public:
     explicit PluginEditor (PluginProcessor&);
@@ -28,6 +28,9 @@ public:
     bool keyPressed (const juce::KeyPress&) override;
 
 private:
+    void setTimingListeners (bool);
+    void componentPainted (juce::Component&, const juce::ComponentPaintDiagnostics&) override;
+    bool timingListenersAttached = false;
     void selectBand (size_t band);
     void positionBandCard (bool resizing = false);
     void positionAnalyzerPanel();

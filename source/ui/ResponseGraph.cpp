@@ -29,7 +29,7 @@ namespace openq
             setToggleable (true);
             onClick = [this] { graph.chooseBand (band); };
             setMouseCursor (juce::MouseCursor::DraggingHandCursor);
-            setTooltip ("Drag frequency/gain; Shift for fine edits; Ctrl/Command locks frequency with left drag or gain with right drag. Wheel edits Q. Alt-click bypasses; Alt-right-double-click or Delete removes. Space toggles bypass.");
+            setTooltip ("Drag frequency/gain; Shift for fine edits; Ctrl/Command locks frequency with left drag or gain with right drag. Wheel edits Q, including during a drag. Alt-click bypasses; Alt-right-double-click or Delete removes. Space toggles bypass.");
         }
         void paintButton (juce::Graphics& g, bool highlighted, bool) override
         {
@@ -43,6 +43,9 @@ namespace openq
         }
         void mouseDown (const juce::MouseEvent& event) override
         {
+            if (GainTimingTrace::instance().isRecording())
+                GainTimingTrace::instance().record ("node_down", static_cast<int> (band),
+                    static_cast<double> (juce::Time::currentTimeMillis() - event.eventTime.toMilliseconds()), event.eventTime.toMilliseconds());
             graph.chooseBand (band);
             if (getPeer() != nullptr)
                 grabKeyboardFocus();
@@ -52,14 +55,24 @@ namespace openq
                 graph.beginDrag (band, event.getEventRelativeTo (&graph));
         }
         void mouseDrag (const juce::MouseEvent& event) override { graph.drag (event.getEventRelativeTo (&graph)); }
-        void mouseUp (const juce::MouseEvent&) override { graph.cancelDrag(); }
+        void mouseUp (const juce::MouseEvent& event) override
+        {
+            if (GainTimingTrace::instance().isRecording())
+                GainTimingTrace::instance().record ("node_up", static_cast<int> (band),
+                    static_cast<double> (juce::Time::currentTimeMillis() - event.eventTime.toMilliseconds()), event.eventTime.toMilliseconds());
+            graph.cancelDrag();
+        }
         void mouseDoubleClick (const juce::MouseEvent& event) override
         {
             if (event.mods.isAltDown() && event.mods.isRightButtonDown())
                 graph.deleteBand (band);
         }
         void mouseWheelMove (const juce::MouseEvent& event, const juce::MouseWheelDetails& details) override { graph.wheel (band, details, event.mods); }
-        void focusGained (FocusChangeType) override { graph.chooseBand (band); }
+        void focusGained (FocusChangeType type) override
+        {
+            GainTimingTrace::instance().record ("node_focus", static_cast<int> (band), static_cast<double> (type));
+            graph.chooseBand (band);
+        }
         void focusLost (FocusChangeType) override
         {
             if (graph.draggedBand == band)
@@ -334,8 +347,6 @@ namespace openq
         for (auto* parameter : dragParameters)
             if (parameter != nullptr)
                 parameter->beginChangeGesture();
-        if (onDragStateChanged)
-            onDragStateChanged (true);
     }
 
     void ResponseGraph::cancelDrag()
@@ -349,8 +360,6 @@ namespace openq
             if (previous != nullptr)
                 previous->endChangeGesture();
         }
-        if (onDragStateChanged)
-            onDragStateChanged (false);
     }
 
     void ResponseGraph::drag (const juce::MouseEvent& event)
@@ -409,7 +418,7 @@ namespace openq
 
     void ResponseGraph::wheel (size_t band, const juce::MouseWheelDetails& details, const juce::ModifierKeys& modifiers)
     {
-        if (draggedBand < bandCount || bandParameters[band].load().status == BandStatus::Off)
+        if (bandParameters[band].load().status == BandStatus::Off)
             return;
         const auto delta = !juce::exactlyEqual (details.deltaY, 0.0f) ? details.deltaY : details.deltaX;
         if (!std::isfinite (delta) || juce::exactlyEqual (delta, 0.0f))
@@ -430,6 +439,9 @@ namespace openq
 
     void ResponseGraph::mouseDoubleClick (const juce::MouseEvent& event)
     {
+        if (GainTimingTrace::instance().isRecording())
+            GainTimingTrace::instance().record ("graph_double_click", -1,
+                static_cast<double> (juce::Time::currentTimeMillis() - event.eventTime.toMilliseconds()), event.eventTime.toMilliseconds());
         updateNodes();
         if (!event.mods.isLeftButtonDown() || maximumFrequency() <= bandLimits::minimumFrequencyHz || !plotBounds().contains (event.position.roundToInt()))
             return;

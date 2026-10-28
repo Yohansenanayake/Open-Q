@@ -12,6 +12,11 @@ namespace openq
         juce::Font getComboBoxFont (juce::ComboBox&) override;
         juce::Font getPopupMenuFont() override;
         juce::Label* createSliderTextBox (juce::Slider&) override;
+        void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&, bool, bool) override;
+        void drawDrawableButton (juce::Graphics&, juce::DrawableButton&, bool, bool) override;
+        void drawLabel (juce::Graphics&, juce::Label&) override;
+        void fillTextEditorBackground (juce::Graphics&, int, int, juce::TextEditor&) override;
+        void drawTextEditorOutline (juce::Graphics&, int, int, juce::TextEditor&) override;
         void drawRotarySlider (juce::Graphics&, int, int, int, int, float, float, float, juce::Slider&) override;
         void drawToggleButton (juce::Graphics&, juce::ToggleButton&, bool, bool) override;
     };

@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "ui/UiScale.h"
 #include "ui/Palette.h"
+#include "ui/GainTimingTrace.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
@@ -129,6 +130,120 @@ TEST_CASE ("Band slot colours stay distinct and follow selection without changin
     CHECK (gain->findColour (juce::Slider::thumbColourId) == dimmed);
 }
 
+TEST_CASE ("Node presses keep card accents visible and pointer access unchanged", "[nodes][ui][card][regression]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    Gestures gestures (processor);
+    PluginEditor editor (processor);
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor.findChildWithID ("response.graph"));
+    auto* card = dynamic_cast<openq::BandControlCard*> (editor.findChildWithID ("band.card"));
+    REQUIRE (graph != nullptr);
+    REQUIRE (card != nullptr);
+    auto& selected = node (*graph, 0);
+    selected.mouseDown (mouse (selected, selected.getLocalBounds().getCentre().toFloat()));
+    CHECK (card->isEnabled());
+    auto* frequency = card->findChildWithID ("band.frequency");
+    auto* power = card->findChildWithID ("band.power");
+    REQUIRE (frequency != nullptr);
+    REQUIRE (power != nullptr);
+    CHECK (frequency->isEnabled());
+    CHECK (power->isEnabled());
+    CHECK (card->getComponentAt (card->getLocalPoint (frequency, frequency->getLocalBounds().getCentre())) != nullptr);
+    const auto countAccent = [] (const juce::Image& image) {
+        int count = 0;
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+                if (image.getPixelAt (x, y) == openq::palette::bandColour (0))
+                    ++count;
+        return count;
+    };
+    const auto pressedPixels = countAccent (frequency->createComponentSnapshot (frequency->getLocalBounds()));
+    selected.mouseUp (mouse (selected, selected.getLocalBounds().getCentre().toFloat()));
+    const auto releasedPixels = countAccent (frequency->createComponentSnapshot (frequency->getLocalBounds()));
+    CHECK (pressedPixels > 0);
+    CHECK (pressedPixels == releasedPixels);
+    CHECK (card->getComponentAt (card->getLocalPoint (frequency, frequency->getLocalBounds().getCentre())) != nullptr);
+    selected.mouseDown (mouse (selected, selected.getLocalBounds().getCentre().toFloat()));
+    selected.focusLost (juce::Component::focusChangedDirectly);
+    CHECK (card->getComponentAt (card->getLocalPoint (frequency, frequency->getLocalBounds().getCentre())) != nullptr);
+    CHECK (gestures.active() == 0);
+    set (processor, 0, "type", static_cast<float> (openq::FilterType::LowCut));
+    card->setBand (0);
+    auto* gain = card->findChildWithID ("band.gain");
+    REQUIRE (gain != nullptr);
+    CHECK_FALSE (gain->isEnabled());
+    selected.mouseDown (mouse (selected, selected.getLocalBounds().getCentre().toFloat()));
+    CHECK (frequency->isEnabled());
+    CHECK_FALSE (gain->isEnabled());
+    selected.mouseUp (mouse (selected, selected.getLocalBounds().getCentre().toFloat()));
+    CHECK_FALSE (gain->isEnabled());
+}
+
+TEST_CASE ("Card timing capture links node input binding colours and completed paints without playback", "[nodes][ui][timing]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    PluginEditor editor (processor);
+    auto* graph = dynamic_cast<openq::ResponseGraph*> (editor.findChildWithID ("response.graph"));
+    REQUIRE (graph != nullptr);
+    auto& trace = openq::GainTimingTrace::instance();
+    const auto shortcut = juce::KeyPress ('T', juce::ModifierKeys::ctrlModifier | juce::ModifierKeys::shiftModifier, 0);
+    REQUIRE (editor.keyPressed (shortcut));
+    REQUIRE (trace.isRecording());
+    auto& first = node (*graph, 0);
+    first.mouseDown (mouse (first, first.getLocalBounds().getCentre().toFloat()));
+    first.mouseUp (mouse (first, first.getLocalBounds().getCentre().toFloat()));
+    editor.createComponentSnapshot (editor.getLocalBounds());
+    graph->mouseDoubleClick (mouse (*graph, { 500.0f, 200.0f }));
+    REQUIRE (graph->getSelectedBand() == 1);
+    graph->mouseDown (mouse (*graph, { 500.0f, 200.0f }));
+    auto& second = node (*graph, 1);
+    second.mouseDown (mouse (second, second.getLocalBounds().getCentre().toFloat()));
+    second.mouseUp (mouse (second, second.getLocalBounds().getCentre().toFloat()));
+    editor.createComponentSnapshot (editor.getLocalBounds());
+    trace.stop();
+    const auto csv = trace.toCsv();
+    CHECK (csv.contains ("graph_double_click"));
+    CHECK (csv.contains ("editor_paint"));
+    CHECK (csv.contains ("analyzer_button_paint"));
+    for (int band : { 0, 1 })
+    {
+        const auto suffix = "," + juce::String (band) + ",";
+        const auto begin = csv.indexOf ("card_bind_begin" + suffix);
+        const auto ready = csv.indexOf ("card_colours_ready" + suffix);
+        const auto end = csv.indexOf ("card_bind_end" + suffix);
+        CHECK (csv.contains ("node_down" + suffix));
+        CHECK (csv.contains ("node_up" + suffix));
+        REQUIRE (begin >= 0);
+        CHECK (ready > begin);
+        CHECK (end > ready);
+        for (const auto* event : { "card_frequency_paint", "card_gain_paint", "card_q_paint", "card_power_paint", "card_paint_cycle" })
+            CHECK (csv.indexOf (juce::String (event) + suffix) > end);
+        const auto position = csv.indexOf ("card_frequency_colour" + suffix);
+        REQUIRE (position >= 0);
+        const auto fields = juce::StringArray::fromTokens (csv.substring (position).upToFirstOccurrenceOf ("\n", false, false), ",", "");
+        REQUIRE (fields.size() == 4);
+        CHECK_THAT (fields[2].getDoubleValue(), Catch::Matchers::WithinAbs (static_cast<double> (openq::palette::bandColour (static_cast<size_t> (band)).getARGB()), 1e-6));
+        for (const auto* name : { "frequency", "gain", "q" })
+        {
+            const auto prefix = "card_" + juce::String (name);
+            const auto boundPosition = csv.indexOf (prefix + "_bound" + suffix);
+            const auto paintedPosition = csv.indexOf (prefix + "_value" + suffix);
+            REQUIRE (boundPosition >= 0);
+            REQUIRE (paintedPosition > boundPosition);
+            const auto bound = juce::StringArray::fromTokens (csv.substring (boundPosition).upToFirstOccurrenceOf ("\n", false, false), ",", "");
+            const auto painted = juce::StringArray::fromTokens (csv.substring (paintedPosition).upToFirstOccurrenceOf ("\n", false, false), ",", "");
+            REQUIRE (bound.size() == 4);
+            REQUIRE (painted.size() == 4);
+            CHECK_THAT (painted[2].getDoubleValue(), Catch::Matchers::WithinAbs (bound[2].getDoubleValue(), 1e-8));
+        }
+    }
+    editor.createComponentSnapshot (editor.getLocalBounds());
+    CHECK (trace.toCsv() == csv);
+    CHECK (csv.contains ("# dropped_events,0"));
+}
+
 TEST_CASE ("Nodes reflect status, automation, recall and low sample rates without editing settings", "[nodes][ui]")
 {
     PluginProcessor processor;
@@ -183,9 +298,12 @@ TEST_CASE ("Dragging a newly selected overlapping node edits only its band and b
     CHECK (graph->getSelectedBand() == 1);
     CHECK (graph->getComponentAt (center.roundToInt()) == &second);
     CHECK (gestures.active() == 2);
-    auto* frequency = dynamic_cast<juce::Slider*> (editor->findChildWithID ("band.card")->findChildWithID ("band.frequency"));
+    auto* card = editor->findChildWithID ("band.card");
+    REQUIRE (card != nullptr);
+    auto* frequency = dynamic_cast<juce::Slider*> (card->findChildWithID ("band.frequency"));
     REQUIRE (frequency != nullptr);
-    CHECK_FALSE (frequency->isEnabled());
+    CHECK (frequency->isEnabled());
+    CHECK (card->getComponentAt (card->getLocalPoint (frequency, frequency->getLocalBounds().getCentre())) != nullptr);
     second.mouseDrag (mouse (second, second.getLocalPoint (graph, center + juce::Point<float> (63.0f, -20.0f))));
     CHECK (settings (processor, 1).frequency > 1000.0);
     CHECK (settings (processor, 1).gain > 0.0);
@@ -193,11 +311,52 @@ TEST_CASE ("Dragging a newly selected overlapping node edits only its band and b
     second.mouseUp (mouse (second, { 12.0f, 12.0f }, 0));
     CHECK (gestures.active() == 0);
     CHECK (frequency->isEnabled());
+    CHECK (card->getComponentAt (card->getLocalPoint (frequency, frequency->getLocalBounds().getCentre())) != nullptr);
     CHECK_THAT (frequency->getValue(), Catch::Matchers::WithinAbs (settings (processor, 1).frequency, 0.001));
     second.mouseDown (mouse (second, { 12.0f, 12.0f }));
     REQUIRE (gestures.active() == 2);
     editor.reset();
     CHECK (gestures.active() == 0);
+}
+
+TEST_CASE ("Node wheel Q edits remain independent while frequency and gain gestures are active", "[nodes][ui][gestures]")
+{
+    PluginProcessor processor;
+    processor.prepareToPlay (48000.0, 64);
+    Gestures gestures (processor);
+    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    graph.setSize (720, 400);
+    for (auto type : { openq::FilterType::Bell, openq::FilterType::LowCut })
+    {
+        set (processor, 0, "type", static_cast<float> (type));
+        set (processor, 0, "frequency", 1000.0f);
+        set (processor, 0, "gain", 0.0f);
+        set (processor, 0, "q", static_cast<float> (openq::bandLimits::defaultQ));
+        graph.setSelectedBand (0);
+        auto& first = node (graph, 0);
+        const auto center = first.getBounds().getCentre().toFloat();
+        first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+        const auto activeDragParameters = openq::isCut (type) ? 1 : 2;
+        REQUIRE (gestures.active() == activeDragParameters);
+        first.mouseDrag (mouse (first, first.getLocalPoint (&graph, center + juce::Point<float> (50.0f, -10.0f))));
+        const auto before = settings (processor, 0);
+        juce::MouseWheelDetails wheel {};
+        wheel.deltaY = 0.25f;
+        first.mouseWheelMove (mouse (first, { 12.0f, 12.0f }), wheel);
+        const auto after = settings (processor, 0);
+        CHECK (after.q > before.q);
+        CHECK_THAT (after.frequency, Catch::Matchers::WithinAbs (before.frequency, 1e-6));
+        CHECK_THAT (after.gain, Catch::Matchers::WithinAbs (before.gain, 1e-6));
+        CHECK (gestures.active() == activeDragParameters);
+        auto* q = processor.parameters.getParameter (openq::bandParameterId (0, "q"));
+        REQUIRE (q != nullptr);
+        CHECK (gestures.depth[static_cast<size_t> (q->getParameterIndex())] == 0);
+        first.mouseDrag (mouse (first, first.getLocalPoint (&graph, center + juce::Point<float> (80.0f, -10.0f))));
+        CHECK (settings (processor, 0).frequency > after.frequency);
+        CHECK_THAT (settings (processor, 0).q, Catch::Matchers::WithinAbs (after.q, 1e-6));
+        first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+        CHECK (gestures.active() == 0);
+    }
 }
 
 TEST_CASE ("Node axis locks, fine motion, wheel and boundaries use display mappings", "[nodes][ui]")
@@ -693,13 +852,18 @@ TEST_CASE ("Cut nodes stay at zero dB ignore vertical edits and disable first-or
         CHECK (gestures.active() == 0);
         set (processor, 0, "slope", static_cast<float> (openq::CutSlope::Db6));
         const auto qBefore = settings (processor, 0).q;
+        first.mouseDown (mouse (first, { 12.0f, 12.0f }));
+        CHECK (gestures.active() == 1);
         juce::MouseWheelDetails wheel {};
         wheel.deltaY = 0.25f;
-        first.mouseWheelMove (mouse (first, { 12.0f, 12.0f }, 0), wheel);
+        first.mouseWheelMove (mouse (first, { 12.0f, 12.0f }), wheel);
         CHECK_THAT (settings (processor, 0).q, Catch::Matchers::WithinAbs (qBefore, 0.0));
         set (processor, 0, "slope", static_cast<float> (openq::CutSlope::Db18));
-        first.mouseWheelMove (mouse (first, { 12.0f, 12.0f }, 0), wheel);
+        first.mouseWheelMove (mouse (first, { 12.0f, 12.0f }), wheel);
         CHECK (settings (processor, 0).q > qBefore);
+        CHECK (gestures.active() == 1);
+        first.mouseUp (mouse (first, { 12.0f, 12.0f }, 0));
+        CHECK (gestures.active() == 0);
     }
 }
 

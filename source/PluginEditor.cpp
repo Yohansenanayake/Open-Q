@@ -63,9 +63,6 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addChildComponent (bandCard);
     responseGraph.onBandSelected = [this] (size_t band) { selectBand (band); };
     responseGraph.onNodeLayoutChanged = [this] { positionBandCard(); };
-    responseGraph.onDragStateChanged = [this] (bool dragging) {
-        bandCard.setEnabled (!dragging);
-    };
     bandCard.onDragStateChanged = [this] (bool dragging) {
         knobDragging = dragging;
         responseGraph.setEnabled (!dragging);
@@ -134,9 +131,11 @@ void PluginEditor::selectBand (size_t band)
 {
     if (band > openq::bandCount)
         return;
+    openq::GainTimingTrace::instance().record ("card_select_begin", static_cast<int> (band));
     responseGraph.setSelectedBand (band);
     bandCard.setBand (band);
     positionBandCard();
+    openq::GainTimingTrace::instance().record ("card_select_end", static_cast<int> (band));
 }
 
 void PluginEditor::positionBandCard (bool resizing)
@@ -192,6 +191,7 @@ void PluginEditor::positionBandCard (bool resizing)
 
 PluginEditor::~PluginEditor()
 {
+    setTimingListeners (false);
     if (presetBrowser != nullptr)
         presetBrowser->onClose = nullptr;
     headerBar.onPresets = nullptr;
@@ -199,7 +199,6 @@ PluginEditor::~PluginEditor()
     stopTimer();
     responseGraph.cancelDrag();
     responseGraph.onBandSelected = nullptr;
-    responseGraph.onDragStateChanged = nullptr;
     responseGraph.onNodeLayoutChanged = nullptr;
     responseGraph.onFrameRefresh = nullptr;
     responseGraph.hasPendingControlFeedback = nullptr;
@@ -337,6 +336,75 @@ void PluginEditor::BoundsConstrainer::checkBounds (juce::Rectangle<int>& bounds,
     bounds.setSize (size.width, size.height);
 }
 
+void PluginEditor::setTimingListeners (bool enabled)
+{
+    if (timingListenersAttached == enabled)
+        return;
+    const std::array<juce::Component*, 10> targets {
+        this, &responseGraph, &bandCard, &bottomBar.analyzer,
+        bandCard.findChildWithID ("band.power"), bandCard.findChildWithID ("band.frequency"),
+        bandCard.findChildWithID ("band.gain"), bandCard.findChildWithID ("band.q"),
+        bandCard.findChildWithID ("band.type"), bandCard.findChildWithID ("band.slope")
+    };
+    for (auto* target : targets)
+        if (target != nullptr)
+        {
+            if (enabled)
+                target->addComponentListener (this);
+            else
+                target->removeComponentListener (this);
+        }
+    timingListenersAttached = enabled;
+}
+
+void PluginEditor::componentPainted (juce::Component& component, const juce::ComponentPaintDiagnostics& diagnostics)
+{
+    auto& trace = openq::GainTimingTrace::instance();
+    if (!trace.isRecording())
+        return;
+    using Milliseconds = std::chrono::duration<double, std::milli>;
+    const auto total = diagnostics.totalPaintDuration.get<Milliseconds>();
+    const auto own = diagnostics.paintDuration.get<Milliseconds>();
+    const auto band = static_cast<int> (responseGraph.getSelectedBand());
+    if (&component == this)
+        trace.record ("editor_paint", -1, total);
+    else if (&component == &responseGraph)
+    {
+        trace.record ("graph_paint", -1, total);
+        if (!diagnostics.paintDuration.isEmpty())
+            trace.record ("graph_own_paint", -1, own);
+    }
+    else if (&component == &bandCard)
+    {
+        trace.record ("card_paint_cycle", band, total);
+        if (!diagnostics.paintDuration.isEmpty())
+            trace.record ("card_background_paint", band, own);
+    }
+    else if (!diagnostics.paintDuration.isEmpty() || diagnostics.readFromCache)
+    {
+        const auto id = component.getComponentID();
+        if (id == "band.power")
+        {
+            trace.record ("card_power_paint", band, total);
+            const auto& button = static_cast<juce::DrawableButton&> (component);
+            trace.record ("card_power_on", band, button.getToggleState() ? 1.0 : 0.0);
+            trace.record ("card_power_enabled", band, button.isEnabled() ? 1.0 : 0.0);
+            trace.record ("card_power_hover", band, button.isMouseOver (true) ? 1.0 : 0.0);
+        }
+        else if (id == "band.frequency" || id == "band.gain" || id == "band.q")
+        {
+            const auto& slider = static_cast<juce::Slider&> (component);
+            trace.record (id == "band.frequency" ? "card_frequency_paint" : id == "band.gain" ? "card_gain_paint" : "card_q_paint", band, own);
+            trace.record (id == "band.frequency" ? "card_frequency_colour" : id == "band.gain" ? "card_gain_colour" : "card_q_colour", band,
+                static_cast<double> (slider.findColour (juce::Slider::rotarySliderFillColourId).getARGB()));
+            trace.record (id == "band.frequency" ? "card_frequency_value" : id == "band.gain" ? "card_gain_value" : "card_q_value", band, slider.getValue());
+            trace.record (id == "band.frequency" ? "card_frequency_enabled" : id == "band.gain" ? "card_gain_enabled" : "card_q_enabled", band, slider.isEnabled() ? 1.0 : 0.0);
+        }
+        else
+            trace.record (id == "band.type" ? "card_type_paint" : id == "band.slope" ? "card_slope_paint" : "analyzer_button_paint", band, total);
+    }
+}
+
 bool PluginEditor::keyPressed (const juce::KeyPress& key)
 {
     if (key.getKeyCode() != 'T' || !key.getModifiers().isCtrlDown() || !key.getModifiers().isShiftDown())
@@ -345,10 +413,13 @@ bool PluginEditor::keyPressed (const juce::KeyPress& key)
     if (!trace.isRecording())
     {
         trace.start();
-        juce::Logger::writeToLog ("Open-Q gain timing capture started; Ctrl+Shift+T stops and exports.");
+        setTimingListeners (true);
+        trace.record ("card_capture_started");
+        juce::Logger::writeToLog ("Open-Q UI/gain timing capture started; Ctrl+Shift+T stops and exports.");
     }
     else
     {
+        setTimingListeners (false);
         trace.stop();
         const auto file = juce::File::getSpecialLocation (juce::File::tempDirectory)
                               .getChildFile ("Open-Q-gain-timing.csv")

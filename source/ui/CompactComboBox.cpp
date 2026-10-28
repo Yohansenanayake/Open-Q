@@ -3,6 +3,7 @@
 // source/gui/combobox/compact_combobox/; Open-Q implementation by Yohan Senanayake.
 #include "CompactComboBox.h"
 #include "Palette.h"
+#include "ControlDrawing.h"
 
 namespace openq
 {
@@ -34,12 +35,9 @@ namespace openq
     void CompactComboBox::LookAndFeel::drawComboBox (juce::Graphics& g, int width, int height, bool buttonDown, int, int, int, int, juce::ComboBox& box)
     {
         const auto s = static_cast<float> (height) / 26.0f;
-        const auto bounds = juce::Rectangle<float> (static_cast<float> (width), static_cast<float> (height)).reduced (0.5f * s);
-        const bool highlighted = box.isEnabled() && (buttonDown || box.isPopupActive() || box.isMouseOver (true) || box.hasKeyboardFocus (true));
-        g.setColour (highlighted ? palette::controlHover : palette::background);
-        g.fillRoundedRectangle (bounds, 4.0f * s);
-        g.setColour (highlighted ? palette::accent : palette::controlBorder);
-        g.drawRoundedRectangle (bounds, 4.0f * s, s);
+        drawControlBackground (g, { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) }, s,
+            box.isEnabled(), buttonDown || box.isMouseOver (true), box.hasKeyboardFocus (true) || box.isPopupActive());
+        g.setColour (palette::secondaryText.withMultipliedAlpha (box.isEnabled() ? 1.0f : controlStyle::disabledOpacity));
         const auto centreY = static_cast<float> (height) * 0.5f;
         const auto arrowX = static_cast<float> (width) - 10.0f * s;
         juce::Path arrow;
@@ -52,7 +50,7 @@ namespace openq
     void CompactComboBox::LookAndFeel::positionComboBoxText (juce::ComboBox& box, juce::Label& label)
     {
         const auto s = static_cast<float> (box.getHeight()) / 26.0f;
-        label.setBounds (juce::Rectangle<float> (3.0f * s, s, std::max (0.0f, static_cast<float> (box.getWidth()) - 16.0f * s), std::max (0.0f, static_cast<float> (box.getHeight()) - 2.0f * s)).toNearestInt());
+        label.setBounds (juce::Rectangle<float> (controlStyle::textPadding * s, s, std::max (0.0f, static_cast<float> (box.getWidth()) - (controlStyle::textPadding + 13.0f) * s), std::max (0.0f, static_cast<float> (box.getHeight()) - 2.0f * s)).toNearestInt());
         label.setFont (getComboBoxFont (box));
         label.setJustificationType (juce::Justification::centredLeft);
     }

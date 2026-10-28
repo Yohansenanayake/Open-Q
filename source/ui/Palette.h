@@ -16,6 +16,7 @@ namespace openq::palette
     inline const juce::Colour controlBackground { 0xff2b2c32 };
     inline const juce::Colour controlBorder { 0xff505159 };
     inline const juce::Colour controlHover { 0xff383940 };
+    inline const juce::Colour controlHoverBorder { 0xff85858f };
     inline const juce::Colour knobTrack { 0xff131417 };
     inline const juce::Colour selection { 0xff48415f };
     inline constexpr float globalBypassBlend = 0.55f;
