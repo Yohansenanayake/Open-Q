@@ -247,11 +247,16 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 
 void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
+    (void) restoreStateInformation (data, sizeInBytes);
+}
+
+bool PluginProcessor::restoreStateInformation (const void* data, int sizeInBytes)
+{
     if (data == nullptr || sizeInBytes <= 0)
-        return;
+        return false;
     const auto xml = getXmlFromBinary (data, sizeInBytes);
     if (xml == nullptr || !xml->hasTagName ("OpenQState"))
-        return;
+        return false;
     const auto state = juce::ValueTree::fromXml (*xml);
     if (state.getProperty ("schemaVersion").toString() != juce::String (stateSchemaVersion)
         || state.getProperty ("bandCount").toString() != juce::String (static_cast<int> (openq::bandCount))
@@ -259,16 +264,16 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         || state.getProperty ("shelfDesign").toString() != shelfDesignRevision
         || state.getProperty ("cutDesign").toString() != cutDesignRevision
         || state.getNumChildren() != static_cast<int> (openq::parameterCount))
-        return;
+        return false;
 
     for (auto* parameter : getParameters())
     {
         auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter);
         if (ranged == nullptr)
-            return;
+            return false;
         const auto child = state.getChildWithProperty ("id", ranged->getParameterID());
         if (!child.isValid() || !child.hasType ("PARAM"))
-            return;
+            return false;
         const auto text = child.getProperty ("value").toString().trim().toStdString();
         double value = 0.0;
         // Xcode 15's libc++ does not provide floating-point std::from_chars.
@@ -278,7 +283,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         const auto range = ranged->getNormalisableRange();
         if (input.fail() || !input.eof() || !std::isfinite (value) || value < range.start || value > range.end
             || ((dynamic_cast<juce::AudioParameterChoice*> (parameter) != nullptr || dynamic_cast<juce::AudioParameterBool*> (parameter) != nullptr) && !juce::exactlyEqual (value, std::round (value))))
-            return;
+            return false;
     }
     // Display preferences are not host automation parameters.
     double settings = 3.0;
@@ -287,23 +292,23 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     settingsInput >> std::noskipws >> settings;
     if (settingsInput.fail() || !settingsInput.eof() || !std::isfinite (settings)
         || settings < 0.0 || settings > 7.0 || !juce::exactlyEqual (settings, std::round (settings)))
-        return;
+        return false;
     double configuration = openq::AnalyzerSettings {}.configuration();
     std::istringstream configurationInput (state.getProperty ("analyzerConfiguration", static_cast<int> (configuration)).toString().trim().toStdString());
     configurationInput.imbue (std::locale::classic());
     configurationInput >> std::noskipws >> configuration;
     if (configurationInput.fail() || !configurationInput.eof() || !std::isfinite (configuration)
         || configuration < 0.0 || configuration > openq::AnalyzerSettings::configurationMask || !juce::exactlyEqual (configuration, std::round (configuration)))
-        return;
+        return false;
     const auto analyzerSettings = openq::AnalyzerSettings::decode ((static_cast<unsigned> (configuration) << 3) | static_cast<unsigned> (settings));
     if (!analyzerSettings.isValid())
-        return;
+        return false;
     const auto fill = state.getProperty ("analyzerFill", 1).toString().trim();
     if (fill != "0" && fill != "1")
-        return;
+        return false;
     openq::EditorSize size;
     if (state.hasProperty ("editorWidth") != state.hasProperty ("editorHeight"))
-        return;
+        return false;
     if (state.hasProperty ("editorWidth"))
     {
         auto readDimension = [&] (const char* name, int& result) {
@@ -313,12 +318,13 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             return !input.fail() && input.eof();
         };
         if (!readDimension ("editorWidth", size.width) || !readDimension ("editorHeight", size.height) || !size.isValid())
-            return;
+            return false;
     }
     parameters.replaceState (state);
     analyzer.setSettings (analyzerSettings);
     analyzer.setFillEnabled (fill == "1");
     setEditorSize (size);
+    return true;
 }
 
 //==============================================================================

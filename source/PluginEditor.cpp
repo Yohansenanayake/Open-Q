@@ -1,5 +1,6 @@
-#include "ui/GainTimingTrace.h"
 #include "PluginEditor.h"
+#include "ui/presets/preset_browser.hpp"
+#include "ui/GainTimingTrace.h"
 #include "ui/Palette.h"
 #include "ui/UiScale.h"
 
@@ -23,6 +24,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         inputMeter.setGloballyBypassed (bypassed);
         outputMeter.setGloballyBypassed (bypassed);
         refreshMeters();
+        if (presetBrowser != nullptr && presetBrowser->isVisible())
+            presetBrowser->flushPendingScroll();
     };
     responseGraph.onFrameRefresh();
     responseGraph.hasPendingControlFeedback = [this] { return bottomBar.hasPendingGainFeedback(); };
@@ -51,6 +54,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
             analyzerPanel->setVisible (bottomBar.analyzer.getToggleState());
             if (analyzerPanel != nullptr && analyzerPanel->isVisible())
                 analyzerPanel->toFront (false);
+            if (presetBrowser != nullptr && presetBrowser->isVisible())
+                presetBrowser->toFront (false);
         }
     };
     timerCallback();
@@ -70,6 +75,27 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     bandCard.onDelete = [this] { responseGraph.deleteSelectedBand(); };
     bandCard.onClose = [this] { selectBand (openq::bandCount); };
     selectBand (openq::bandCount);
+    headerBar.onPresets = [this] {
+        if (!headerBar.presets.getToggleState())
+        {
+            closePresetBrowser();
+            return;
+        }
+        responseGraph.cancelDrag();
+        if (analyzerPanel != nullptr && analyzerPanel->isVisible() && analyzerPanel->onClose)
+            analyzerPanel->onClose();
+        responseGraph.setSelectedBand (openq::bandCount);
+        bandCard.setBand (openq::bandCount);
+        if (presetBrowser == nullptr)
+        {
+            presetBrowser = std::make_unique<openq::presets::PresetBrowser> (processor);
+            addChildComponent (*presetBrowser);
+            presetBrowser->onClose = [this] { closePresetBrowser(); };
+        }
+        positionPresetBrowser();
+        presetBrowser->setVisible (true);
+        presetBrowser->toFront (false);
+    };
     headerBar.onInspect = [this] {
         if (!inspector)
         {
@@ -89,6 +115,10 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 void PluginEditor::mouseDown (const juce::MouseEvent& event)
 {
     auto* target = event.originalComponent;
+    if (presetBrowser != nullptr && presetBrowser->isVisible() && target != nullptr
+        && target != presetBrowser.get() && !presetBrowser->isParentOf (target)
+        && target != &headerBar.presets && !headerBar.presets.isParentOf (target))
+        closePresetBrowser();
     if (analyzerPanel == nullptr || !analyzerPanel->isVisible() || target == nullptr || target == analyzerPanel.get() || analyzerPanel->isParentOf (target)
         || target == &bottomBar.analyzer || bottomBar.analyzer.isParentOf (target))
         return;
@@ -116,8 +146,7 @@ void PluginEditor::positionBandCard (bool resizing)
     const auto scaled = [this] (int value) { return juce::roundToInt (static_cast<float> (value) * uiScale); };
     const int cardAreaHorizontalInset = scaled (18), cardAreaVerticalInset = scaled (44);
     const int nodeClearance = scaled (12);
-    const auto graph = responseGraph.getBounds().withLeft (inputMeter.getRight()).withRight (outputMeter.getX()).withTop (headerBar.getBottom()).withBottom (bottomBar.getY())
-                           .reduced (cardAreaHorizontalInset, cardAreaVerticalInset);
+    const auto graph = responseGraph.getBounds().withLeft (inputMeter.getRight()).withRight (outputMeter.getX()).withTop (headerBar.getBottom()).withBottom (bottomBar.getY()).reduced (cardAreaHorizontalInset, cardAreaVerticalInset);
     const auto node = responseGraph.getSelectedNodeBounds().translated (responseGraph.getX(), responseGraph.getY()).expanded (nodeClearance);
     const int width = scaled (openq::BandControlCard::preferredWidth), height = scaled (openq::BandControlCard::preferredHeight);
     const std::array<juce::Rectangle<int>, 5> positions {
@@ -137,6 +166,8 @@ void PluginEditor::positionBandCard (bool resizing)
             bandCard.toFront (false);
             if (analyzerPanel != nullptr && analyzerPanel->isVisible())
                 analyzerPanel->toFront (false);
+            if (presetBrowser != nullptr && presetBrowser->isVisible())
+                presetBrowser->toFront (false);
             return;
         }
         if (graph.contains (position))
@@ -155,10 +186,15 @@ void PluginEditor::positionBandCard (bool resizing)
     bandCard.toFront (false);
     if (analyzerPanel != nullptr && analyzerPanel->isVisible())
         analyzerPanel->toFront (false);
+    if (presetBrowser != nullptr && presetBrowser->isVisible())
+        presetBrowser->toFront (false);
 }
 
 PluginEditor::~PluginEditor()
 {
+    if (presetBrowser != nullptr)
+        presetBrowser->onClose = nullptr;
+    headerBar.onPresets = nullptr;
     removeMouseListener (this);
     stopTimer();
     responseGraph.cancelDrag();
@@ -255,7 +291,26 @@ void PluginEditor::resized()
     responseGraph.setBounds (area);
     positionBandCard (true);
     positionAnalyzerPanel();
+    positionPresetBrowser();
     processor.setEditorSize (size);
+}
+
+void PluginEditor::closePresetBrowser()
+{
+    if (getPeer() != nullptr)
+        grabKeyboardFocus();
+    if (presetBrowser != nullptr)
+        presetBrowser->setVisible (false);
+    headerBar.presets.setToggleState (false, juce::dontSendNotification);
+}
+
+void PluginEditor::positionPresetBrowser()
+{
+    if (presetBrowser == nullptr)
+        return;
+    presetBrowser->setUiScale (uiScale);
+    auto area = getLocalBounds().withTop (headerBar.getBottom()).withBottom (bottomBar.getY()).reduced (12);
+    presetBrowser->setBounds (area.withSizeKeepingCentre (std::min (area.getWidth(), presetBrowser->getIdealWidth()), std::min (area.getHeight(), presetBrowser->getIdealHeight())));
 }
 
 void PluginEditor::positionAnalyzerPanel()
@@ -267,7 +322,9 @@ void PluginEditor::positionAnalyzerPanel()
     const auto anchor = getLocalArea (&bottomBar.analyzer, bottomBar.analyzer.getLocalBounds());
     const auto panelHeight = scaled (openq::AnalyzerPanel::preferredHeight);
     analyzerPanel->setBounds (std::clamp (anchor.getX(), scaled (12), getWidth() - panelWidth - scaled (12)),
-        std::max (headerBar.getBottom(), anchor.getY() - scaled (8) - panelHeight), panelWidth, panelHeight);
+        std::max (headerBar.getBottom(), anchor.getY() - scaled (8) - panelHeight),
+        panelWidth,
+        panelHeight);
 }
 
 void PluginEditor::BoundsConstrainer::checkBounds (juce::Rectangle<int>& bounds, const juce::Rectangle<int>& previous, const juce::Rectangle<int>& limits, bool top, bool left, bool bottom, bool right)
@@ -293,7 +350,8 @@ bool PluginEditor::keyPressed (const juce::KeyPress& key)
     {
         trace.stop();
         const auto file = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                              .getChildFile ("Open-Q-gain-timing.csv").getNonexistentSibling();
+                              .getChildFile ("Open-Q-gain-timing.csv")
+                              .getNonexistentSibling();
         const bool saved = file.replaceWithText (trace.toCsv());
         juce::Logger::writeToLog (saved ? "Open-Q gain timing saved: " + file.getFullPathName() : "Open-Q gain timing export failed: " + file.getFullPathName());
     }

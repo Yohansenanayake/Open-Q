@@ -15,7 +15,8 @@ namespace openq
         void setUiScale (float);
         void paint (juce::Graphics&) override;
         void resized() override;
-        std::function<void()> onInspect, onFillChanged;
+        std::function<void()> onInspect, onFillChanged, onPresets;
+        juce::TextButton presets { "Presets" };
         static constexpr int preferredHeight = 52;
 
     private:

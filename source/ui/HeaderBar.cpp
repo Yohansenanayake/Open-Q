@@ -13,6 +13,10 @@ namespace openq
         for (auto* button : { &pre, &post, &fill })
             addAndMakeVisible (*button);
         addAndMakeVisible (inspect);
+        presets.setComponentID ("preset.open");
+        presets.setClickingTogglesState (true);
+        presets.onClick = [this] { if (onPresets) onPresets(); };
+        addAndMakeVisible (presets);
         bypass.setComponentID (bypassParameterId);
         bypass.setClickingTogglesState (true);
         bypass.setTooltip ("Total bypass, including Input and Output gain. Lit means bypassed; the EQ keeps processing warm.");
@@ -66,7 +70,7 @@ namespace openq
         g.fillRect (getLocalBounds());
         g.setColour (palette::text);
         g.setFont (24.0f * lookAndFeel.scale);
-        g.drawText ("Open-Q", getLocalBounds().reduced (juce::roundToInt (12.0f * lookAndFeel.scale), 0).withWidth (juce::roundToInt (180.0f * lookAndFeel.scale)), juce::Justification::centredLeft);
+        g.drawText ("Open-Q", getLocalBounds().reduced (juce::roundToInt (12.0f * lookAndFeel.scale), 0).withWidth (juce::roundToInt (120.0f * lookAndFeel.scale)), juce::Justification::centredLeft);
     }
     void HeaderBar::resized()
     {
@@ -79,5 +83,7 @@ namespace openq
         post.setBounds (area.removeFromRight (scaled (66)));
         pre.setBounds (area.removeFromRight (scaled (60)));
         fill.setBounds (area.removeFromRight (scaled (60)));
+        area.removeFromLeft (scaled (120));
+        presets.setBounds (area.removeFromLeft (scaled (110)).reduced (0, scaled (6)));
     }
 }
