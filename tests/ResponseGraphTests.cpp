@@ -551,16 +551,21 @@ TEST_CASE ("Band card control repaints do not redraw the spectrum underneath", "
     const auto cardImage = card.createComponentSnapshot (card.getLocalBounds());
     CHECK (cardImage.getPixelAt (0, 0).isTransparent());
     juce::Image image (juce::Image::ARGB, root.getWidth(), root.getHeight(), true);
-    juce::Graphics g (image);
-    root.paintEntireComponent (g, false);
+    {
+        juce::Graphics g (image);
+        root.paintEntireComponent (g, false);
+    } // Finish the native drawing context before reading its pixels.
     const auto corner = card.getPosition();
     INFO ("Card corner=" << image.getPixelAt (corner.x, corner.y).toDisplayString (true).toStdString()
                          << ", rendered background=" << background.getPixelAt (corner.x, corner.y).toDisplayString (true).toStdString());
     CHECK (image.getPixelAt (corner.x, corner.y) == background.getPixelAt (corner.x, corner.y));
     card.setVisible (false);
-    g.reduceClipRegion (card.getBounds());
     graph.paints = 0;
-    root.paintEntireComponent (g, false);
+    {
+        juce::Graphics g (image);
+        g.reduceClipRegion (card.getBounds());
+        root.paintEntireComponent (g, false);
+    }
     CHECK (graph.paints == 1);
     root.setLookAndFeel (nullptr);
 }

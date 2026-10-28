@@ -77,8 +77,10 @@ TEST_CASE ("Rotary artwork scales within its bounds and follows position without
         CHECK_THAT (slider.getValue(), Catch::Matchers::WithinAbs (0.37, 1e-12));
     }
     juce::Image tiny (juce::Image::ARGB, 4, 4, true);
-    juce::Graphics g (tiny);
-    lookAndFeel.drawRotarySlider (g, 0, 0, tiny.getWidth(), tiny.getHeight(), 0.5f, 0.0f, juce::MathConstants<float>::pi, slider);
+    {
+        juce::Graphics g (tiny);
+        lookAndFeel.drawRotarySlider (g, 0, 0, tiny.getWidth(), tiny.getHeight(), 0.5f, 0.0f, juce::MathConstants<float>::pi, slider);
+    }
     CHECK (tiny.getPixelAt (2, 2).isTransparent());
 }
 
@@ -98,8 +100,10 @@ TEST_CASE ("Icon buttons stay borderless with transparent On and Off backgrounds
                 for (bool pressed : { false, true })
                 {
                     juce::Image image (juce::Image::ARGB, button.getWidth(), button.getHeight(), true);
-                    juce::Graphics g (image);
-                    lookAndFeel.drawDrawableButton (g, button, hovered, pressed);
+                    {
+                        juce::Graphics g (image);
+                        lookAndFeel.drawDrawableButton (g, button, hovered, pressed);
+                    }
                     const auto centre = image.getHeight() / 2;
                     CHECK (image.getPixelAt (centre, centre).isTransparent());
                     CHECK (image.getPixelAt (0, centre).isTransparent());
