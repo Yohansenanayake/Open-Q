@@ -2,7 +2,7 @@
 
 #include "BinaryData.h"
 #include "PluginProcessor.h"
-#include "melatonin_inspector/melatonin_inspector.h"
+// #include "melatonin_inspector/melatonin_inspector.h"
 #include "ui/AnalyzerPanel.h"
 namespace openq::presets
 {
@@ -53,6 +53,6 @@ private:
     double lastMeterTime = 0.0;
     std::uint64_t meterGeneration = 0;
     bool knobDragging = false;
-    std::unique_ptr<melatonin::Inspector> inspector;
+    // std::unique_ptr<melatonin::Inspector> inspector;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginEditor)
 };

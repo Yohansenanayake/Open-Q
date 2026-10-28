@@ -12,7 +12,7 @@ namespace openq
         setInterceptsMouseClicks (false, true);
         for (auto* button : { &pre, &post, &fill })
             addAndMakeVisible (*button);
-        addAndMakeVisible (inspect);
+        // addAndMakeVisible (inspect);
         presets.setComponentID ("preset.open");
         presets.setTooltip ("Default (last loaded or saved preset). Click to browse presets.");
         presets.setClickingTogglesState (true);
@@ -46,7 +46,7 @@ namespace openq
             if (onFillChanged)
                 onFillChanged();
         };
-        inspect.onClick = [this] { if (onInspect) onInspect(); };
+        // inspect.onClick = [this] { if (onInspect) onInspect(); };
     }
     HeaderBar::~HeaderBar() { setLookAndFeel (nullptr); }
     void HeaderBar::setPresetName (const juce::String& name)
@@ -87,12 +87,12 @@ namespace openq
         auto area = getLocalBounds().reduced (scaled (12), scaled (6));
         bypass.setBounds (area.removeFromRight (scaled (28)).withSizeKeepingCentre (scaled (26), scaled (26)));
         area.removeFromRight (scaled (8));
-        inspect.setBounds (area.removeFromRight (scaled (130)).reduced (0, scaled (6)));
-        area.removeFromRight (scaled (8));
+        // inspect.setBounds (area.removeFromRight (scaled (130)).reduced (0, scaled (6)));
+        // area.removeFromRight (scaled (8));
+        post.setBounds (area.removeFromRight (scaled (54)));
+        pre.setBounds (area.removeFromRight (scaled (48)));
+        fill.setBounds (area.removeFromRight (scaled (48)));
         area.removeFromLeft (scaled (104));
-        fill.setBounds (area.removeFromLeft (scaled (48)));
-        pre.setBounds (area.removeFromLeft (scaled (48)));
-        post.setBounds (area.removeFromLeft (scaled (54)));
         area.reduce (scaled (8), 0);
         const auto nameWidth = std::min (scaled (180), area.getWidth());
         const auto nameX = std::clamp ((getWidth() - nameWidth) / 2, area.getX(), area.getRight() - nameWidth);

@@ -96,14 +96,14 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         presetBrowser->setVisible (true);
         presetBrowser->toFront (false);
     };
-    headerBar.onInspect = [this] {
-        if (!inspector)
-        {
-            inspector = std::make_unique<melatonin::Inspector> (*this);
-            inspector->onClose = [this] { inspector.reset(); };
-        }
-        inspector->setVisible (true);
-    };
+    // headerBar.onInspect = [this] {
+    //     if (!inspector)
+    //     {
+    //         inspector = std::make_unique<melatonin::Inspector> (*this);
+    //         inspector->onClose = [this] { inspector.reset(); };
+    //     }
+    //     inspector->setVisible (true);
+    // };
     boundsConstrainer.setSizeLimits (openq::EditorSize::minimumWidth, openq::EditorSize::minimumHeight, openq::EditorSize::maximumWidth, openq::EditorSize::maximumHeight);
     setConstrainer (&boundsConstrainer);
     setResizable (true, p.wrapperType != juce::AudioProcessor::wrapperType_AudioUnitv3);

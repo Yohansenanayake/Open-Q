@@ -17,7 +17,8 @@ namespace openq
         void setUiScale (float);
         void paint (juce::Graphics&) override;
         void resized() override;
-        std::function<void()> onInspect, onFillChanged, onPresets;
+        // std::function<void()> onInspect;
+        std::function<void()> onFillChanged, onPresets;
         PresetNameButton presets;
         static constexpr int preferredHeight = 52;
 
@@ -25,7 +26,7 @@ namespace openq
         UiLookAndFeel lookAndFeel;
         AnalyzerTransport& transport;
         juce::ToggleButton pre { "Pre" }, post { "Post" }, fill { "Fill" };
-        juce::TextButton inspect { "Inspect the UI" };
+        // juce::TextButton inspect { "Inspect the UI" };
         IconButton bypass;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
     };
