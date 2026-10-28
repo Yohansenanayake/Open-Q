@@ -1,14 +1,24 @@
-name: Open-Q
+name: Build & Test
 
 on:
   workflow_dispatch: # lets you run a build from the UI
-  workflow_call: # lets other workflows (like nightly.yml) call this one
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Exact source commit supplied by release preparation
+        required: false
+        default: ''
+        type: string
   push:
+    branches: ['**'] # Version tags are handled by release.yml.
   pull_request:
 
-# When pushing new commits, cancel any running builds on that branch
+permissions:
+  contents: read
+
+# Keep callers separate and avoid sharing a concurrency group with release.yml.
 concurrency:
-  group: ${{ github.ref }}
+  group: build-test-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -109,7 +119,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.source_ref || github.ref }}
           submodules: recursive
+          persist-credentials: false
 
       - name: Cache the build
         uses: mozilla-actions/sccache-action@v0.0.11
@@ -216,7 +228,11 @@ jobs:
       - name: Zip
         if: ${{ runner.os != 'Windows' }}
         working-directory: ${{ env.ARTIFACTS_PATH }}
-        run: 7z a -tzip "${{ env.ARTIFACT_NAME }}.zip" "-xr!lib${{ env.PRODUCT_NAME }}_SharedCode.a" .
+        run: |
+          bundles=(VST3 CLAP Standalone)
+          if [[ "$RUNNER_OS" == macOS ]]; then bundles+=(AU AUv3); fi
+          for bundle in "${bundles[@]}"; do test -d "$bundle"; done
+          7z a -tzip "${{ env.ARTIFACT_NAME }}.zip" "${bundles[@]}" LICENSE THIRD_PARTY_NOTICES.md README.md licenses
 
       - name: Generate Installer
         if: ${{ runner.os == 'Windows' }}
@@ -257,6 +273,7 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}.exe
           path: "${{ env.ARTIFACTS_PATH }}/${{ env.ARTIFACT_NAME }}.exe"
+          if-no-files-found: error
 
       - name: Upload Zip (Linux and macOS)
         if: ${{ runner.os != 'Windows' }}
@@ -264,25 +281,4 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}.zip
           path: "${{ env.ARTIFACTS_PATH }}/${{ env.ARTIFACT_NAME }}.zip"
-
-  release:
-    permissions:
-      contents: write
-    if: contains(github.ref, 'tags/v')
-    runs-on: ubuntu-latest
-    needs: build_and_test
-
-    steps:
-      - name: Get Artifacts
-        uses: actions/download-artifact@v8
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
-        with:
-          prerelease: true
-          # download-artifact puts these files in their own dirs...
-          # Using globs sidesteps having to pass the version around
-          files: |
-            */*.exe
-            */*.zip
-            */*.pkg
+          if-no-files-found: error

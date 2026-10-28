@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to build (for example v0.1.0 or v0.1.0-rc.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      commit: ${{ steps.version.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+      - name: Validate tag against VERSION
+        id: version
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          version=$(tr -d '\r\n' < VERSION)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+             [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]] ||
+             [[ "${RELEASE_TAG%%-*}" != "v$version" ]]; then
+            echo "::error::Release tag must match VERSION (v$version, optionally followed by a prerelease suffix)."
+            exit 1
+          fi
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    uses: ./.github/workflows/build_and_test.yml
+    with:
+      source_ref: ${{ needs.prepare.outputs.commit }}
+
+  draft:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download tested packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: Open-Q-*
+          path: release-assets
+          merge-multiple: true
+      - name: Verify packages and create checksums
+        working-directory: release-assets
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          packages=("Open-Q-$RELEASE_VERSION-Windows.exe" "Open-Q-$RELEASE_VERSION-Linux.zip" "Open-Q-$RELEASE_VERSION-macOS.zip")
+          for package in "${packages[@]}"; do test -s "$package"; done
+          sha256sum "${packages[@]}" > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+      - name: Create draft prerelease
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ needs.prepare.outputs.commit }}
+          draft: true
+          prerelease: true
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/*.exe
+            release-assets/*.zip
+            release-assets/SHA256SUMS.txt
