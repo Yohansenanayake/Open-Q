@@ -4,6 +4,10 @@ User-visible changes to Open-Q are recorded here. Entries under **Unreleased** a
 
 ## [Unreleased]
 
+## [0.1.0-beta.2] - 2026-10-29
+
+First public beta candidate. Includes the features and known limitations listed under 0.1.0-beta.1, plus the changes below.
+
 ### Fixed
 
 - Analyzer crashes in AVX2 builds caused by aligned SIMD writes to unaligned spectrum buffers.
@@ -18,7 +22,7 @@ User-visible changes to Open-Q are recorded here. Entries under **Unreleased** a
 
 ## [0.1.0-beta.1] - 2026-10-29
 
-First public beta of Open-Q.
+Initial beta candidate; not published because release validation failed.
 
 ### Added
 
@@ -40,5 +44,6 @@ First public beta of Open-Q.
 - Windows and macOS downloads are not yet publisher-signed/notarized. Windows uses an installer; macOS and Linux use ZIP packages.
 - On Linux, gain-wheel input can lag with Spectrum Fill enabled. The suspected JUCE/X11 event-delivery cause remains unconfirmed; Release-build behaviour needs further checking.
 
-[Unreleased]: https://github.com/Yohansenanayake/Open-Q/compare/v0.1.0-beta.1...main
-[0.1.0-beta.1]: https://github.com/Yohansenanayake/Open-Q/releases/tag/v0.1.0-beta.1
+[Unreleased]: https://github.com/Yohansenanayake/Open-Q/compare/v0.1.0-beta.2...main
+[0.1.0-beta.2]: https://github.com/Yohansenanayake/Open-Q/releases/tag/v0.1.0-beta.2
+[0.1.0-beta.1]: https://github.com/Yohansenanayake/Open-Q/tree/v0.1.0-beta.1
