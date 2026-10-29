@@ -84,10 +84,57 @@ a {
     color: var(--ink);
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.github-button {
+    display: inline-flex;
+    min-height: 36px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0 11px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.035);
+    color: #e4e5ef;
+    font-size: 13px;
+    font-weight: 600;
+    transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.github-button:hover {
+    border-color: rgba(215, 220, 255, 0.3);
+    background: rgba(255, 255, 255, 0.085);
+    color: white;
+}
+
+.github-star svg {
+    fill: #f0c75e;
+}
+
+.github-code svg {
+    fill: #b7bac8;
+}
+
+.github-code:hover svg {
+    fill: white;
+}
+
+.github-button svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+}
+
 .header-download {
     display: inline-flex;
     align-items: center;
     gap: 12px;
+    padding-left: 7px;
     color: var(--ink);
     font-size: var(--text-small);
     font-weight: 700;
@@ -753,8 +800,18 @@ h2 {
     }
 
     .main-nav {
-        gap: 24px;
+        gap: 14px;
         margin-left: 0;
+    }
+
+    .header-actions {
+        gap: 6px;
+    }
+
+    .github-button {
+        gap: 5px;
+        padding: 0 8px;
+        font-size: 12px;
     }
 
     .support-card {
@@ -791,8 +848,26 @@ h2 {
         display: none;
     }
 
+    .header-actions {
+        gap: 5px;
+    }
+
+    .github-button {
+        min-height: 34px;
+        gap: 4px;
+        padding: 0 7px;
+        font-size: 11px;
+    }
+
+    .github-button svg {
+        width: 13px;
+        height: 13px;
+    }
+
     .header-download {
-        font-size: var(--text-small);
+        gap: 5px;
+        padding-left: 2px;
+        font-size: 12px;
     }
 
     .hero {
@@ -1004,6 +1079,35 @@ h2 {
 
 .install-guide code {
     overflow-wrap: anywhere;
+}
+
+.install-guide .compatibility-check {
+    margin: 20px 0;
+    padding: 16px 20px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.install-guide summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.install-guide pre {
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 16px;
+    background: var(--background);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: var(--text-small);
+    line-height: 1.6;
+}
+
+.install-guide pre code {
+    overflow-wrap: normal;
 }
 
 .comparison-section {

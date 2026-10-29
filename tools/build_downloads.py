@@ -92,7 +92,8 @@ def render_downloads(releases, repository):
         render_channel(latest_channel(releases, False), False, repository),
         render_channel(latest_channel(releases, True), True, repository),
         f'<p class="release-note"><a href="https://github.com/{repository}/releases">Older versions and all releases</a>. '
-        'Choose the architecture matching your DAW. Unsure about AVX2? Use standard x86-64.</p>',
+        'Choose the architecture matching your DAW. '
+        '<a href="install.html#choose-build">Which build should I download? Follow the steps and AVX2 checks.</a></p>',
     ])
 
 

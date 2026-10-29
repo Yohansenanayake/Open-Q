@@ -54,6 +54,7 @@ class DownloadSiteTests(unittest.TestCase):
         self.assertNotIn('/latest/', html)
         self.assertIn('Report feedback', html)
         self.assertIn('install.html', urls)
+        self.assertIn('install.html#choose-build', urls)
 
     def test_preview_only_and_empty_library_have_no_broken_stable_links(self):
         html = render_downloads([release('v0.1.0-beta.1', preview=True)], REPOSITORY)
@@ -131,6 +132,8 @@ class DownloadSiteTests(unittest.TestCase):
                          'assets/Open-Q_Interface_1.png', 'assets/Open-Q_Interface_2.png',
                          'assets/Open-Q_Interface_3.png', 'assets/Open-Q_Interface_4.png']:
                 self.assertGreater((output / path).stat().st_size, 0)
+            self.assertEqual((output / 'install.html').read_bytes(), (ROOT / 'website/install.html').read_bytes())
+            self.assertIn('id="choose-build"', (output / 'install.html').read_text())
 
 
 if __name__ == '__main__':
