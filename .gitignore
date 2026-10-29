@@ -30,3 +30,6 @@ cmake-build-relwithdebinfo
 packaging/Output/*
 
 yohan-docs/*
+
+# Python release-configuration checks
+__pycache__/

@@ -2,6 +2,12 @@
 #define ProjectName GetEnv('PROJECT_NAME')
 #define ProductName GetEnv('PRODUCT_NAME')
 #define Publisher GetEnv('COMPANY_NAME')
+#ifndef InstallerArchitecture
+  #define InstallerArchitecture "x64compatible"
+#endif
+#ifndef ArtifactName
+  #define ArtifactName ProductName + "-" + Version + "-Windows"
+#endif
 #define Year GetDateTimeString("yyyy","","")
 
 ; 'Types': What get displayed during the setup
@@ -16,10 +22,10 @@ Name: "vst3"; Description: "VST3 plugin"; Types: full custom
 Name: "clap"; Description: "CLAP plugin"; Types: full custom
 
 [Setup]
-ArchitecturesInstallIn64BitMode=x64compatible
-ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode={#InstallerArchitecture}
+ArchitecturesAllowed={#InstallerArchitecture}
 AppName={#ProductName}
-OutputBaseFilename={#ProductName}-{#Version}-Windows
+OutputBaseFilename={#ArtifactName}
 AppCopyright=Copyright (C) {#Year} {#Publisher}
 AppPublisher={#Publisher}
 AppVersion={#Version}

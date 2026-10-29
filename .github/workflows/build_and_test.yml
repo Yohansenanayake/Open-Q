@@ -9,6 +9,11 @@ on:
         required: false
         default: ''
         type: string
+      build_matrix:
+        description: Release build variants as a JSON include matrix; empty keeps everyday CI
+        required: false
+        default: ''
+        type: string
   push:
     branches: ['**'] # Version tags are handled by release.yml.
   pull_request:
@@ -44,29 +49,54 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false # show all errors for each platform (vs. cancel jobs on error)
-      matrix:
-        include:
-          - name: Linux
-            os: ubuntu-22.04
-            pluginval-binary: ./pluginval
-            extra-flags: -G Ninja -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_MODULE_LINKER_FLAGS=-fuse-ld=lld
-          - name: macOS
-            os: macos-14
-            pluginval-binary: pluginval.app/Contents/MacOS/pluginval
-            extra-flags: -G Ninja -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
-          - name: Windows
-            os: windows-latest
-            pluginval-binary: ./pluginval.exe
-            extra-flags: -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+      matrix: >-
+        ${{ fromJSON(inputs.build_matrix || '{
+          "include": [
+            {
+              "name": "Linux",
+              "os": "ubuntu-22.04",
+              "arch": "x64",
+              "simd": "DEFAULT",
+              "extra-flags": "-G Ninja -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_MODULE_LINKER_FLAGS=-fuse-ld=lld",
+              "pluginval-binary": "./pluginval"
+            },
+            {
+              "name": "macOS",
+              "os": "macos-14",
+              "arch": "arm64",
+              "simd": "DEFAULT",
+              "extra-flags": "-G Ninja -DCMAKE_OSX_ARCHITECTURES=\"arm64;x86_64\"",
+              "pluginval-binary": "pluginval.app/Contents/MacOS/pluginval"
+            },
+            {
+              "name": "Windows",
+              "os": "windows-latest",
+              "arch": "x64",
+              "simd": "DEFAULT",
+              "extra-flags": "-G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl",
+              "pluginval-binary": "./pluginval.exe"
+            }
+          ]
+        }') }}
 
     steps:
       # Setup MSVC toolchain and developer command prompt (Windows)
       - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: ${{ matrix.arch }}
 
       # Use clang on Linux (all three platforms now use Clang)
       - name: Set up Clang
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.arch != 'arm64'
         uses: egor-tensin/setup-clang@v2
+
+      - name: Set up native Clang (Linux ARM64)
+        if: runner.os == 'Linux' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update && sudo apt-get install -y clang lld
+          echo 'CC=clang' >> "$GITHUB_ENV"
+          echo 'CXX=clang++' >> "$GITHUB_ENV"
 
       - name: Install JUCE's Linux Deps
         if: runner.os == 'Linux'
@@ -76,7 +106,7 @@ jobs:
           # wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
           # echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
           # sudo apt install intel-oneapi-ipp-devel
-          sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxi-dev libxinerama-dev libxext-dev libfreetype6-dev libwebkit2gtk-4.1-dev libglu1-mesa-dev xvfb openbox x11-utils ninja-build lld
+          sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxi-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libxrender-dev libxcomposite-dev libfontconfig1-dev libfreetype6-dev libwebkit2gtk-4.1-dev libglu1-mesa-dev xvfb openbox x11-utils ninja-build lld
 
       - name: Start Linux test desktop
         if: runner.os == 'Linux'
@@ -110,7 +140,16 @@ jobs:
 
       - name: Install Ninja (Windows)
         if: runner.os == 'Windows'
-        run: choco install ninja
+        run: |
+          if ! command -v ninja; then choco install ninja -y --no-progress; fi
+
+      - name: Ensure Inno Setup is available (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          if ! command -v iscc; then
+            choco install innosetup -y --no-progress
+            cygpath -w '/c/Program Files (x86)/Inno Setup 6' >> "$GITHUB_PATH"
+          fi
 
       - name: Install macOS Deps
         if: ${{ runner.os == 'macOS' }}
@@ -127,7 +166,7 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.11
 
       - name: Configure
-        run: cmake -B ${{ env.BUILD_DIR }} -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE}} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache ${{ matrix.extra-flags }} .
+        run: cmake -B ${{ env.BUILD_DIR }} -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE}} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DOPENQ_SIMD_TARGET=${{ matrix.simd }} ${{ matrix.extra-flags }} .
 
       - name: Build
         run: cmake --build ${{ env.BUILD_DIR }} --config ${{ env.BUILD_TYPE }}
@@ -149,18 +188,42 @@ jobs:
           echo "AU_PATH=$ARTIFACTS_PATH/AU/${{ env.PRODUCT_NAME }}.component" >> $GITHUB_ENV
           echo "CLAP_PATH=$ARTIFACTS_PATH/CLAP/${{ env.PRODUCT_NAME }}.clap" >> $GITHUB_ENV
           echo "STANDALONE_PATH=$ARTIFACTS_PATH/Standalone/${{ env.PRODUCT_NAME }}.app" >> $GITHUB_ENV
-          echo "ARTIFACT_NAME=${{ env.PRODUCT_NAME }}-${{ env.VERSION }}-${{ runner.os }}" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=${{ env.PRODUCT_NAME }}-${{ env.VERSION }}-${{ matrix.name }}" >> $GITHUB_ENV
 
       - name: Include licenses and credits
         run: |
           cp LICENSE THIRD_PARTY_NOTICES.md README.md "${{ env.ARTIFACTS_PATH }}/"
           cp -R licenses "${{ env.ARTIFACTS_PATH }}/"
 
-      - name: Pluginval
+      # The published Linux/Windows validators are x86-64 and cannot load ARM64 plugins.
+      - name: Checkout native validator source
+        if: matrix.native-pluginval == true
+        uses: actions/checkout@v7
+        with:
+          repository: Tracktion/pluginval
+          ref: ed19c2c16b57a6d94db391bea3ef4a80b769d5bf # v1.0.4
+          path: .ci-tools/pluginval
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Build native validator
+        if: matrix.native-pluginval == true
         run: |
-          curl -LO "https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_${{ runner.os }}.zip"
+          flags=(-G Ninja -DCMAKE_BUILD_TYPE=Release)
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            flags+=(-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER_TARGET=aarch64-pc-windows-msvc -DCMAKE_CXX_COMPILER_TARGET=aarch64-pc-windows-msvc)
+          fi
+          cmake -S .ci-tools/pluginval -B .ci-tools/pluginval-build "${flags[@]}"
+          cmake --build .ci-tools/pluginval-build --config Release --target pluginval --parallel 2
+
+      - name: Download validator
+        if: matrix.native-pluginval != true
+        run: |
+          curl --fail --location --remote-name "https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_${{ runner.os }}.zip"
           7z x pluginval_${{ runner.os }}.zip
-          ${{ matrix.pluginval-binary }} --strictness-level 10 --verbose --validate "${{ env.VST3_PATH }}"
+
+      - name: Pluginval
+        run: ${{ matrix.pluginval-binary }} --strictness-level 10 --verbose --validate "${{ env.VST3_PATH }}"
 
       # Signing/notarization deferred. Re-enable after credentials are configured.
       # - name: Import Certificates (macOS)
@@ -243,7 +306,9 @@ jobs:
       - name: Generate Installer
         if: ${{ runner.os == 'Windows' }}
         run: |
-          iscc "packaging\installer.iss"
+          architecture=x64compatible
+          if [[ '${{ matrix.arch }}' == arm64 ]]; then architecture=arm64; fi
+          MSYS_NO_PATHCONV=1 iscc "/DInstallerArchitecture=$architecture" "/DArtifactName=${{ env.ARTIFACT_NAME }}" "packaging\installer.iss"
           mv "packaging/Output/${{ env.ARTIFACT_NAME }}.exe" "${{ env.ARTIFACTS_PATH }}/"
 
       # Signing/notarization deferred. Re-enable after credentials are configured.

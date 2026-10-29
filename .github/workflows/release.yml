@@ -28,11 +28,15 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
       commit: ${{ steps.version.outputs.commit }}
+      matrix: ${{ steps.version.outputs.matrix }}
+      packages: ${{ steps.version.outputs.packages }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: refs/tags/${{ inputs.tag || github.ref_name }}
           persist-credentials: false
+      - name: Check release configuration
+        run: python3 -m unittest discover -s tools/tests
       - name: Validate tag against VERSION
         id: version
         env:
@@ -48,12 +52,17 @@ jobs:
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          release_matrix=$(jq -c . .github/release-matrix.json)
+          release_packages=$(jq -c --arg version "$version" '[.include[] | "Open-Q-" + $version + "-" + .name + "." + .extension]' .github/release-matrix.json)
+          echo "matrix=$release_matrix" >> "$GITHUB_OUTPUT"
+          echo "packages=$release_packages" >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
     uses: ./.github/workflows/build_and_test.yml
     with:
       source_ref: ${{ needs.prepare.outputs.commit }}
+      build_matrix: ${{ needs.prepare.outputs.matrix }}
 
   draft:
     needs: [prepare, build]
@@ -70,17 +79,22 @@ jobs:
       - name: Verify packages and create checksums
         working-directory: release-assets
         env:
-          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_PACKAGES: ${{ needs.prepare.outputs.packages }}
         run: |
-          packages=("Open-Q-$RELEASE_VERSION-Windows.exe" "Open-Q-$RELEASE_VERSION-Linux.zip" "Open-Q-$RELEASE_VERSION-macOS.zip")
-          for package in "${packages[@]}"; do test -s "$package"; done
+          mapfile -t packages < <(jq -er '.[]' <<< "$RELEASE_PACKAGES")
+          test "${#packages[@]}" -gt 0
+          for package in "${packages[@]}"; do
+            if [[ ! -s "$package" ]]; then
+              echo "::error::Missing or empty release package: $package"
+              exit 1
+            fi
+          done
           sha256sum "${packages[@]}" > SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
       - name: Create draft prerelease
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          target_commitish: ${{ needs.prepare.outputs.commit }}
           draft: true
           prerelease: true
           generate_release_notes: true

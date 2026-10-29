@@ -8,7 +8,12 @@ include (PamplejuceVersion)
 include (CPM)
 
 # Configures universal binaries and decides which version of macOS to support
+# The template forces universal CI builds; preserve explicit release architectures.
+set(openq_requested_osx_architectures "${CMAKE_OSX_ARCHITECTURES}")
 include(PamplejuceMacOS)
+if(openq_requested_osx_architectures)
+    set(CMAKE_OSX_ARCHITECTURES "${openq_requested_osx_architectures}")
+endif()
 
 # Couple tweaks that IMO should be JUCE defaults
 include(JUCEDefaults)
@@ -47,6 +52,8 @@ set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT Embedded CACHE STRING "" FORCE)
 
 # For simplicity, the name of the CMake project is also the name of the target
 project(${PROJECT_NAME} VERSION ${CURRENT_VERSION})
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/OpenQSimd.cmake")
 
 # Log build environment info (after project() so compiler info is available)
 include(PamplejuceLog)
@@ -117,13 +124,14 @@ block(SCOPE_FOR VARIABLES POLICIES)
         GITHUB_REPOSITORY ZL-Audio/highway
         GIT_TAG 2607d3b5b0113992fe84d3848859eae13b3b52c1
         OPTIONS "HWY_ENABLE_TESTS OFF" "HWY_ENABLE_EXAMPLES OFF" "HWY_ENABLE_CONTRIB OFF" "HWY_COMPILE_ONLY_STATIC ON")
+    openq_verify_simd("${highway_SOURCE_DIR}")
 endblock()
 CPMAddPackage(NAME zldsp_fft
     GITHUB_REPOSITORY ZL-Audio/zldsp_fft
     GIT_TAG dfc50e6c39680d9ee04fbb60fc6c935552630045
     DOWNLOAD_ONLY YES)
 
-# Baseline compiler targets give SSE2 on x86-64 and NEON on Apple Silicon.
+# Default builds follow the compiler baseline; release jobs select explicit SIMD targets.
 target_compile_definitions(SharedCode INTERFACE HWY_COMPILE_ONLY_STATIC)
 target_include_directories(SharedCode SYSTEM INTERFACE "${zldsp_fft_SOURCE_DIR}/src")
 target_link_libraries(SharedCode INTERFACE hwy)

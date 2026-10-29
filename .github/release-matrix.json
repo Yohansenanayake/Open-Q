@@ -1,0 +1,84 @@
+{
+  "include": [
+    {
+      "name": "Linux-x86-64",
+      "os": "ubuntu-22.04",
+      "arch": "x64",
+      "simd": "SSE2",
+      "extra-flags": "-G Ninja -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_MODULE_LINKER_FLAGS=-fuse-ld=lld",
+      "pluginval-binary": "./pluginval",
+      "extension": "zip",
+      "native-pluginval": false
+    },
+    {
+      "name": "Linux-x86-64-AVX2",
+      "os": "ubuntu-22.04",
+      "arch": "x64",
+      "simd": "AVX2",
+      "extra-flags": "-G Ninja -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_MODULE_LINKER_FLAGS=-fuse-ld=lld",
+      "pluginval-binary": "./pluginval",
+      "extension": "zip",
+      "native-pluginval": false
+    },
+    {
+      "name": "Linux-arm64",
+      "os": "ubuntu-22.04-arm",
+      "arch": "arm64",
+      "simd": "NEON",
+      "extra-flags": "-G Ninja -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_MODULE_LINKER_FLAGS=-fuse-ld=lld",
+      "pluginval-binary": ".ci-tools/pluginval-build/pluginval_artefacts/Release/pluginval",
+      "extension": "zip",
+      "native-pluginval": true
+    },
+    {
+      "name": "macOS-x86-64",
+      "os": "macos-15-intel",
+      "arch": "x64",
+      "simd": "SSE2",
+      "extra-flags": "-G Ninja -DCMAKE_OSX_ARCHITECTURES=x86_64",
+      "pluginval-binary": "pluginval.app/Contents/MacOS/pluginval",
+      "extension": "zip",
+      "native-pluginval": false
+    },
+    {
+      "name": "macOS-arm64",
+      "os": "macos-14",
+      "arch": "arm64",
+      "simd": "NEON",
+      "extra-flags": "-G Ninja -DCMAKE_OSX_ARCHITECTURES=arm64",
+      "pluginval-binary": "pluginval.app/Contents/MacOS/pluginval",
+      "extension": "zip",
+      "native-pluginval": false
+    },
+    {
+      "name": "Windows-x86-64",
+      "os": "windows-latest",
+      "arch": "x64",
+      "simd": "SSE2",
+      "extra-flags": "-G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl",
+      "pluginval-binary": "./pluginval.exe",
+      "extension": "exe",
+      "native-pluginval": false
+    },
+    {
+      "name": "Windows-x86-64-AVX2",
+      "os": "windows-latest",
+      "arch": "x64",
+      "simd": "AVX2",
+      "extra-flags": "-G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl",
+      "pluginval-binary": "./pluginval.exe",
+      "extension": "exe",
+      "native-pluginval": false
+    },
+    {
+      "name": "Windows-arm64",
+      "os": "windows-11-arm",
+      "arch": "arm64",
+      "simd": "NEON",
+      "extra-flags": "-G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER_TARGET=aarch64-pc-windows-msvc -DCMAKE_CXX_COMPILER_TARGET=aarch64-pc-windows-msvc",
+      "pluginval-binary": ".ci-tools/pluginval-build/pluginval_artefacts/Release/pluginval.exe",
+      "extension": "exe",
+      "native-pluginval": true
+    }
+  ]
+}
