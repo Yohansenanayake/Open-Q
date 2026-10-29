@@ -109,7 +109,6 @@ def build_site(releases, output, repository):
     assets = output / 'assets'
     assets.mkdir(exist_ok=True)
     shutil.copy2(ROOT / 'assets/OpenQ_Logo_White.svg', assets)
-    shutil.copy2(ROOT / 'assets/github-banner/Open-Q Parametric Equalizer Banner.png', assets / 'open-q-banner.png')
     for name in ('Open-Q_Interface_1.png', 'Open-Q_Interface_2.png'):
         shutil.copy2(ROOT / 'assets/images' / name, assets / name)
     if (ROOT / 'website/assets').is_dir():

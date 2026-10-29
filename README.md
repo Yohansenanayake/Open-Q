@@ -1,4 +1,6 @@
-![Open-Q — Open-source parametric equalizer](<assets/github-banner/Open-Q Parametric Equalizer Banner.png>)
+<p align="center">
+  <img src="assets/OpenQ_Logo_White.svg" alt="Open-Q — Open-source parametric equalizer" width="480">
+</p>
 
 # Open-Q
 

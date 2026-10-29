@@ -6,7 +6,6 @@ on:
     paths:
       - 'website/**'
       - 'assets/OpenQ_Logo_White.svg'
-      - 'assets/github-banner/**'
       - 'assets/images/Open-Q_Interface_*.png'
       - '.github/workflows/pages.yml'
       - 'tools/build_downloads.py'

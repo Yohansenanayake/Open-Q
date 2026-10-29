@@ -35,12 +35,19 @@ Open-Q adds finite/nonnegative validation and single-attempt peak publication. G
 | Project | License / notice location |
 | --- | --- |
 | [Pamplejuce](https://github.com/sudara/pamplejuce) | MIT; copyright (c) 2022 Sudara Williams. [Full notice](licenses/Pamplejuce-MIT.txt). |
-| [JUCE](https://github.com/juce-framework/JUCE) | AGPLv3 option; framework and bundled-library notices in `JUCE/LICENSE.md` and module sources. |
-| [melatonin_inspector](https://github.com/sudara/melatonin_inspector) | MIT; copyright (c) 2021 Sudara Williams. `modules/melatonin_inspector/LICENSE`. |
-| [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions) | MIT; copyright 2019–2020 Paul Walker. `modules/clap-juce-extensions/LICENSE.md`; bundled CLAP libraries retain their own notices. |
+| [JUCE](https://github.com/juce-framework/JUCE) | AGPLv3 option; [upstream framework notice](licenses/JUCE-LICENSE.md). Bundled-library texts are listed below. |
+| [melatonin_inspector](https://github.com/sudara/melatonin_inspector) | MIT; copyright (c) 2021 Sudara Williams. [Full notice](licenses/melatonin_inspector-MIT.txt). |
+| [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions) | MIT; copyright 2019–2020 Paul Walker. [Full notice](licenses/clap-juce-extensions-MIT.txt). |
+| Bundled CLAP / CLAP helpers | MIT; copyright (c) 2021 Alexandre BIQUE. [CLAP notice](licenses/CLAP-MIT.txt), [helpers notice](licenses/CLAP-helpers-MIT.txt). |
 | [Catch2](https://github.com/catchorg/Catch2) (tests/benchmarks only) | Boost Software License 1.0; `LICENSE.txt` in its fetched source. |
 
 Submodule revisions are pinned by Git; fetched dependency revisions are pinned in CMake. Their own licenses and bundled dependency notices remain applicable.
+
+Release packages include unchanged JUCE dependency texts for [VST3](licenses/JUCE-VST3-MIT.txt), [AudioUnitSDK](licenses/JUCE-AudioUnitSDK-Apache-2.0.txt), [FLAC](licenses/JUCE-FLAC-BSD.txt), [Ogg Vorbis](licenses/JUCE-Ogg-Vorbis-BSD.txt), [JPEG](licenses/JUCE-JPEG-README.txt), [PNG](licenses/JUCE-PNG-LICENSE.txt), [zlib](licenses/JUCE-zlib-LICENSE.txt), [HarfBuzz](licenses/JUCE-HarfBuzz-COPYING.txt), [SheenBidi](licenses/JUCE-SheenBidi-Apache-2.0.txt), [LunaSVG](licenses/JUCE-LunaSVG-MIT.txt) and [PlutoVG](licenses/JUCE-PlutoVG-MIT.txt). This software is based in part on the work of the Independent JPEG Group.
+
+## Website branding
+
+`website/assets/kofi-cup.avif` is an unchanged Ko-fi cup image from the [official creator kit](https://more.ko-fi.com/brand-assets), used to link to the author's support page under [Ko-fi's promotional-use guidance](https://help.ko-fi.com/hc/en-us/articles/360007169493-Can-I-use-the-Ko-fi-logo-to-promote-my-page). Ko-fi branding remains its owner's property and is not relicensed under Open-Q's AGPL. This website-only image is not included in plugin bundles.
 
 ## Release validation tool
 

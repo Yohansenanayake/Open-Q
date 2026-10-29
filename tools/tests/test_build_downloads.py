@@ -106,10 +106,13 @@ class DownloadSiteTests(unittest.TestCase):
             self.assertIn('Open-Q-0.1.0-beta.1-Windows-x86-64.exe', html)
             self.assertNotIn('RELEASE_DOWNLOADS_START', html)
             self.assertNotIn('SCREENSHOT PLACEHOLDER', html)
+            self.assertEqual(html.count('href="https://ko-fi.com/yohansenanayake"'), 2)
+            self.assertNotIn('buymeacoffee', html)
+            self.assertIn('<div class="hero-art">\n                <img src="assets/Open-Q_Interface_1.png"', html)
             for name in ['Open-Q_Interface_1.png', 'Open-Q_Interface_2.png']:
                 self.assertIn(f'src="assets/{name}"', html)
                 self.assertEqual((output / 'assets' / name).read_bytes(), (ROOT / 'assets/images' / name).read_bytes())
-            for path in ['styles.css', 'install.html', 'assets/OpenQ_Logo_White.svg', 'assets/open-q-banner.png',
+            for path in ['styles.css', 'install.html', 'assets/OpenQ_Logo_White.svg', 'assets/kofi-cup.avif',
                          'assets/Open-Q_Interface_1.png', 'assets/Open-Q_Interface_2.png']:
                 self.assertGreater((output / path).stat().st_size, 0)
 

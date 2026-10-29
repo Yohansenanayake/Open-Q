@@ -258,6 +258,7 @@ h2 span {
 .hero-art img {
     display: block;
     width: 100%;
+    height: auto;
     border: 1px solid rgba(155, 159, 255, 0.14);
     border-radius: 5px;
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
@@ -592,32 +593,29 @@ h2 {
     margin-bottom: 22px;
 }
 
-.button-coffee {
+.button-kofi {
     gap: 12px;
     min-height: 44px;
-    border-color: #ffdd00;
-    background: #ffdd00;
-    color: #171500;
-    box-shadow: 0 7px 24px rgba(255, 221, 0, 0.16);
+    border-color: #ff6433;
+    background: #ff6433;
+    color: #202020;
+    box-shadow: 0 7px 24px rgba(255, 100, 51, 0.16);
 }
 
-.button-coffee:hover {
-    border-color: #ffe95c;
-    background: #ffe95c;
-    box-shadow: 0 9px 28px rgba(255, 221, 0, 0.24);
+.button-kofi:hover {
+    border-color: #ff8057;
+    background: #ff8057;
+    box-shadow: 0 9px 28px rgba(255, 100, 51, 0.24);
 }
 
-.coffee-icon {
-    width: 19px;
-    height: 19px;
+.kofi-icon {
+    width: 24px;
+    height: 24px;
     flex: 0 0 auto;
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-width: 1.7;
+    object-fit: contain;
 }
 
-.coffee-once {
+.kofi-once {
     padding: 5px 6px;
     border: 1px solid rgba(23, 21, 0, 0.24);
     border-radius: 3px;
