@@ -9,6 +9,7 @@ import platform
 import shutil
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -113,6 +114,35 @@ class ReleaseConfigurationTests(unittest.TestCase):
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn('OPENQ_SIMD_TARGET_VERIFIED - Success', result.stdout)
+
+    @unittest.skipUnless(platform.system() == 'Linux' and shutil.which('cmake'),
+                         'The isolated MSVC platform configure check requires Linux CMake')
+    def test_windows_validator_flags_preserve_msvc_platform_defaults(self):
+        workflow = (ROOT / '.github/workflows/build_and_test.yml').read_text()
+        line = next(line.strip() for line in workflow.splitlines()
+                    if 'flags+=(' in line and '-DCMAKE_CXX_COMPILER=cl' in line)
+        options = shlex.split(line.removeprefix('flags+=(').removesuffix(')'))
+        flag_options = [option for option in options if option.startswith('-DCMAKE_CXX_FLAGS')]
+        with tempfile.TemporaryDirectory(prefix='openq-msvc-flags-') as directory:
+            source = Path(directory)
+            # Exercise CMake's real Windows/MSVC defaults without executing a Windows compiler.
+            (source / 'toolchain.cmake').write_text(
+                'set(CMAKE_SYSTEM_NAME Windows)\nset(CMAKE_SYSTEM_PROCESSOR ARM64)\n'
+                f'set(CMAKE_CXX_COMPILER "{sys.executable}")\n'
+                'set(CMAKE_CXX_COMPILER_ID MSVC)\nset(CMAKE_CXX_COMPILER_VERSION 19.51)\n'
+                'set(CMAKE_CXX_COMPILER_ID_RUN TRUE)\nset(CMAKE_CXX_COMPILER_FORCED TRUE)\n'
+                'set(CMAKE_CXX_COMPILER_ARCHITECTURE_ID ARM64)\n')
+            (source / 'CMakeLists.txt').write_text(
+                'cmake_minimum_required(VERSION 3.25)\nproject(Flags LANGUAGES CXX)\n'
+                'file(WRITE "${CMAKE_BINARY_DIR}/flags.txt" "${CMAKE_CXX_FLAGS}")\n')
+            build = source / 'build'
+            result = subprocess.run(['cmake', '-S', str(source), '-B', str(build),
+                                     f'-DCMAKE_TOOLCHAIN_FILE={source / "toolchain.cmake"}', *flag_options],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            flags = (build / 'flags.txt').read_text()
+            self.assertIn('-FIchrono', flags)
+            self.assertIn('/EHsc', flags)
 
     def test_tag_versions_keep_preview_identity_and_numeric_version_validation(self):
         for tag in ['v0.1.0', 'v0.1.0-beta.1', 'v0.1.0-beta.2', 'v0.1.0-rc.1']:

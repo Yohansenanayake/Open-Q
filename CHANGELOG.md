@@ -9,6 +9,7 @@ User-visible changes to Open-Q are recorded here. Entries under **Unreleased** a
 - Analyzer crashes in AVX2 builds caused by aligned SIMD writes to unaligned spectrum buffers.
 - ARM64 release validation setup: install the Linux LADSPA headers, use native MSVC for Windows pluginval, and give the macOS SIMD configure probe an explicit C++ dialect.
 - Windows ARM64 release checks failing to compile pluginval because its duration literals lacked the required `<chrono>` header.
+- Preserve MSVC's exception-handling defaults when adding the Windows validator's header workaround.
 
 ### Added
 

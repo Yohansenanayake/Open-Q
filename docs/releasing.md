@@ -58,7 +58,9 @@ Site-only edits deploy independently of plugin releases. After manual asset uplo
 
 Failed builds now upload CMake configure and CTest diagnostics. No dependency revisions or release tags are changed by these fixes.
 
-[Full Build & Test run #1](https://github.com/Yohansenanayake/Open-Q/actions/runs/40916787820) passed seven variants. Windows ARM64 built Open-Q and passed its tests, then hit another pinned-pluginval portability issue: `BasicTests.cpp` uses `100ms` without including `<chrono>`, which MSVC's `<thread>` does not supply. The Windows validator build now force-includes `<chrono>` through its own CMake flags, retaining native MSVC and the pinned dependency. Open-Q's compile flags and validation tests are unchanged. Confirm this follow-up on the hosted runner before tagging.
+[Full Build & Test run #1](https://github.com/Yohansenanayake/Open-Q/actions/runs/40916787820) passed seven variants. Windows ARM64 built Open-Q and passed its tests, then hit another pinned-pluginval portability issue: `BasicTests.cpp` uses `100ms` without including `<chrono>`, which MSVC's `<thread>` does not supply. The Windows validator build force-includes `<chrono>`, retaining native MSVC and the pinned dependency. Open-Q's compile flags and validation tests are unchanged.
+
+[Run #2](https://github.com/Yohansenanayake/Open-Q/actions/runs/40921672432) confirmed that the header workaround compiled, but setting `CMAKE_CXX_FLAGS` directly had removed MSVC's default exception flag, `/EHsc`. The workaround now uses `CMAKE_CXX_FLAGS_INIT` so CMake preserves its platform defaults. A configure regression test verifies that the workflow's flags retain both the forced header and exception handling; it does not execute a Windows compiler. Confirm the validator build on the hosted runner before tagging.
 
 To preview locally with fixture or downloaded API metadata:
 

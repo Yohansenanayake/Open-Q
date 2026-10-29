@@ -221,7 +221,8 @@ jobs:
             # The pinned validator's older JUCE uses x86 debug asm under ARM64 clang-cl.
             # msvc-dev-cmd already selects the native ARM64 cl toolchain.
             # Its duration literals also need <chrono>, which it does not include itself.
-            flags+=(-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_FLAGS=-FIchrono)
+            # Initialize extra flags so CMake still adds MSVC defaults such as /EHsc.
+            flags+=(-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_FLAGS_INIT=-FIchrono)
           fi
           cmake -S .ci-tools/pluginval -B .ci-tools/pluginval-build "${flags[@]}"
           cmake --build .ci-tools/pluginval-build --config Release --target pluginval --parallel 2
