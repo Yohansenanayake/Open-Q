@@ -106,14 +106,30 @@ class DownloadSiteTests(unittest.TestCase):
             self.assertIn('Open-Q-0.1.0-beta.1-Windows-x86-64.exe', html)
             self.assertNotIn('RELEASE_DOWNLOADS_START', html)
             self.assertNotIn('SCREENSHOT PLACEHOLDER', html)
+            self.assertIn('data-comparison-axis="relative"', html)
+            self.assertIn('data-comparison-axis="hz"', html)
+            self.assertNotIn('<select id="comparison-axis"', html)
+            self.assertEqual(html.count('id="comparison-plot"'), 1)
+            self.assertIn('id="comparison-plot" src="assets/eq-comparison/bell-comparison-hz.svg"', html)
+            self.assertIn('data-comparison-axis="hz" aria-pressed="true"', html)
+            for family in ['bell', 'low-shelf', 'high-shelf', 'low-cut', 'high-cut']:
+                self.assertIn(f'data-comparison-type="{family}"', html)
+            for pattern in ['*-comparison-*.svg', '*-curves.csv']:
+                for source in (ROOT / 'tools/eq-comparison/results').glob(pattern):
+                    self.assertEqual((output / 'assets/eq-comparison' / source.name).read_bytes(), source.read_bytes())
+            self.assertFalse((output / 'assets/eq-comparison/low-shelf-comparison-hz.png').exists())
+            for image in ROOT.glob('website/assets/eq-comparison/*'):
+                self.assertEqual((output / 'assets/eq-comparison' / image.name).read_bytes(), image.read_bytes())
             self.assertEqual(html.count('href="https://ko-fi.com/yohansenanayake"'), 2)
             self.assertNotIn('buymeacoffee', html)
             self.assertIn('<div class="hero-art">\n                <img src="assets/Open-Q_Interface_1.png"', html)
-            for name in ['Open-Q_Interface_1.png', 'Open-Q_Interface_2.png']:
+            for name in ['Open-Q_Interface_1.png', 'Open-Q_Interface_2.png',
+                         'Open-Q_Interface_3.png', 'Open-Q_Interface_4.png']:
                 self.assertIn(f'src="assets/{name}"', html)
                 self.assertEqual((output / 'assets' / name).read_bytes(), (ROOT / 'assets/images' / name).read_bytes())
-            for path in ['styles.css', 'install.html', 'assets/OpenQ_Logo_White.svg', 'assets/kofi-cup.avif',
-                         'assets/Open-Q_Interface_1.png', 'assets/Open-Q_Interface_2.png']:
+            for path in ['styles.css', 'install.html', 'comparison.js', 'assets/OpenQ_Logo_White.svg', 'assets/kofi-cup.avif',
+                         'assets/Open-Q_Interface_1.png', 'assets/Open-Q_Interface_2.png',
+                         'assets/Open-Q_Interface_3.png', 'assets/Open-Q_Interface_4.png']:
                 self.assertGreater((output / path).stat().st_size, 0)
 
 

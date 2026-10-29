@@ -104,15 +104,21 @@ def build_site(releases, output, repository):
     _, after = rest.split(END)
     output.mkdir(parents=True, exist_ok=True)
     (output / 'index.html').write_text(before + render_downloads(releases, repository) + after, encoding='utf-8')
-    for name in ('styles.css', 'install.html'):
+    for name in ('styles.css', 'install.html', 'comparison.js'):
         shutil.copy2(ROOT / 'website' / name, output / name)
     assets = output / 'assets'
     assets.mkdir(exist_ok=True)
     shutil.copy2(ROOT / 'assets/OpenQ_Logo_White.svg', assets)
-    for name in ('Open-Q_Interface_1.png', 'Open-Q_Interface_2.png'):
+    for name in ('Open-Q_Interface_1.png', 'Open-Q_Interface_2.png',
+                 'Open-Q_Interface_3.png', 'Open-Q_Interface_4.png'):
         shutil.copy2(ROOT / 'assets/images' / name, assets / name)
     if (ROOT / 'website/assets').is_dir():
         shutil.copytree(ROOT / 'website/assets', assets, dirs_exist_ok=True)
+    comparisons = assets / 'eq-comparison'
+    comparisons.mkdir(exist_ok=True)
+    for pattern in ('*-comparison-*.svg', '*-curves.csv'):
+        for source in sorted((ROOT / 'tools/eq-comparison/results').glob(pattern)):
+            shutil.copy2(source, comparisons)
 
 
 def main():

@@ -8,6 +8,7 @@
     <title>Open-Q — Parametric Equalizer</title>
     <link rel="icon" href="assets/OpenQ_Logo_White.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
+    <script src="comparison.js" defer></script>
 </head>
 <body>
     <header class="site-header">
@@ -27,7 +28,7 @@
             <div class="hero-glow" aria-hidden="true"></div>
             <div class="hero-copy">
                 <p class="eyebrow"><span class="status-dot"></span> FREE &amp; OPEN-SOURCE PARAMETRIC EQ</p>
-                <h1 id="hero-title">Make space.<br><span>Find your sound.</span></h1>
+                <h1 id="hero-title">Open Sound.<br><span>Open Source.</span></h1>
                 <p class="hero-description">Open-Q is a free, open-source equalizer in active development: a growing alternative to expensive plugins. It isn't yet a feature-for-feature match for established tools, and we're improving it release by release.</p>
                 <div class="hero-actions">
                     <a class="button button-primary" href="#downloads">Download Open-Q <span aria-hidden="true">↓</span></a>
@@ -58,20 +59,36 @@
                 <p>Open-Q is an actively developed project. These are the tools available today, with more polish and capabilities to come.</p>
             </div>
             <div class="feature-grid">
-                <article class="feature-card">
+                <article class="feature-card feature-card-highlight">
                     <span class="feature-number">01</span>
-                    <h3>Shape with 24 bands</h3>
-                    <p>Build your sound with bell, shelf and cut filters, with slopes up to 96 dB/octave.</p>
+                    <h3>Analogue-matched responses</h3>
+                    <p>Ivantsov-based filter designs target analogue magnitude responses. See how our bell curves compare with the reference as frequency approaches Nyquist.</p>
+                    <a class="feature-link" href="#curves">Compare the filter curves <span aria-hidden="true">→</span></a>
                 </article>
                 <article class="feature-card">
                     <span class="feature-number">02</span>
-                    <h3>See the whole picture</h3>
-                    <p>Follow the combined response and compare pre- and post-EQ spectrum in one view.</p>
+                    <h3>24 bands. Five filter types.</h3>
+                    <p>Bell, low/high shelf and low/high cut filters. Choose cut slopes from 6 to 96 dB/octave, including 18 dB/octave.</p>
                 </article>
                 <article class="feature-card">
                     <span class="feature-number">03</span>
-                    <h3>Stay in control</h3>
-                    <p>Fine-tune frequency, gain and Q directly on the graph or from the selected-band controls.</p>
+                    <h3>Shape directly on the graph</h3>
+                    <p>Drag individually coloured nodes and fine-tune frequency, gain and Q in floating band controls. Resize the interface to fit your workspace.</p>
+                </article>
+                <article class="feature-card">
+                    <span class="feature-number">04</span>
+                    <h3>Pre/post spectrum analysis</h3>
+                    <p>Compare input and output spectra, with Normal/High quality, ERB or octave smoothing, and adjustable decay.</p>
+                </article>
+                <article class="feature-card">
+                    <span class="feature-number">05</span>
+                    <h3>Gain, meters and bypass</h3>
+                    <p>Input/output gain controls and peak meters keep levels in view. Audition changes with per-band bypass and smooth global bypass.</p>
+                </article>
+                <article class="feature-card">
+                    <span class="feature-number">06</span>
+                    <h3>Presets and DAW recall</h3>
+                    <p>Organize presets in groups, find them with search, automate parameters in your DAW and recall settings with your session.</p>
                 </article>
             </div>
         </section>
@@ -84,13 +101,76 @@
                 </div>
                 <p>Intuitive controls and a clear response display help you hear what matters.</p>
             </div>
-            <img src="assets/Open-Q_Interface_1.png" alt="Open-Q with pre/post spectrum analysis, coloured EQ nodes and floating band controls" class="editor-screenshot" width="1885" height="1009" loading="lazy" decoding="async">
-            <div class="secondary-shot">
-                <a href="assets/Open-Q_Interface_2.png" aria-label="View the full-size Open-Q response graph screenshot">
-                    <img src="assets/Open-Q_Interface_2.png" alt="Open-Q showing the combined EQ response and spectrum with band controls closed" class="editor-screenshot" width="1888" height="1008" loading="lazy" decoding="async">
-                </a>
-                <p>Keep the whole response in view. Close the band controls for an unobstructed look at your EQ curve and pre/post spectrum.</p>
+            <div class="screenshot-grid">
+                <figure>
+                    <a href="assets/Open-Q_Interface_1.png" aria-label="View full-size screenshot: shape bands with floating controls">
+                        <img src="assets/Open-Q_Interface_1.png" alt="Open-Q with coloured EQ nodes, pre/post spectrum analysis and floating band controls" class="editor-screenshot" width="1885" height="1009" loading="lazy" decoding="async">
+                    </a>
+                    <figcaption>Shape bands with floating controls</figcaption>
+                </figure>
+                <figure>
+                    <a href="assets/Open-Q_Interface_2.png" aria-label="View full-size screenshot: see the complete response">
+                        <img src="assets/Open-Q_Interface_2.png" alt="Open-Q showing the combined EQ response and pre/post spectrum with band controls closed" class="editor-screenshot" width="1888" height="1008" loading="lazy" decoding="async">
+                    </a>
+                    <figcaption>See the complete response</figcaption>
+                </figure>
+                <figure>
+                    <a href="assets/Open-Q_Interface_3.png" aria-label="View full-size screenshot: organize and recall presets">
+                        <img src="assets/Open-Q_Interface_3.png" alt="Open-Q preset browser showing groups, search and saved presets" class="editor-screenshot" width="1882" height="1006" loading="lazy" decoding="async">
+                    </a>
+                    <figcaption>Organize and recall presets</figcaption>
+                </figure>
+                <figure>
+                    <a href="assets/Open-Q_Interface_4.png" aria-label="View full-size screenshot: tune the spectrum display">
+                        <img src="assets/Open-Q_Interface_4.png" alt="Open-Q analyzer settings for quality, ERB smoothing and decay" class="editor-screenshot" width="1884" height="1011" loading="lazy" decoding="async">
+                    </a>
+                    <figcaption>Tune the spectrum display</figcaption>
+                </figure>
             </div>
+        </section>
+
+        <section class="comparison-section section-wrap" id="curves" aria-labelledby="comparison-title">
+            <div class="section-heading">
+                <p class="eyebrow">UNDER THE CURVE</p>
+                <h2 id="comparison-title">Explore the <span>filter response.</span></h2>
+                <p>Compare Open-Q’s Ivantsov-based bell, shelf and cut responses with an analogue reference, JUCE and conventional prewarped BLT. Both frequency-axis styles show the same steady-state responses, without oversampling.</p>
+            </div>
+            <div class="comparison-controls" id="comparison-controls" hidden>
+                <div class="comparison-axis-controls" role="group" aria-label="Frequency axis">
+                    <button type="button" data-comparison-axis="relative" aria-pressed="false">Relative to Nyquist</button>
+                    <button type="button" data-comparison-axis="hz" aria-pressed="true">Frequency in Hz</button>
+                </div>
+                <div class="comparison-type-controls" role="group" aria-label="Filter type">
+                    <button type="button" data-comparison-type="bell" aria-pressed="true">Bell</button>
+                    <button type="button" data-comparison-type="low-shelf" aria-pressed="false">Low Shelf</button>
+                    <button type="button" data-comparison-type="high-shelf" aria-pressed="false">High Shelf</button>
+                    <button type="button" data-comparison-type="low-cut" aria-pressed="false">Low Cut</button>
+                    <button type="button" data-comparison-type="high-cut" aria-pressed="false">High Cut</button>
+                </div>
+                <div class="comparison-slope-controls" id="comparison-slope-controls" hidden>
+                    <label for="comparison-slope">Cut slope</label>
+                    <select id="comparison-slope">
+                        <option value="6">6 dB/octave</option>
+                        <option value="12" selected>12 dB/octave</option>
+                        <option value="18">18 dB/octave</option>
+                        <option value="24">24 dB/octave</option>
+                        <option value="36">36 dB/octave</option>
+                        <option value="48">48 dB/octave</option>
+                        <option value="72">72 dB/octave</option>
+                        <option value="96">96 dB/octave</option>
+                    </select>
+                </div>
+            </div>
+            <p class="comparison-note" id="comparison-settings" aria-live="polite">Bell · 48 kHz · Q = 1 · ±12 dB · centres at 1.2, 12 and 19.2 kHz. Each curve represents an independent band, not their combined response. Error panels are stacked by centre; solid error lines show boosts and dashed lines show cuts. JUCE and BLT share an error trace because they overlap.</p>
+            <figure class="comparison-figure">
+                <div class="comparison-plot-scroll" tabindex="0" role="region" id="comparison-scroll" aria-label="Bell comparison plot, scroll horizontally on smaller screens">
+                    <a href="assets/eq-comparison/bell-comparison-hz.svg" title="Open full-size comparison">
+                        <img id="comparison-plot" src="assets/eq-comparison/bell-comparison-hz.svg" alt="Bell response comparison at 48 kHz, Q 1, plus and minus 12 dB, with errors stacked by centre frequency. Frequency in Hz." width="1200" height="1100" loading="lazy" decoding="async">
+                    </a>
+                </div>
+                <figcaption>Analogue reference, Open-Q / Ivantsov, JUCE and prewarped BLT. Closer magnitude matching does not establish better sound. Scroll horizontally on smaller screens, or click to view full size.</figcaption>
+            </figure>
+            <p class="comparison-note">Download the <a id="comparison-data" href="assets/eq-comparison/bell-curves.csv">Bell response data (CSV)</a> or <a href="https://github.com/Yohansenanayake/Open-Q/blob/main/tools/eq-comparison/README.md">reproduce the plots and download either axis style</a>. Method: <a href="https://www.w3.org/TR/audio-eq-cookbook/">RBJ analogue bell / BLT conventions</a>; comparison presentation inspired by <a href="https://ldesoras.fr/doc/articles/decramp-comp/">Laurent de Soras</a>.</p>
         </section>
 
         <section class="download-section" id="downloads" aria-labelledby="download-title">

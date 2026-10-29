@@ -9,6 +9,7 @@ on:
       - 'assets/images/Open-Q_Interface_*.png'
       - '.github/workflows/pages.yml'
       - 'tools/build_downloads.py'
+      - 'tools/eq-comparison/results/**'
       - 'tools/release_metadata.py'
       - 'tools/tests/**'
   release:
