@@ -1,0 +1,67 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - 'assets/OpenQ_Logo_White.svg'
+      - 'assets/github-banner/**'
+      - 'assets/images/Open-Q_Interface_*.png'
+      - '.github/workflows/pages.yml'
+      - 'tools/build_downloads.py'
+      - 'tools/release_metadata.py'
+      - 'tools/tests/**'
+  release:
+    types: [published, edited, deleted, unpublished, released, prereleased]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out site source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Test distribution scripts
+        run: python3 -m unittest discover -s tools/tests
+
+      - name: Read release metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[]' | jq -s . > "$RUNNER_TEMP/openq-releases.json"
+
+      - name: Assemble site
+        run: python3 tools/build_downloads.py --releases "$RUNNER_TEMP/openq-releases.json" --repository "$GITHUB_REPOSITORY" --output _site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

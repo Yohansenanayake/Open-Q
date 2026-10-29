@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Install Open-Q</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="site-header"><a class="brand" href="index.html"><img src="assets/OpenQ_Logo_White.svg" alt="Open-Q home"></a><a href="index.html#downloads">Downloads</a></header>
+    <main class="section-wrap install-guide">
+        <h1>Install Open-Q</h1>
+        <p>Choose the processor architecture matching your DAW. Start with standard x86-64 if you are unsure about AVX2. Preview builds are for testing: save your work and keep the previous installer for rollback.</p>
+        <p>Downloads are currently unsigned/not notarized and may show operating-system warnings. Download from our GitHub Releases and compare the file's SHA-256 hash with that release's <code>SHA256SUMS.txt</code>. On macOS/Linux use <code>shasum -a 256 filename</code> or <code>sha256sum filename</code>; on Windows use PowerShell <code>Get-FileHash filename -Algorithm SHA256</code>.</p>
+        <h2>Windows</h2>
+        <p>Run the versioned <code>.exe</code> installer. Select VST3, CLAP and/or Standalone, then follow setup. Plugins go into their standard Common Files folders; the standalone app gets a Start-menu shortcut. Use Windows Installed Apps to uninstall.</p>
+        <h2>macOS</h2>
+        <p>Extract the ZIP. Copy the desired bundles to these folders, creating them if needed:</p>
+        <ul>
+            <li>VST3: <code>~/Library/Audio/Plug-Ins/VST3/</code></li>
+            <li>AU (<code>.component</code>): <code>~/Library/Audio/Plug-Ins/Components/</code></li>
+            <li>CLAP: <code>~/Library/Audio/Plug-Ins/CLAP/</code></li>
+            <li>Standalone (<code>.app</code>): <code>~/Applications/</code> or <code>/Applications/</code></li>
+        </ul>
+        <p>Finder's Go → Go to Folder accepts these paths. If macOS blocks opening trusted downloaded software, follow <a href="https://support.apple.com/en-us/102445">Apple's Privacy &amp; Security instructions</a>. There is no macOS installer yet. Delete the copied bundles to uninstall.</p>
+        <h2>Linux</h2>
+        <p>Extract the ZIP. Copy the VST3 bundle into <code>~/.vst3/</code> and the CLAP plugin into <code>~/.clap/</code>, or use the plugin directories configured in your DAW. Launch the executable in the Standalone directory. If extraction removed its executable permission, run <code>chmod +x Standalone/Open-Q</code>. Delete copied files to uninstall.</p>
+        <h2>After installing</h2>
+        <p>Restart your DAW or rescan plugins. Uninstalling binaries does not delete your saved user presets. To roll back, close your DAW and reinstall the previous version. This project is still in development; saved-session compatibility across early versions is not guaranteed.</p>
+        <p><a href="https://github.com/Yohansenanayake/Open-Q/issues">Report a problem</a> with the full download version, OS, CPU architecture and DAW version.</p>
+    </main>
+</body>
+</html>

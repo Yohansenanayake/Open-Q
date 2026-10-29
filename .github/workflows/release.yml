@@ -27,6 +27,8 @@ jobs:
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
+      package_version: ${{ steps.version.outputs.package_version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
       commit: ${{ steps.version.outputs.commit }}
       matrix: ${{ steps.version.outputs.matrix }}
       packages: ${{ steps.version.outputs.packages }}
@@ -42,20 +44,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          version=$(tr -d '\r\n' < VERSION)
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
-             [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]] ||
-             [[ "${RELEASE_TAG%%-*}" != "v$version" ]]; then
-            echo "::error::Release tag must match VERSION (v$version, optionally followed by a prerelease suffix)."
-            exit 1
-          fi
-          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          release_matrix=$(jq -c . .github/release-matrix.json)
-          release_packages=$(jq -c --arg version "$version" '[.include[] | "Open-Q-" + $version + "-" + .name + "." + .extension]' .github/release-matrix.json)
-          echo "matrix=$release_matrix" >> "$GITHUB_OUTPUT"
-          echo "packages=$release_packages" >> "$GITHUB_OUTPUT"
+          python3 tools/release_metadata.py --tag "$RELEASE_TAG" --commit "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
@@ -63,6 +52,7 @@ jobs:
     with:
       source_ref: ${{ needs.prepare.outputs.commit }}
       build_matrix: ${{ needs.prepare.outputs.matrix }}
+      package_version: ${{ needs.prepare.outputs.package_version }}
 
   draft:
     needs: [prepare, build]
@@ -91,12 +81,12 @@ jobs:
           done
           sha256sum "${packages[@]}" > SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
-      - name: Create draft prerelease
+      - name: Create draft release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           draft: true
-          prerelease: true
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |

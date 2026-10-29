@@ -14,6 +14,11 @@ on:
         required: false
         default: ''
         type: string
+      package_version:
+        description: Validated full tag version for release filenames; empty uses VERSION
+        required: false
+        default: ''
+        type: string
   push:
     branches: ['**'] # Version tags are handled by release.yml.
   pull_request:
@@ -181,6 +186,8 @@ jobs:
           cat .env >> $GITHUB_ENV # pull in our PRODUCT_NAME, etc
 
       - name: Set additional env vars for next steps
+        env:
+          PACKAGE_VERSION: ${{ inputs.package_version }}
         run: |
           ARTIFACTS_PATH=${{ env.BUILD_DIR }}/${{ env.PROJECT_NAME }}_artefacts/${{ env.BUILD_TYPE }}
           echo "ARTIFACTS_PATH=$ARTIFACTS_PATH" >> $GITHUB_ENV
@@ -188,7 +195,7 @@ jobs:
           echo "AU_PATH=$ARTIFACTS_PATH/AU/${{ env.PRODUCT_NAME }}.component" >> $GITHUB_ENV
           echo "CLAP_PATH=$ARTIFACTS_PATH/CLAP/${{ env.PRODUCT_NAME }}.clap" >> $GITHUB_ENV
           echo "STANDALONE_PATH=$ARTIFACTS_PATH/Standalone/${{ env.PRODUCT_NAME }}.app" >> $GITHUB_ENV
-          echo "ARTIFACT_NAME=${{ env.PRODUCT_NAME }}-${{ env.VERSION }}-${{ matrix.name }}" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=${{ env.PRODUCT_NAME }}-${PACKAGE_VERSION:-${VERSION}}-${{ matrix.name }}" >> $GITHUB_ENV
 
       - name: Include licenses and credits
         run: |

@@ -33,3 +33,6 @@ yohan-docs/*
 
 # Python release-configuration checks
 __pycache__/
+
+# Generated GitHub Pages site
+_site/
