@@ -4,7 +4,9 @@ User-visible changes to Open-Q are recorded here. Entries under **Unreleased** a
 
 ## [Unreleased]
 
-Initial beta scope for the `0.1.0` release series.
+## [0.1.0-beta.1] - 2026-10-29
+
+First public beta of Open-Q.
 
 ### Added
 
@@ -26,4 +28,5 @@ Initial beta scope for the `0.1.0` release series.
 - Windows and macOS downloads are not yet publisher-signed/notarized. Windows uses an installer; macOS and Linux use ZIP packages.
 - On Linux, gain-wheel input can lag with Spectrum Fill enabled. The suspected JUCE/X11 event-delivery cause remains unconfirmed; Release-build behaviour needs further checking.
 
-[Unreleased]: https://github.com/Yohansenanayake/Open-Q/commits/main/
+[Unreleased]: https://github.com/Yohansenanayake/Open-Q/compare/v0.1.0-beta.1...main
+[0.1.0-beta.1]: https://github.com/Yohansenanayake/Open-Q/releases/tag/v0.1.0-beta.1
