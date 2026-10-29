@@ -36,12 +36,24 @@
                 <li><h3>Run the installer</h3>
                     <p>Close your DAW and open the downloaded <code>.exe</code>.</p>
                     <p>Select <strong>VST3</strong>, <strong>CLAP</strong> and/or <strong>Standalone</strong>. Keep the standard plugin folders.</p>
+                    <p class="step-note">Edge download stuck as “Unconfirmed”? <a href="#edge-download-help">See the steps below</a>.</p>
                 </li>
                 <li><h3>Open your DAW</h3>
                     <p>Restart your DAW or rescan plugins, then load <strong>Open-Q</strong> on a track.</p>
                     <p class="step-note">The standalone app is also available from the Start menu.</p>
                 </li>
             </ol>
+            <details id="edge-download-help" class="compatibility-check">
+                <summary>Edge shows “Unconfirmed” or “isn’t commonly downloaded”</summary>
+                <p>Open-Q’s beta installer is unsigned and may not yet have download reputation with Microsoft SmartScreen. A file named <code>Unconfirmed ….crdownload</code> is a temporary download, not the finished installer.</p>
+                <ol>
+                    <li>In Edge, press <strong>Ctrl + J</strong> to open Downloads and check the Open-Q download’s status.</li>
+                    <li>If it says <strong>isn’t commonly downloaded</strong>, and you downloaded it from <a href="https://github.com/Yohansenanayake/Open-Q/releases">Open-Q’s GitHub Releases</a>, open its <strong>⋯</strong> menu and choose <strong>Keep → Show more → Keep anyway</strong>, if offered.</li>
+                    <li>Wait for the download to finish, then open the <code>Open-Q-….exe</code> installer. Do not rename the temporary <code>.crdownload</code> file.</li>
+                </ol>
+                <p>If the download failed, retry it or use another browser. These steps apply to an uncommon-download warning, not a malware detection; keep SmartScreen enabled.</p>
+                <p><a href="https://learn.microsoft.com/en-us/troubleshoot/microsoft-edge/development/download-failures">Microsoft’s Edge download help ↗</a></p>
+            </details>
             <details class="compatibility-check">
                 <summary>Optional: check whether to use the AVX2 build</summary>
                 <p>For Intel/AMD x64 PCs. Both builds have the same EQ features; AVX2 may reduce CPU usage. The standard x86-64 build needs no AVX2 check.</p>
@@ -155,8 +167,9 @@ END { print ((seen &amp;&amp; ok) ? &quot;Choose Linux x86-64 AVX2&quot; : &quot
         <section class="install-support" aria-labelledby="install-help-title">
             <h2 id="install-help-title">Help &amp; troubleshooting</h2>
             <details class="compatibility-check">
-                <summary>Windows or macOS shows a security warning</summary>
+                <summary id="windows-security">Windows or macOS shows a security warning</summary>
                 <p>These beta builds are unsigned, and macOS builds are not notarized. Download only from <a href="https://github.com/Yohansenanayake/Open-Q/releases">Open-Q’s GitHub Releases</a>.</p>
+                <p>On Windows, a blue <strong>“Windows protected your PC”</strong> prompt is a SmartScreen warning, not a system crash. If you trust the official download, select <strong>More info → Run anyway</strong>, if offered. Keep Windows security protections enabled.</p>
                 <p>On macOS, follow <a href="https://support.apple.com/en-us/102445">Apple’s Privacy &amp; Security instructions</a> for trusted downloaded software.</p>
             </details>
             <details class="compatibility-check">

@@ -485,6 +485,26 @@ h2 {
     text-align: center;
 }
 
+.download-notice {
+    margin-top: 28px;
+    padding: 18px 22px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--violet);
+    border-radius: 8px;
+    background: var(--surface-raised);
+}
+
+.download-notice p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.download-notice a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
 .download-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
