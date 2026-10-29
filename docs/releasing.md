@@ -54,9 +54,11 @@ Site-only edits deploy independently of plugin releases. After manual asset uplo
 | Linux x86-64 AVX2 | Analyzer decay wrote caller-owned, potentially unaligned spectra with aligned SIMD stores. Use unaligned stores for caller buffers; keep aligned stores for owned aligned history. A deliberately offset buffer reproduces the old crash and is now a regression test. |
 | Linux ARM64 | Native pluginval lacked `ladspa.h`; install `ladspa-sdk` alongside the JUCE build dependencies. |
 | Windows ARM64 | The pinned validator's older JUCE selects x86 inline assembly under ARM64 clang-cl. Build this test tool with native ARM64 MSVC, retaining clang-cl for Open-Q. |
-| macOS ARM64 | The strict NEON configure probe failed. It did not inherit SharedCode's C++ dialect; explicitly select C++17 inside the probe. The dialect failure is reproduced locally, but the original hosted compiler diagnostic was unavailable, so the macOS repair needs confirmation in the next full run. |
+| macOS ARM64 | The strict NEON configure probe failed. It did not inherit SharedCode's C++ dialect; explicitly select C++17 inside the probe. The subsequent Full Build & Test run passed this variant. |
 
-Failed builds now upload CMake configure and CTest diagnostics. No dependency revisions or release tags are changed by these fixes. A passing local AVX2 check does not establish macOS/Windows ARM64 compatibility; confirm those on their native hosted runners.
+Failed builds now upload CMake configure and CTest diagnostics. No dependency revisions or release tags are changed by these fixes.
+
+[Full Build & Test run #1](https://github.com/Yohansenanayake/Open-Q/actions/runs/40916787820) passed seven variants. Windows ARM64 built Open-Q and passed its tests, then hit another pinned-pluginval portability issue: `BasicTests.cpp` uses `100ms` without including `<chrono>`, which MSVC's `<thread>` does not supply. The Windows validator build now force-includes `<chrono>` through its own CMake flags, retaining native MSVC and the pinned dependency. Open-Q's compile flags and validation tests are unchanged. Confirm this follow-up on the hosted runner before tagging.
 
 To preview locally with fixture or downloaded API metadata:
 
