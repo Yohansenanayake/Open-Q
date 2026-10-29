@@ -1,0 +1,45 @@
+name: Full Build & Test
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.configuration.outputs.commit }}
+      matrix: ${{ steps.configuration.outputs.matrix }}
+      package_version: ${{ steps.configuration.outputs.package_version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check release configuration
+        run: python3 -m unittest discover -s tools/tests
+      - name: Prepare full matrix
+        id: configuration
+        run: |
+          # Validation filenames identify the run without creating a Git tag or release.
+          validation_tag="v$(cat VERSION)-verify.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          python3 tools/release_metadata.py --tag "$validation_tag" --commit "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    uses: ./.github/workflows/build_and_test.yml
+    with:
+      source_ref: ${{ needs.prepare.outputs.commit }}
+      build_matrix: ${{ needs.prepare.outputs.matrix }}
+      package_version: ${{ needs.prepare.outputs.package_version }}

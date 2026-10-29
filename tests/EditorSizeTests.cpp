@@ -127,8 +127,8 @@ TEST_CASE ("Editor bars scale independently and analyzer opens above its footer 
     checkLayout();
     editor.setSize (openq::EditorSize::maximumWidth, openq::EditorSize::minimumHeight);
     checkLayout();
-    const auto headerGrowth = static_cast<float> (header->getHeight()) / baseHeaderHeight;
-    const auto bottomGrowth = static_cast<float> (bottom->getHeight()) / baseBottomHeight;
+    const auto headerGrowth = static_cast<float> (header->getHeight()) / static_cast<float> (baseHeaderHeight);
+    const auto bottomGrowth = static_cast<float> (bottom->getHeight()) / static_cast<float> (baseBottomHeight);
     CHECK (bottomGrowth > 1.0f);
     CHECK (bottomGrowth < headerGrowth);
     CHECK (headerGrowth < processor.getEditorSize().scale());

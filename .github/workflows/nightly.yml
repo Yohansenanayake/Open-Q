@@ -11,4 +11,4 @@ permissions:
 jobs:
   nightly:
     if: github.repository == 'Yohansenanayake/Open-Q'
-    uses: ./.github/workflows/build_and_test.yml
+    uses: ./.github/workflows/full_build.yml

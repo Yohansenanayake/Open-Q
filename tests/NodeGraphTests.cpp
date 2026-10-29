@@ -948,9 +948,9 @@ TEST_CASE ("Editor continuously scales cards and nodes with width while height a
     {
         const auto [width, scale] = layout;
         editor.setSize (width, juce::roundToInt (openq::EditorSize::defaultHeight * scale));
-        CHECK_THAT (card->getWidth(), Catch::Matchers::WithinAbs (originalCard.getWidth() * scale, 1.0));
-        CHECK_THAT (card->getHeight(), Catch::Matchers::WithinAbs (originalCard.getHeight() * scale, 1.0));
-        CHECK_THAT (first.getWidth(), Catch::Matchers::WithinAbs (originalNode.getWidth() * openq::UiScale (width).graph(), 1.0));
+        CHECK_THAT (card->getWidth(), Catch::Matchers::WithinAbs (static_cast<float> (originalCard.getWidth()) * scale, 1.0));
+        CHECK_THAT (card->getHeight(), Catch::Matchers::WithinAbs (static_cast<float> (originalCard.getHeight()) * scale, 1.0));
+        CHECK_THAT (first.getWidth(), Catch::Matchers::WithinAbs (static_cast<float> (originalNode.getWidth()) * openq::UiScale (width).graph(), 1.0));
         CHECK_THAT (selector->getLookAndFeel().getComboBoxFont (*selector).getHeight(), Catch::Matchers::WithinAbs (originalFont * scale, 0.5));
         CHECK (graph->getBounds().contains (card->getBounds()));
         CHECK_FALSE (card->getBounds().intersects (editor.findChildWithID ("editor.header")->getBounds()));

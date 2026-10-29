@@ -5,7 +5,7 @@
 #include "ui/UiScale.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), analyzerTransport (p.getAnalyzerTransport()), headerBar (p.getAnalyzerTransport(), p.parameters), bottomBar (p.parameters), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
+    : AudioProcessorEditor (&p), pluginProcessor (p), analyzerTransport (p.getAnalyzerTransport()), headerBar (p.getAnalyzerTransport(), p.parameters), bottomBar (p.parameters), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
 {
     setLookAndFeel (&lookAndFeel);
     // Panel dismissal returns focus here instead of selecting a graph node.
@@ -85,7 +85,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         bandCard.setBand (openq::bandCount);
         if (presetBrowser == nullptr)
         {
-            presetBrowser = std::make_unique<openq::presets::PresetBrowser> (processor);
+            presetBrowser = std::make_unique<openq::presets::PresetBrowser> (pluginProcessor);
             addChildComponent (*presetBrowser);
             presetBrowser->onClose = [this] { closePresetBrowser(); };
         }
@@ -216,18 +216,18 @@ PluginEditor::~PluginEditor()
 
 void PluginEditor::timerCallback()
 {
-    const auto size = processor.getEditorSize();
+    const auto size = pluginProcessor.getEditorSize();
     if (getWidth() > 0 && openq::EditorSize { getWidth(), getHeight() } != size)
         setSize (size.width, size.height);
     const auto now = juce::Time::getMillisecondCounterHiRes() * 0.001;
     bottomBar.messageThreadTick (now);
     if (!isShowing())
     {
-        (void) processor.getLevelMeters().read();
+        (void) pluginProcessor.getLevelMeters().read();
         lastMeterTime = 0.0;
     }
     headerBar.refresh();
-    headerBar.setPresetName (processor.getAppliedPresetName());
+    headerBar.setPresetName (pluginProcessor.getAppliedPresetName());
     if (analyzerPanel != nullptr)
         analyzerPanel->refresh();
 }
@@ -235,7 +235,7 @@ void PluginEditor::timerCallback()
 void PluginEditor::refreshMeters()
 {
     const auto now = juce::Time::getMillisecondCounterHiRes() * 0.001;
-    const auto reading = processor.getLevelMeters().read();
+    const auto reading = pluginProcessor.getLevelMeters().read();
     if ((isShowing() && lastMeterTime <= 0.0) || (!isShowing() && lastMeterTime > 0.0) || reading.generation != meterGeneration)
     {
         inputMeter.reset();
@@ -292,7 +292,7 @@ void PluginEditor::resized()
     positionBandCard (true);
     positionAnalyzerPanel();
     positionPresetBrowser();
-    processor.setEditorSize (size);
+    pluginProcessor.setEditorSize (size);
 }
 
 void PluginEditor::closePresetBrowser()

@@ -38,7 +38,7 @@ Stereo analysis averages channel powers, not waveforms or dB. Normal uses the ra
 
 `AnalyzerSettings` packs visibility/quality and smoothing/decay coherently. Defaults: both traces visible, Normal quality, half-ERB smoothing, remembered 1/12 octave, Medium decay, −96..0 dBFS and +4.5 dB/oct tilt at 1 kHz. Fill is an independent saved preference and does not reset analysis. Settings are non-automatable display state.
 
-Temporal state lives in FFT bins. Apply tilt before decay; use actual elapsed worker time and the displayed minimum dB for decay calibration. Resize preserves FFT history. After 250 ms without fresh input, provide a silent target so the display decays. Session/rate/quality/visibility changes reset appropriate histories. Stop worker/capture activity when hidden. Future adjustable analyzer ranges must feed the same decay calibration independently of the EQ gain axis. Tests: `AnalyzerTests.cpp`, `AnalyzerConfigurationTests.cpp`, `ResponseGraphTests.cpp`.
+Temporal state lives in FFT bins. Apply tilt before decay; use actual elapsed worker time and the displayed minimum dB for decay calibration. Caller spectrum spans need not be SIMD-aligned: use Highway `LoadU`/`StoreU` for those buffers; only owned aligned history may use aligned operations. Resize preserves FFT history. After 250 ms without fresh input, provide a silent target so the display decays. Session/rate/quality/visibility changes reset appropriate histories. Stop worker/capture activity when hidden. Future adjustable analyzer ranges must feed the same decay calibration independently of the EQ gain axis. Tests: `AnalyzerTests.cpp`, `AnalyzerConfigurationTests.cpp`, `ResponseGraphTests.cpp`.
 
 ## Editor and controls
 

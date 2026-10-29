@@ -4,6 +4,16 @@ User-visible changes to Open-Q are recorded here. Entries under **Unreleased** a
 
 ## [Unreleased]
 
+### Fixed
+
+- Analyzer crashes in AVX2 builds caused by aligned SIMD writes to unaligned spectrum buffers.
+- ARM64 release validation setup: install the Linux LADSPA headers, use native MSVC for Windows pluginval, and give the macOS SIMD configure probe an explicit C++ dialect.
+
+### Added
+
+- A **Full Build & Test** workflow that builds and tests all eight release variants. It can be started manually and also runs every night.
+- Downloadable packages for testing before a release, plus diagnostic logs when a build fails.
+
 ## [0.1.0-beta.1] - 2026-10-29
 
 First public beta of Open-Q.

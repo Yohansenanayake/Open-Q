@@ -1,6 +1,9 @@
 #include "PluginEditor.h"
 #include "dsp/analyzer/AnalyzerEngine.h"
 #include "ui/AnalyzerWorker.h"
+JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wfloat-equal", "-Wpedantic")
+#include "dsp/analyzer/reference/SpectrumDecayer.h"
+JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <chrono>
@@ -481,6 +484,39 @@ TEST_CASE ("Analyzer mode and amount choices change power smoothing without chan
     engine.analyze (settings);
     CHECK (engine.powerAt (0, toneHz) < halfErb);
     CHECK (engine.getRevision() == revision);
+}
+
+TEST_CASE ("Spectrum decay accepts unaligned caller storage in normal and frozen modes", "[analyzer][decay]")
+{
+    namespace hn = hwy::HWY_NAMESPACE;
+    constexpr size_t count = 2 * hn::MaxLanes (hn::ScalableTag<float> {}) + 1;
+    hwy::AlignedVector<float> storage (count + 2, -20.0f);
+    storage.front() = 123.0f;
+    storage.back() = -321.0f;
+    // Offset an aligned allocation so SIMD chunks and the scalar tail share an unaligned span.
+    std::span<float> spectrum (storage.data() + 1, count);
+    zldsp::analyzer::SpectrumDecayer decayer;
+    decayer.prepareSpectrum (count);
+    decayer.setDecaySpeed (30.0f, -96.0f, 1.0f);
+    const auto expect = [&] (float value) {
+        for (auto actual : spectrum)
+            CHECK_THAT (actual, Catch::Matchers::WithinAbs (value, 1e-5));
+        CHECK_THAT (storage.front(), Catch::Matchers::WithinAbs (123.0, 0.0));
+        CHECK_THAT (storage.back(), Catch::Matchers::WithinAbs (-321.0, 0.0));
+    };
+    decayer.decay (spectrum);
+    expect (-20.0f);
+    std::ranges::fill (spectrum, -80.0f);
+    decayer.decay (spectrum, true);
+    expect (-20.0f);
+    std::ranges::fill (spectrum, -80.0f);
+    decayer.decay (spectrum);
+    CHECK (spectrum.front() < -20.0f);
+    CHECK (spectrum.front() > -80.0f);
+    expect (spectrum.front());
+    std::ranges::fill (spectrum, -5.0f);
+    decayer.decay (spectrum);
+    expect (-5.0f);
 }
 
 TEST_CASE ("Analyzer exponential decay follows elapsed time speed and dB range with immediate rise", "[analyzer][decay]")

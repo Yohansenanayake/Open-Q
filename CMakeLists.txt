@@ -208,9 +208,12 @@ target_link_libraries("${PROJECT_NAME}" PRIVATE SharedCode)
 
 # Everything related to the tests target
 pamplejuce_add_tests()
+# Use Catch2's standard line-based IDs instead of its __COUNTER__ extension.
+target_compile_definitions(Tests PRIVATE CATCH_CONFIG_NO_COUNTER)
 
 # A separate target for Benchmarks (keeps the Tests target fast)
 pamplejuce_add_benchmarks()
+target_compile_definitions(Benchmarks PRIVATE CATCH_CONFIG_NO_COUNTER)
 
 # Output some config for CI (like our PRODUCT_NAME)
 include(GitHubENV)

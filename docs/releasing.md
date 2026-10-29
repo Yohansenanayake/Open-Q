@@ -6,7 +6,8 @@ All commands below run from the repository root.
 
 
 - **Build & Test** runs on branch pushes, external pull requests and manual dispatch. Same-repository pull requests use their branch-push run. It builds/tests Linux x86-64, Windows x86-64 and macOS universal binaries, validates VST3 with pluginval and uploads packages. It can also be called by the workflows below.
-- **Nightly** runs daily at 10:00 UTC on Open-Q's default branch, or manually. It calls the same build/test workflow with read-only repository permissions and never publishes a release. Dependency revisions remain pinned.
+- **Full Build & Test** runs manually, or as a reusable workflow. It uses the same eight variants, tests, pluginval checks and packaging steps as Release, with read-only repository permissions. Validation artifacts use `0.1.0-verify.<run-id>.<attempt>` filenames; no tag or release is created.
+- **Nightly** runs daily at 10:00 UTC on Open-Q's default branch, or manually. It calls Full Build & Test. Dependency revisions remain pinned.
 - **Release** runs when a `v*` tag is pushed, or manually with an existing tag. Its numeric version must match `VERSION`: for example, `VERSION` containing `0.1.0` accepts `v0.1.0` or `v0.1.0-rc.1`. Commit the workflow and version changes before creating the tag. Manual runs also require the tag to exist remotely; they do not create tags.
 - **GitHub Pages** rebuilds the storefront on website/tool changes to `main`, published-release changes and manual dispatch. It checks out the current default-branch website and generates static Stable and Preview/Beta downloads from published GitHub Releases metadata. Drafts are hidden; absent builds get no download link. The site uses the interface screenshots from `assets/images/`; updating them also triggers deployment. Its comparison viewer uses committed bell assets plus shelf/cut SVG and CSV exports from `tools/eq-comparison/results/`; updating those exports triggers deployment without rebuilding DSP or installing plotting dependencies. Support buttons link to `https://ko-fi.com/yohansenanayake`; the official Ko-fi cup is stored locally in `website/assets/`.
 
@@ -34,8 +35,8 @@ For local release-configuration checks, run `python3 -m unittest discover -s too
 
 Keep pending user-visible changes in [CHANGELOG.md](../CHANGELOG.md) under **Unreleased**. When cutting a release candidate, move them into a dated section with the full version (for example `0.1.0-beta.1`) and leave a new Unreleased section above it. Commit this before tagging. Use that section to review and edit the draft's generated release notes before publication.
 
-1. Set the numeric `VERSION` (for example `0.1.0`), commit and push the implementation/workflow changes to `main`.
-2. Push a new tag: `v0.1.0-beta.1` for testing, or `v0.1.0` for a stable candidate. Do not move an old tag to new code.
+1. Set the numeric `VERSION` (for example `0.1.0`), prepare the changelog, then commit and push the changes to `main`. In Actions → **Full Build & Test** → **Run workflow**, select that branch and verify all eight variants pass. Download the validation artifacts for installation/DAW checks. A new commit needs another validation run.
+2. Push a new tag on the validated commit: for example `v0.1.0-beta.2` for the next testing candidate, or `v0.1.0` for a stable candidate. Do not move an old tag to new code. Release still performs its own checks against the tagged commit.
 3. Wait for Release to build/test the eight variants and prepare a draft containing versioned binaries and checksums.
 4. Review the draft and manually publish it. This human publication triggers Pages; draft creation does not expose the binaries on the website.
 5. Pages reads all release API pages during deployment and selects the most recently published release independently for each channel, using GitHub's prerelease flag and publication date. It renders the actual uploaded, nonempty, correctly versioned asset URLs into HTML. A preview-only project shows no stable download buttons; unpublished/deleted releases disappear after the next deployment. Release notes, checksums (when attached), installation guidance, older versions and preview feedback are linked alongside downloads. No visitor-side API calls, JavaScript or PAT is needed.
@@ -43,6 +44,19 @@ Keep pending user-visible changes in [CHANGELOG.md](../CHANGELOG.md) under **Unr
 **One-time GitHub setup:** in Settings → Pages, select **GitHub Actions** as the build/deployment source. If the `github-pages` environment restricts deployment refs, allow the `main` branch and version tags matching `v*` (Settings → Environments → github-pages → Deployment branches and tags). Release-triggered runs have a tag ref even though they check out the latest website from the default branch. Keep Pages workflows/tools on `main` before publishing the first candidate.
 
 Site-only edits deploy independently of plugin releases. After manual asset uploads or automation using `GITHUB_TOKEN`, run Pages manually if no release event fires; the intended pipeline publishes complete drafts manually. API errors fail deployment rather than replacing the site with empty release data. The site stays on its previous deployment if a build/deployment fails.
+
+## First matrix failure and fixes
+
+[Release run #5](https://github.com/Yohansenanayake/Open-Q/actions/runs/40902858354) exposed failures outside everyday CI's three configurations:
+
+| Variant | Failure and correction |
+| --- | --- |
+| Linux x86-64 AVX2 | Analyzer decay wrote caller-owned, potentially unaligned spectra with aligned SIMD stores. Use unaligned stores for caller buffers; keep aligned stores for owned aligned history. A deliberately offset buffer reproduces the old crash and is now a regression test. |
+| Linux ARM64 | Native pluginval lacked `ladspa.h`; install `ladspa-sdk` alongside the JUCE build dependencies. |
+| Windows ARM64 | The pinned validator's older JUCE selects x86 inline assembly under ARM64 clang-cl. Build this test tool with native ARM64 MSVC, retaining clang-cl for Open-Q. |
+| macOS ARM64 | The strict NEON configure probe failed. It did not inherit SharedCode's C++ dialect; explicitly select C++17 inside the probe. The dialect failure is reproduced locally, but the original hosted compiler diagnostic was unavailable, so the macOS repair needs confirmation in the next full run. |
+
+Failed builds now upload CMake configure and CTest diagnostics. No dependency revisions or release tags are changed by these fixes. A passing local AVX2 check does not establish macOS/Windows ARM64 compatibility; confirm those on their native hosted runners.
 
 To preview locally with fixture or downloaded API metadata:
 

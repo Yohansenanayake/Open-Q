@@ -210,7 +210,7 @@ namespace openq
             {
                 const auto size = state.resolutions[middleResolution].powers[0].size();
                 state.displayFrequencies.resize (size);
-                const auto delta = static_cast<float> (state.sampleRate / state.resolutions[middleResolution].fft->get_size());
+                const auto delta = static_cast<float> (state.sampleRate / static_cast<double> (state.resolutions[middleResolution].fft->get_size()));
                 for (size_t i = 0; i < size; ++i)
                     state.displayFrequencies[i] = static_cast<float> (i) * delta;
             }
@@ -266,9 +266,9 @@ namespace openq
         const auto& levels = state.displayLevels[trace];
         if (state.displayQuality == AnalyzerQuality::Normal)
         {
-            const auto bin = std::clamp (frequency * state.resolutions[middleResolution].fft->get_size() / state.sampleRate, 0.0, static_cast<double> (levels.size() - 1));
+            const auto bin = std::clamp (frequency * static_cast<double> (state.resolutions[middleResolution].fft->get_size()) / state.sampleRate, 0.0, static_cast<double> (levels.size() - 1));
             const auto lower = static_cast<size_t> (bin);
-            return std::lerp (levels[lower], levels[std::min (lower + 1, levels.size() - 1)], static_cast<float> (bin - lower));
+            return std::lerp (levels[lower], levels[std::min (lower + 1, levels.size() - 1)], static_cast<float> (bin - static_cast<double> (lower)));
         }
         const auto upper = std::lower_bound (state.displayFrequencies.begin(), state.displayFrequencies.end(), static_cast<float> (frequency));
         if (upper == state.displayFrequencies.begin())

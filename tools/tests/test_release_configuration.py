@@ -5,6 +5,8 @@ against complete, missing and empty download fixtures.
 """
 import json
 import os
+import platform
+import shutil
 from pathlib import Path
 import re
 import subprocess
@@ -63,6 +65,54 @@ class ReleaseConfigurationTests(unittest.TestCase):
                 if arm and not mac:
                     self.assertIn('arm', row['os'])
                     self.assertIn('pluginval-build', row['pluginval-binary'])
+
+    def test_full_validation_uses_the_release_matrix_without_publishing(self):
+        workflow = (ROOT / '.github/workflows/full_build.yml').read_text()
+        self.assertIn('workflow_dispatch:', workflow)
+        self.assertIn('workflow_call:', workflow)
+        self.assertIn('uses: ./.github/workflows/full_build.yml', (ROOT / '.github/workflows/nightly.yml').read_text())
+        self.assertIn('uses: ./.github/workflows/build_and_test.yml', workflow)
+        self.assertNotIn('contents: write', workflow)
+        self.assertNotIn('action-gh-release', workflow)
+        self.assertIn('build_matrix: ${{ needs.prepare.outputs.matrix }}', workflow)
+        self.assertIn('source_ref: ${{ needs.prepare.outputs.commit }}', workflow)
+        step = workflow.split('      - name: Prepare full matrix\n', 1)[1]
+        body = textwrap.dedent(step.split('        run: |\n', 1)[1].split('\n  build:', 1)[0])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'outputs'
+            result = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', body], cwd=ROOT,
+                                    env={**os.environ, 'GITHUB_OUTPUT': str(output),
+                                         'GITHUB_RUN_ID': '12345', 'GITHUB_RUN_ATTEMPT': '2'},
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            outputs = dict(line.split('=', 1) for line in output.read_text().splitlines())
+            self.assertEqual(json.loads(outputs['matrix'])['include'], self.rows)
+            numeric = (ROOT / 'VERSION').read_text().strip()
+            self.assertEqual(outputs['package_version'], f'{numeric}-verify.12345.2')
+            self.assertRegex(outputs['commit'], r'^[0-9a-f]{40}$')
+
+    @unittest.skipUnless(platform.system() == 'Linux' and shutil.which('cmake') and shutil.which('c++'),
+                         'The isolated SIMD configure probe requires Linux CMake/C++ tools')
+    def test_simd_probe_sets_its_own_dialect_without_changing_the_project(self):
+        with tempfile.TemporaryDirectory(prefix='openq-simd-configure-') as directory:
+            source = Path(directory)
+            header = source / 'fake/hwy/detect_targets.h'
+            header.parent.mkdir(parents=True)
+            header.write_text('#if __cplusplus < 201703L\n#error Probe needs C++17\n#endif\n'
+                              '#define HWY_SSE2 4\n#define HWY_NEON_WITHOUT_AES 8\n'
+                              '#define HWY_STATIC_TARGET HWY_BASELINE_TARGETS\n')
+            target = 'NEON' if platform.machine().lower() in ('arm64', 'aarch64') else 'SSE2'
+            (source / 'CMakeLists.txt').write_text(
+                'cmake_minimum_required(VERSION 3.25)\nproject(Probe LANGUAGES CXX)\n'
+                'set(CMAKE_CXX_STANDARD 98)\n'
+                f'set(OPENQ_SIMD_TARGET {target})\n'
+                f'include("{(ROOT / "tools/cmake/OpenQSimd.cmake").as_posix()}")\n'
+                'openq_verify_simd("${CMAKE_CURRENT_SOURCE_DIR}/fake")\n'
+                'if(NOT CMAKE_CXX_STANDARD EQUAL 98)\nmessage(FATAL_ERROR "Probe changed caller dialect")\nendif()\n')
+            result = subprocess.run(['cmake', '-S', str(source), '-B', str(source / 'build')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('OPENQ_SIMD_TARGET_VERIFIED - Success', result.stdout)
 
     def test_tag_versions_keep_preview_identity_and_numeric_version_validation(self):
         for tag in ['v0.1.0', 'v0.1.0-beta.1', 'v0.1.0-beta.2', 'v0.1.0-rc.1']:

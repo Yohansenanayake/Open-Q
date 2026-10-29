@@ -111,7 +111,7 @@ jobs:
           # wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
           # echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
           # sudo apt install intel-oneapi-ipp-devel
-          sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxi-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libxrender-dev libxcomposite-dev libfontconfig1-dev libfreetype6-dev libwebkit2gtk-4.1-dev libglu1-mesa-dev xvfb openbox x11-utils ninja-build lld
+          sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxi-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libxrender-dev libxcomposite-dev libfontconfig1-dev libfreetype6-dev libwebkit2gtk-4.1-dev libglu1-mesa-dev ladspa-sdk xvfb openbox x11-utils ninja-build lld
 
       - name: Start Linux test desktop
         if: runner.os == 'Linux'
@@ -218,7 +218,9 @@ jobs:
         run: |
           flags=(-G Ninja -DCMAKE_BUILD_TYPE=Release)
           if [[ "$RUNNER_OS" == Windows ]]; then
-            flags+=(-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER_TARGET=aarch64-pc-windows-msvc -DCMAKE_CXX_COMPILER_TARGET=aarch64-pc-windows-msvc)
+            # The pinned validator's older JUCE uses x86 debug asm under ARM64 clang-cl.
+            # msvc-dev-cmd already selects the native ARM64 cl toolchain.
+            flags+=(-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl)
           fi
           cmake -S .ci-tools/pluginval -B .ci-tools/pluginval-build "${flags[@]}"
           cmake --build .ci-tools/pluginval-build --config Release --target pluginval --parallel 2
@@ -360,3 +362,14 @@ jobs:
           name: ${{ env.ARTIFACT_NAME }}.zip
           path: "${{ env.ARTIFACTS_PATH }}/${{ env.ARTIFACT_NAME }}.zip"
           if-no-files-found: error
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diagnostics-${{ matrix.name }}
+          if-no-files-found: ignore
+          path: |
+            Builds/**/CMakeConfigureLog.yaml
+            Builds/Testing/Temporary/**
+            .ci-tools/pluginval-build/**/CMakeConfigureLog.yaml

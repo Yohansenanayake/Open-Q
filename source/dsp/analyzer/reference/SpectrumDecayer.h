@@ -12,7 +12,7 @@
 #include <span>
 #include <vector>
 
-// Open-Q adaptation: use the existing pinned Highway allocator directly.
+// Open-Q adaptation: use the pinned Highway allocator; caller spectra need not be SIMD-aligned.
 #include <algorithm>
 #include <cmath>
 #include <hwy/aligned_allocator.h>
@@ -65,7 +65,7 @@ namespace zldsp::analyzer {
                     const auto spec = hn::LoadU(d, spectrum_ptr + i);
                     const auto state = hn::Load(d, state_ptr + i);
                     const auto v = hn::Max(spec, state);
-                    hn::Store(v, d, spectrum_ptr + i);
+                    hn::StoreU(v, d, spectrum_ptr + i);
                     hn::Store(v, d, state_ptr + i);
                 }
                 for (; i < spectrum_db.size(); ++i) {
@@ -81,7 +81,7 @@ namespace zldsp::analyzer {
                     const auto diff = hn::Sub(spec, state);
                     const auto smoothed = hn::MulAdd(v_p, diff, state);
                     const auto v = hn::Max(spec, smoothed);
-                    hn::Store(v, d, spectrum_ptr + i);
+                    hn::StoreU(v, d, spectrum_ptr + i);
                     hn::Store(v, d, state_ptr + i);
                 }
                 for (; i < spectrum_db.size(); ++i) {

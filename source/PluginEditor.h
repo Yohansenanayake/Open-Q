@@ -41,7 +41,7 @@ private:
         void checkBounds (juce::Rectangle<int>&, const juce::Rectangle<int>&, const juce::Rectangle<int>&, bool, bool, bool, bool) override;
     } boundsConstrainer;
     openq::UiLookAndFeel lookAndFeel;
-    PluginProcessor& processor;
+    PluginProcessor& pluginProcessor;
     float uiScale = 1.0f;
     void timerCallback() override;
     void refreshMeters();

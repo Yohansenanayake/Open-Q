@@ -14,7 +14,10 @@ namespace openq
         {
             std::array<BandSettings, bandCount> bands;
             double sampleRate = 0.0;
-            bool operator== (const TargetParameters&) const = default;
+            bool operator== (const TargetParameters& other) const
+            {
+                return bands == other.bands && juce::exactlyEqual (sampleRate, other.sampleRate);
+            }
         };
     }
 

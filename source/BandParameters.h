@@ -22,7 +22,13 @@ namespace openq
         BandStatus status = BandStatus::Off;
         FilterType type = FilterType::Bell;
         CutSlope slope = defaultCutSlope;
-        bool operator== (const BandSettings&) const = default;
+        bool operator== (const BandSettings& other) const
+        {
+            return juce::exactlyEqual (frequency, other.frequency)
+                && juce::exactlyEqual (gain, other.gain)
+                && juce::exactlyEqual (q, other.q)
+                && status == other.status && type == other.type && slope == other.slope;
+        }
     };
 
     struct BandParameterPointers
