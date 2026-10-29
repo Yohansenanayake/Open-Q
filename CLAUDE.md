@@ -65,7 +65,7 @@ Repository instructions for coding agents. `AGENTS.md` links to this file; edit 
 
 ## About This Project
 
-This project is derived from the [Pamplejuce](https://github.com/sudara/pamplejuce) template — a JUCE audio plugin template using CMake, C++23, and modern CI/CD. Open-Q builds VST3, CLAP and Standalone on Linux, Windows and macOS, with AU/AUv3 additionally enabled on macOS.
+This project is derived from the [Pamplejuce](https://github.com/sudara/pamplejuce) template — a JUCE audio plugin template using CMake, C++23, and modern CI/CD. Open-Q builds VST3, CLAP and Standalone on Linux, Windows and macOS, with AU additionally enabled on macOS. AUv3 is requested in CMake but JUCE enables it only with the Xcode generator; Ninja CI does not build/package AUv3. Keep required archive inputs aligned with the active generator.
 
 The template provides the build system, CI/CD, and project structure. The plugin-specific logic lives in `source/`.
 

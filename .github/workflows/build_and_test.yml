@@ -147,7 +147,6 @@ jobs:
           echo "ARTIFACTS_PATH=$ARTIFACTS_PATH" >> $GITHUB_ENV
           echo "VST3_PATH=$ARTIFACTS_PATH/VST3/${{ env.PRODUCT_NAME }}.vst3" >> $GITHUB_ENV
           echo "AU_PATH=$ARTIFACTS_PATH/AU/${{ env.PRODUCT_NAME }}.component" >> $GITHUB_ENV
-          echo "AUV3_PATH=$ARTIFACTS_PATH/AUv3/${{ env.PRODUCT_NAME }}.appex" >> $GITHUB_ENV
           echo "CLAP_PATH=$ARTIFACTS_PATH/CLAP/${{ env.PRODUCT_NAME }}.clap" >> $GITHUB_ENV
           echo "STANDALONE_PATH=$ARTIFACTS_PATH/Standalone/${{ env.PRODUCT_NAME }}.app" >> $GITHUB_ENV
           echo "ARTIFACT_NAME=${{ env.PRODUCT_NAME }}-${{ env.VERSION }}-${{ runner.os }}" >> $GITHUB_ENV
@@ -230,8 +229,15 @@ jobs:
         working-directory: ${{ env.ARTIFACTS_PATH }}
         run: |
           bundles=(VST3 CLAP Standalone)
-          if [[ "$RUNNER_OS" == macOS ]]; then bundles+=(AU AUv3); fi
-          for bundle in "${bundles[@]}"; do test -d "$bundle"; done
+          # JUCE enables AUv3 only with Xcode; these jobs use Ninja.
+          if [[ "$RUNNER_OS" == macOS ]]; then bundles+=(AU); fi
+          for bundle in "${bundles[@]}"; do
+            if [[ ! -d "$bundle" ]]; then
+              echo "::error::Missing required archive directory: $bundle (in $PWD)"
+              ls -la
+              exit 1
+            fi
+          done
           7z a -tzip "${{ env.ARTIFACT_NAME }}.zip" "${bundles[@]}" LICENSE THIRD_PARTY_NOTICES.md README.md licenses
 
       - name: Generate Installer
