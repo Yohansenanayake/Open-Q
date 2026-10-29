@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 START = '<!-- RELEASE_DOWNLOADS_START -->'
 END = '<!-- RELEASE_DOWNLOADS_END -->'
 PLATFORMS = (
-    ('macOS', '⌘', [('arm64', 'Apple silicon'), ('x86-64', 'Intel Mac')], [], 'zip', 'ZIP · VST3 · CLAP · AU · Standalone'),
-    ('Windows', '⊞', [('x86-64', 'Windows x86-64')], [('x86-64-AVX2', 'x86-64 AVX2'), ('arm64', 'Windows ARM64')], 'exe', 'INSTALLER · VST3 · CLAP · Standalone'),
-    ('Linux', '⌁', [('x86-64', 'Linux x86-64')], [('x86-64-AVX2', 'x86-64 AVX2'), ('arm64', 'Linux ARM64')], 'zip', 'ZIP · VST3 · CLAP · Standalone'),
+    ('macOS', 'apple', [('arm64', 'Apple silicon'), ('x86-64', 'Intel Mac')], [], 'zip', 'ZIP · VST3 · CLAP · AU · Standalone'),
+    ('Windows', 'windows', [('x86-64', 'Intel / AMD (x86-64)')], [('x86-64-AVX2', 'Intel / AMD · AVX2'), ('arm64', 'ARM64')], 'exe', 'INSTALLER · VST3 · CLAP · Standalone'),
+    ('Linux', 'linux', [('x86-64', 'Intel / AMD (x86-64)')], [('x86-64-AVX2', 'Intel / AMD · AVX2'), ('arm64', 'ARM64')], 'zip', 'ZIP · VST3 · CLAP · Standalone'),
 )
 
 
@@ -46,42 +46,53 @@ def render_channel(release, preview, repository):
     title = 'Preview / Beta' if preview else 'Stable'
     if release is None:
         message = 'No preview release is currently published.' if preview else 'No stable release yet. Public previews, when available, are listed below.'
-        return f'<section class="release-channel" aria-label="{title}"><h3>{title}</h3><p>{message}</p></section>'
+        return f'<section class="release-channel release-channel-empty" aria-label="{title}"><p>{message}</p></section>'
     version = package_version(release['tag_name'])
     date = datetime.fromisoformat(release['published_at'].replace('Z', '+00:00')).date().isoformat()
     release_url = f"https://github.com/{repository}/releases/tag/{quote(release['tag_name'], safe='')}"
-    html = [f'<section class="release-channel" aria-label="{title}"><h3>{title} <span>{escape(version)}</span></h3>',
-            f'<p>Published <time datetime="{date}">{date}</time>. '
-            + ('Early testing build: save your work and please report issues.' if preview else 'Recommended for everyday use.') + '</p>',
-            f'<p class="release-links"><a href="{escape(release_url, quote=True)}">Release notes</a>']
-    checksum = asset_url(release, 'SHA256SUMS.txt', repository)
-    if checksum:
-        html.append(f'<a href="{escape(checksum, quote=True)}">SHA-256 checksums</a>')
-    html.append('<a href="install.html">Installation guide</a>')
-    if preview:
-        html.append(f'<a href="https://github.com/{repository}/issues">Report feedback</a>')
-    html.append('</p><div class="download-grid">')
+    html = [f'<section class="release-channel" aria-label="{title}">',
+            f'<div class="release-heading"><h3>{title}</h3><span class="release-version">{escape(version)}</span>'
+            f'<time datetime="{date}">{date}</time></div>',
+            '<p class="release-description">' + ('A first look at Open-Q. Save your work and share your feedback.'
+                                                  if preview else 'Recommended for everyday use.') + '</p>',
+            '<div class="download-grid">']
     for platform, icon, primary, advanced, extension, formats in PLATFORMS:
-        html.append(f'<article class="download-card"><div class="platform-icon" aria-hidden="true">{icon}</div><h4>{platform}</h4>')
-        links = []
-        has_downloads = False
+        package = 'Windows installer' if extension == 'exe' else 'ZIP archive'
+        html.append(f'<article class="download-card"><div class="download-card-heading">'
+                    f'<span class="platform-icon" aria-hidden="true"><img class="brand-icon" src="assets/icons/{icon}.svg" alt="" width="26" height="26"></span>'
+                    f'<div><h4>{platform}</h4><p>{package}</p></div></div>')
+        primary_links, alternate_links = [], []
         for variant, label in primary + advanced:
             filename = f'Open-Q-{version}-{platform}-{variant}.{extension}'
             url = asset_url(release, filename, repository)
-            if url:
-                has_downloads = True
-                suffix = ' (compatible CPU required)' if variant.endswith('AVX2') else ''
-                link = f'<a class="download-link" href="{escape(url, quote=True)}">{label}{suffix} <span aria-hidden="true">↓</span></a>'
-                if (variant, label) in primary:
-                    html.append(link)
-                else:
-                    links.append(link)
-        if not has_downloads:
+            if not url:
+                continue
+            if (variant, label) in primary:
+                style = 'download-link' + (' download-link-secondary' if primary_links else '')
+                primary_links.append(f'<a class="{style}" href="{escape(url, quote=True)}">'
+                                     f'<span>{label}</span><span aria-hidden="true">↓</span></a>')
+            else:
+                alternate_links.append(f'<a class="alternate-download" href="{escape(url, quote=True)}">'
+                                       f'<span>{label}</span><span aria-hidden="true">↓</span></a>')
+        if primary_links:
+            html.append('<div class="download-actions">' + ''.join(primary_links) + '</div>')
+        if alternate_links:
+            html.append('<details class="advanced-builds"><summary>More builds</summary>'
+                        '<div class="alternate-build-list">' + ''.join(alternate_links) + '</div>'
+                        '<a class="build-help" href="install.html#choose-build">Help choosing a build ↗</a></details>')
+        if not primary_links and not alternate_links:
             html.append('<p class="download-unavailable">No downloads available for this platform in this release.</p>')
-        if links:
-            html.append('<details class="advanced-builds"><summary>More builds</summary>' + ''.join(links) + '</details>')
-        html.append(f'<span class="package-label">{formats}</span></article>')
-    html.append('</div></section>')
+        badges = ''.join(f'<li class="format-badge">{name}</li>' for name in formats.split(' · ')[1:])
+        html.append(f'<ul class="package-label" aria-label="Included formats">{badges}</ul></article>')
+    html.append('</div><nav class="release-links" aria-label="Release resources">'
+                '<a class="install-link" href="install.html">Installation guide ↗</a>'
+                f'<a href="{escape(release_url, quote=True)}">Release notes</a>')
+    checksum = asset_url(release, 'SHA256SUMS.txt', repository)
+    if checksum:
+        html.append(f'<a href="{escape(checksum, quote=True)}">Checksums</a>')
+    if preview:
+        html.append(f'<a href="https://github.com/{repository}/issues">Report feedback</a>')
+    html.append('</nav></section>')
     return '\n'.join(html)
 
 
@@ -91,10 +102,26 @@ def render_downloads(releases, repository):
     return '\n'.join([
         render_channel(latest_channel(releases, False), False, repository),
         render_channel(latest_channel(releases, True), True, repository),
-        f'<p class="release-note"><a href="https://github.com/{repository}/releases">Older versions and all releases</a>. '
-        'Choose the architecture matching your DAW. '
-        '<a href="install.html#choose-build">Which build should I download? Follow the steps and AVX2 checks.</a></p>',
+        f'<p class="release-note"><a href="https://github.com/{repository}/releases">All releases</a>'
+        ' · <a href="install.html#choose-build">Which build should I choose?</a></p>',
     ])
+
+
+def render_installation_guide(releases, repository):
+    html = (ROOT / 'website/install.html').read_text(encoding='utf-8')
+    release = latest_channel(releases, False) or latest_channel(releases, True)
+    if release is None:
+        return html
+    version = package_version(release['tag_name'])
+    for platform, _, primary, advanced, extension, _ in PLATFORMS:
+        for variant, _ in primary + advanced:
+            url = asset_url(release, f'Open-Q-{version}-{platform}-{variant}.{extension}', repository)
+            if url:
+                marker = f'data-download="{platform}/{variant}" href="index.html#downloads"'
+                html = html.replace(marker, f'data-download="{platform}/{variant}" href="{escape(url, quote=True)}"')
+    channel = 'Beta' if release['prerelease'] else 'Stable'
+    return html.replace('<!-- INSTALL_RELEASE -->',
+                        f'<p class="guide-release">Download links: <strong>Open-Q {escape(version)}</strong> · {channel}</p>')
 
 
 def build_site(releases, output, repository):
@@ -105,7 +132,8 @@ def build_site(releases, output, repository):
     _, after = rest.split(END)
     output.mkdir(parents=True, exist_ok=True)
     (output / 'index.html').write_text(before + render_downloads(releases, repository) + after, encoding='utf-8')
-    for name in ('styles.css', 'install.html', 'comparison.js'):
+    (output / 'install.html').write_text(render_installation_guide(releases, repository), encoding='utf-8')
+    for name in ('styles.css', 'comparison.js'):
         shutil.copy2(ROOT / 'website' / name, output / name)
     assets = output / 'assets'
     assets.mkdir(exist_ok=True)

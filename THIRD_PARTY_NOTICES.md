@@ -47,6 +47,8 @@ Release packages include unchanged JUCE dependency texts for [VST3](licenses/JUC
 
 ## Website branding
 
+Platform SVGs in `website/assets/icons/` come from Font Awesome Free 6.7.2, revision `af620534bfc3c2d4cbefcfeec29603bbe7809e64`, copyright 2024 Fonticons, Inc., **CC BY 4.0**. Originals and license notices are retained; see [website icon credits](website/assets/icons/README.md). Brand marks retain their owners' rights; these icons are not relicensed under Open-Q's AGPL or included in plugin binaries.
+
 `website/assets/kofi-cup.avif` is an unchanged Ko-fi cup image from the [official creator kit](https://more.ko-fi.com/brand-assets), used to link to the author's support page under [Ko-fi's promotional-use guidance](https://help.ko-fi.com/hc/en-us/articles/360007169493-Can-I-use-the-Ko-fi-logo-to-promote-my-page). Ko-fi branding remains its owner's property and is not relicensed under Open-Q's AGPL. This website-only image is not included in plugin bundles.
 
 ## Release validation tool

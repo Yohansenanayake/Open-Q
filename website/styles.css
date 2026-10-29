@@ -415,8 +415,7 @@ h2 {
     letter-spacing: -0.02em;
 }
 
-.feature-card p,
-.download-card > p {
+.feature-card p {
     margin-bottom: 0;
     color: var(--muted);
     font-size: var(--text-body);
@@ -488,129 +487,158 @@ h2 {
 
 .download-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    align-items: stretch;
-    gap: 15px;
-    margin-top: 52px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    gap: 18px;
+    margin-top: 28px;
 }
 
 .download-card {
-    position: relative;
-    display: flex;
-    min-height: 322px;
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 27px 24px 22px;
+    min-width: 0;
+    padding: 24px;
     border: 1px solid var(--line);
-    background: rgba(20, 21, 31, 0.78);
+    border-radius: 10px;
+    background: var(--surface);
 }
 
-.download-card-featured {
-    border-color: rgba(151, 127, 255, 0.49);
-    background: linear-gradient(150deg, rgba(99, 73, 192, 0.13), rgba(20, 21, 31, 0.85) 47%);
-}
-
-.recommended-label {
-    position: absolute;
-    top: -1px;
-    right: 18px;
-    padding: 7px 9px;
-    background: #6951be;
-    color: #f4efff;
-    font: var(--text-small) var(--mono);
-    letter-spacing: 0.1em;
+.download-card-heading {
+    display: flex;
+    align-items: center;
+    gap: 14px;
 }
 
 .platform-icon {
     display: grid;
-    width: 34px;
-    height: 34px;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 auto;
     place-items: center;
-    margin-bottom: 17px;
-    border: 1px solid rgba(199, 193, 255, 0.18);
-    border-radius: 4px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
     color: #bcb0ff;
-    font-size: 19px;
+    font-size: 22px;
+}
+
+.brand-icon {
+    display: inline-block;
+    flex: 0 0 auto;
+    object-fit: contain;
+    filter: brightness(0) invert(1);
+    opacity: 0.85;
 }
 
 .download-card h4 {
-    margin-bottom: 8px;
-    font-size: 18px;
+    margin: 0 0 4px;
+    font-size: 20px;
 }
 
-.download-card > p {
-    min-height: 42px;
-    margin-bottom: 19px;
+.download-card-heading p {
+    margin: 0;
+    color: var(--muted);
+    font-size: var(--text-small);
+}
+
+.download-actions {
+    display: grid;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.download-link,
+.alternate-download {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: white;
+    font-size: var(--text-small);
+    line-height: 1.4;
 }
 
 .download-link {
-    display: flex;
-    width: 100%;
-    min-height: 41px;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: auto;
-    padding: 0 12px;
-    border-radius: 4px;
     background: #7760df;
-    color: white;
-    font-size: var(--text-small);
-    font-weight: 700;
-    transition: background 160ms ease;
+    font-weight: 600;
 }
 
 .download-link:hover {
     background: #8d78f5;
 }
 
-.download-link-secondary {
-    min-height: 34px;
-    margin-top: 7px;
-    border: 1px solid var(--line);
+.download-link span:last-child,
+.alternate-download span:last-child {
+    flex: 0 0 auto;
+}
+
+.download-link-secondary,
+.alternate-download {
+    border-color: var(--line);
     background: transparent;
-    color: #c2c2d0;
-    font-weight: 500;
+    color: var(--ink);
 }
 
-.download-link-secondary:hover {
-    background: rgba(255, 255, 255, 0.06);
+.download-link-secondary:hover,
+.alternate-download:hover {
+    background: var(--surface-raised);
 }
 
-.package-label {
-    margin-top: 12px;
-    color: #777b8c;
-    font: var(--text-small) var(--mono);
-    letter-spacing: 0.06em;
+.download-card .package-label {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 20px 0 0;
+    padding: 16px 0 0;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: var(--text-small);
+    line-height: 1.6;
+    list-style: none;
+}
+
+.format-badge {
+    padding: 3px 8px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--surface-raised);
+}
+
+.download-unavailable {
+    margin: 24px 0 0;
 }
 
 .advanced-builds {
-    width: 100%;
-    margin-top: 13px;
-    border-top: 1px solid var(--line);
-    color: #999daf;
+    margin-top: 14px;
     font-size: var(--text-small);
 }
 
 .advanced-builds summary {
-    padding-top: 11px;
+    padding: 8px 0;
+    color: var(--muted);
     cursor: pointer;
     list-style-position: inside;
 }
 
-.advanced-builds a {
-    display: block;
-    padding: 9px 0 0 13px;
-    color: #b6b5c5;
-    line-height: 1.5;
+.alternate-build-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
 }
 
-.advanced-builds a:hover {
-    color: white;
+.advanced-builds .build-help {
+    display: inline-block;
+    margin-top: 14px;
+    color: var(--muted);
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
 
 .release-note {
-    margin: 23px 0 0;
-    color: #777b8c;
+    margin: 28px 0 0;
+    color: var(--muted);
     font-size: var(--text-small);
     text-align: center;
 }
@@ -782,6 +810,10 @@ h2 {
 }
 
 @media (max-width: 1000px) {
+    .download-grid {
+        grid-template-columns: 1fr;
+    }
+
     .site-header,
     .hero,
     .section-wrap,
@@ -879,6 +911,11 @@ h2 {
         padding: 74px 0 82px;
     }
 
+    .hero-glow {
+        left: 0;
+        width: 100%;
+    }
+
     .hero-copy {
         padding: 0;
     }
@@ -943,13 +980,6 @@ h2 {
         padding: 80px 0;
     }
 
-    .download-card {
-        min-height: 300px;
-    }
-
-    .download-card > p {
-        min-height: 0;
-    }
 
     .support-section {
         padding-top: 70px;
@@ -1030,29 +1060,64 @@ h2 {
 }
 
 .release-channel {
-    margin-top: 54px;
+    margin-top: 40px;
 }
 
-.release-channel > h3 {
+.release-channel-empty {
+    margin-top: 24px;
+    color: var(--muted);
+    font-size: var(--text-small);
+}
+
+.release-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.release-heading h3 {
+    margin: 0;
     font-size: 26px;
 }
 
-.release-channel > h3 span {
-    margin-left: 10px;
+.release-version {
+    padding: 5px 9px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
     color: var(--cyan);
     font: var(--text-small) var(--mono);
 }
 
-.release-channel > p,
+.release-heading time {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: var(--text-small);
+}
+
+.release-description,
 .download-unavailable {
     color: var(--muted);
     line-height: 1.7;
 }
 
+.release-description {
+    margin: 14px 0 0;
+}
+
 .release-links {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px 24px;
+    align-items: center;
+    gap: 14px 24px;
+    margin-top: 22px;
+    color: var(--muted);
+    font-size: var(--text-small);
+}
+
+.release-links .install-link {
+    margin-right: auto;
+    color: var(--ink);
 }
 
 .release-links a,
@@ -1062,36 +1127,221 @@ h2 {
     text-underline-offset: 3px;
 }
 
-.release-channel .download-grid {
-    margin-top: 24px;
-}
-
 .install-guide {
-    max-width: 900px;
-    padding-top: 50px;
-    padding-bottom: 70px;
-    line-height: 1.8;
+    padding-top: 64px;
+    padding-bottom: 64px;
+    line-height: 1.7;
 }
 
-.install-guide h2 {
-    margin-top: 35px;
+.guide-intro {
+    max-width: 680px;
+}
+
+.guide-intro .eyebrow {
+    margin-bottom: 20px;
+}
+
+.guide-intro h1 {
+    margin-bottom: 18px;
+}
+
+.guide-intro > p:not(.eyebrow),
+.guide-requirement {
+    color: var(--muted);
+}
+
+.guide-release {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: var(--text-small);
+}
+
+.guide-requirement {
+    display: inline-block;
+    font-size: var(--text-small);
+}
+
+.install-os-nav {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 32px 0 56px;
+    scroll-margin-top: 24px;
+}
+
+.install-os-nav a {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 20px 24px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--surface-raised), var(--surface));
+    text-decoration: none;
+}
+
+.install-os-nav a:hover {
+    border-color: var(--violet);
+}
+
+.install-os-nav strong,
+.install-platform-heading h2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.install-os-nav span,
+.install-platform-heading > span {
+    color: var(--muted);
+    font-size: var(--text-small);
+}
+
+.install-platform {
+    margin-top: 48px;
+    padding: 28px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--surface-raised), var(--surface));
+    scroll-margin-top: 24px;
+}
+
+.install-platform-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+}
+
+.install-platform h2,
+.install-support h2 {
+    margin: 0;
+    font-size: 32px;
+    letter-spacing: -0.035em;
+}
+
+.install-platform-heading > span {
+    margin-left: auto;
+}
+
+.install-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 28px;
+    padding: 0;
+    list-style: none;
+    counter-reset: install-step;
+    font-size: var(--text-small);
+}
+
+.install-steps > li {
+    min-width: 0;
+    counter-increment: install-step;
+}
+
+.install-steps > li::before {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    margin-bottom: 16px;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    color: #bcb0ff;
+    font-family: var(--mono);
+    content: counter(install-step, decimal-leading-zero);
+}
+
+.install-steps h3 {
+    margin: 0 0 12px;
+    font-size: 21px;
+    letter-spacing: -0.02em;
+}
+
+.install-steps p {
+    margin-bottom: 12px;
+}
+
+.step-note {
+    color: var(--muted);
+}
+
+.build-options {
+    padding: 0;
+    margin: 16px 0;
+    list-style: none;
+}
+
+.build-options li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.build-options a {
+    color: #bcb0ff;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.rosetta-choices li + li {
+    margin-top: 12px;
+}
+
+.folder-list {
+    margin: 28px 0;
+    padding: 8px 20px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    font-size: var(--text-small);
+}
+
+.folder-list > div {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px 0;
+}
+
+.folder-list > div + div {
+    border-top: 1px solid var(--line);
 }
 
 .install-guide code {
     overflow-wrap: anywhere;
+    color: #d7d1f1;
+    font-family: var(--mono);
 }
 
 .install-guide .compatibility-check {
-    margin: 20px 0;
+    margin: 12px 0;
     padding: 16px 20px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--surface);
+    font-size: var(--text-small);
 }
 
 .install-guide summary {
     cursor: pointer;
     font-weight: 600;
+}
+
+.compatibility-check[open] summary {
+    margin-bottom: 18px;
+}
+
+.compatibility-check p:last-child {
+    margin-bottom: 0;
+}
+
+.check-result {
+    border-left: 2px solid var(--violet);
+    padding-left: 16px;
 }
 
 .install-guide pre {
@@ -1108,6 +1358,73 @@ h2 {
 
 .install-guide pre code {
     overflow-wrap: normal;
+}
+
+.install-support {
+    margin-top: 64px;
+    padding-top: 40px;
+    border-top: 1px solid var(--line);
+}
+
+.install-support h2 {
+    margin-bottom: 28px;
+}
+
+.guide-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 36px;
+    font-size: var(--text-small);
+}
+
+@media (max-width: 720px) {
+    .install-guide {
+        padding-top: 40px;
+    }
+
+    .install-platform {
+        padding: 24px 16px;
+    }
+
+    .install-os-nav {
+        gap: 8px;
+        margin-bottom: 36px;
+    }
+
+    .install-os-nav a {
+        padding: 16px 8px;
+    }
+
+    .install-os-nav strong {
+        flex-direction: column;
+        gap: 8px;
+        font-size: var(--text-small);
+    }
+
+    .install-os-nav span {
+        display: none;
+    }
+
+    .install-steps {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .folder-list > div {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+
+    .release-heading time {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .release-links .install-link {
+        flex-basis: 100%;
+    }
 }
 
 .comparison-section {

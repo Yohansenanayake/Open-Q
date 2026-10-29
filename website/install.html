@@ -7,28 +7,48 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <header class="site-header"><a class="brand" href="index.html"><img src="assets/OpenQ_Logo_White.svg" alt="Open-Q home"></a><a href="index.html#downloads">Downloads</a></header>
+    <header class="site-header guide-header"><a class="brand" href="index.html"><img src="assets/OpenQ_Logo_White.svg" alt="Open-Q home"></a><a href="index.html#downloads">← Back to downloads</a></header>
     <main class="section-wrap install-guide">
-        <h1>Install Open-Q</h1>
-        <p>Start with <a href="#choose-build">Choose your download</a> below, then follow the installation steps for your operating system. Preview builds are for testing: save your work and keep the previous installer for rollback.</p>
-        <p>Downloads are currently unsigned/not notarized and may show operating-system warnings. Download from our GitHub Releases and compare the file's SHA-256 hash with that release's <code>SHA256SUMS.txt</code>. On macOS/Linux use <code>shasum -a 256 filename</code> or <code>sha256sum filename</code>; on Windows use PowerShell <code>Get-FileHash filename -Algorithm SHA256</code>.</p>
-        <section id="choose-build">
-            <h2>Choose your download</h2>
-            <p>Open-Q needs a 64-bit DAW. Match the plugin to the DAW you run, using these steps:</p>
-            <ul>
-                <li><strong>Windows:</strong> open Settings → System → About and read <strong>System type</strong>. For an <strong>x64-based processor</strong> (Intel/AMD), choose <strong>Windows x86-64</strong>, or use the optional AVX2 check below. For an <strong>ARM-based processor</strong>, choose <strong>Windows ARM64</strong> with a native ARM64 DAW; choose standard <strong>Windows x86-64</strong> if you installed the x64 version of your DAW.</li>
-                <li><strong>Mac:</strong> open Apple menu → About This Mac. If <strong>Chip</strong> says Apple M1, M2 or another Apple chip, choose <strong>Apple silicon</strong>. If <strong>Processor</strong> says Intel, choose <strong>Intel Mac</strong>. On Apple silicon, a DAW running through Rosetta needs the <strong>Intel Mac</strong> build instead. In Finder, select the DAW in Applications and choose File → Get Info: if <strong>Kind</strong> says <strong>Application (Intel)</strong>, or <strong>Open using Rosetta</strong> is enabled for a Universal app, use Intel plugins. See <a href="https://support.apple.com/en-us/102527">Apple’s Rosetta guide</a>.</li>
-                <li><strong>Linux:</strong> open a terminal and run <code>uname -m</code>. For <code>x86_64</code>, choose <strong>Linux x86-64</strong>, or use the AVX2 check below. For <code>aarch64</code> or <code>arm64</code>, choose <strong>Linux ARM64</strong> with a native ARM64 DAW. Other architectures have no matching build.</li>
-            </ul>
-            <h3 id="avx2">Should I choose AVX2?</h3>
-            <p>On Intel/AMD Windows and Linux systems, the standard <strong>x86-64</strong> build is the simplest choice: it needs no AVX2 check. Both builds have the same EQ features and filter designs. The optional <strong>x86-64 AVX2</strong> build may reduce CPU usage on compatible systems. There is no separate AVX2 download for Mac or ARM64.</p>
-            <p>The i3/i5/i7 name alone does not establish compatibility. To choose AVX2, run the check for your operating system below. It checks the extra requirements too, rather than AVX2 alone.</p>
+        <div class="guide-intro">
+            <p class="eyebrow">GETTING STARTED</p>
+            <h1>Install Open-Q.</h1>
+            <p>Choose your system. Install the plugin. Open your DAW.</p>
+            <span class="guide-requirement">Plugins require a 64-bit DAW.</span>
+            <!-- INSTALL_RELEASE -->
+        </div>
+        <nav id="choose-build" class="install-os-nav" aria-label="Choose your operating system">
+            <a href="#windows"><strong><img class="brand-icon" src="assets/icons/windows.svg" alt="" width="26" height="26">Windows</strong><span>EXE installer ↓</span></a>
+            <a href="#macos"><strong><img class="brand-icon" src="assets/icons/apple.svg" alt="" width="26" height="26">macOS</strong><span>ZIP archive ↓</span></a>
+            <a href="#linux"><strong><img class="brand-icon" src="assets/icons/linux.svg" alt="" width="26" height="26">Linux</strong><span>ZIP archive ↓</span></a>
+        </nav>
+
+        <section id="windows" class="install-platform" aria-labelledby="windows-title">
+            <div class="install-platform-heading"><h2 id="windows-title"><img class="brand-icon" src="assets/icons/windows.svg" alt="" width="26" height="26">Windows</h2><span>EXE installer</span></div>
+            <ol class="install-steps">
+                <li><h3>Choose your build</h3>
+                    <p>Open <strong>Settings → System → About</strong>. Read <strong>System type</strong>.</p>
+                    <ul class="build-options">
+                        <li><span>x64-based PC</span><a data-download="Windows/x86-64" href="index.html#downloads">x86-64</a></li>
+                        <li><span>ARM-based PC</span><a data-download="Windows/arm64" href="index.html#downloads">ARM64</a></li>
+                    </ul>
+                    <p class="step-note">An ARM PC running an x64 DAW needs the x86-64 build.</p>
+                </li>
+                <li><h3>Run the installer</h3>
+                    <p>Close your DAW and open the downloaded <code>.exe</code>.</p>
+                    <p>Select <strong>VST3</strong>, <strong>CLAP</strong> and/or <strong>Standalone</strong>. Keep the standard plugin folders.</p>
+                </li>
+                <li><h3>Open your DAW</h3>
+                    <p>Restart your DAW or rescan plugins, then load <strong>Open-Q</strong> on a track.</p>
+                    <p class="step-note">The standalone app is also available from the Start menu.</p>
+                </li>
+            </ol>
             <details class="compatibility-check">
-                <summary>Windows: check whether to choose AVX2</summary>
+                <summary>Optional: check whether to use the AVX2 build</summary>
+                <p>For Intel/AMD x64 PCs. Both builds have the same EQ features; AVX2 may reduce CPU usage. The standard x86-64 build needs no AVX2 check.</p>
                 <ol>
-                    <li>For an Intel/AMD x64-based PC, download <a href="https://learn.microsoft.com/en-us/sysinternals/downloads/coreinfo">Coreinfo from Microsoft</a> and extract its ZIP.</li>
-                    <li>Open the extracted folder in File Explorer. Click the address bar, type <code>powershell</code>, and press Enter.</li>
-                    <li>Paste the whole block below and press Enter. Accept Microsoft’s licence if prompted. This checks your CPU features.</li>
+                    <li>Download <a href="https://learn.microsoft.com/en-us/sysinternals/downloads/coreinfo">Microsoft Coreinfo</a> and extract the ZIP.</li>
+                    <li>In that folder, click File Explorer’s address bar, type <code>powershell</code>, and press Enter.</li>
+                    <li>Paste this block. Accept Microsoft’s licence if prompted.</li>
                 </ol>
                 <pre tabindex="0" aria-label="Windows AVX2 compatibility check"><code id="windows-avx2-check">$required = &#x27;AVX AVX2 BMI1 BMI2 F16C FMA LZCNT MOVBE XSAVE OSXSAVE AES PCLMULDQ CX16 LAHF-SAHF POPCNT SSE3 SSSE3 SSE4.1 SSE4.2&#x27;.Split(&#x27; &#x27;)
 $report = &amp; .\Coreinfo64.exe -f 2&gt;&amp;1 | Out-String
@@ -38,11 +58,78 @@ foreach ($feature in $required) {
     if ($report -notmatch $pattern) { $passed = $false }
 }
 if ($passed) { &#x27;Choose Windows x86-64 AVX2&#x27; } else { &#x27;Choose Windows x86-64&#x27; }</code></pre>
-                <p><strong>Follow the printed choice:</strong> <code>Choose Windows x86-64 AVX2</code> means select that download under <strong>More builds</strong>. <code>Choose Windows x86-64</code> means select the standard Windows download. If Coreinfo cannot run or no choice appears, use standard x86-64.</p>
+                <p class="check-result"><strong>Result includes AVX2?</strong> Download <a data-download="Windows/x86-64-AVX2" href="index.html#downloads">Intel / AMD · AVX2</a>. Otherwise, download <a data-download="Windows/x86-64" href="index.html#downloads">Intel / AMD (x86-64)</a>. If the check fails, use the main download.</p>
             </details>
+        </section>
+
+        <section id="macos" class="install-platform" aria-labelledby="macos-title">
+            <div class="install-platform-heading"><h2 id="macos-title"><img class="brand-icon" src="assets/icons/apple.svg" alt="" width="26" height="26">macOS</h2><span>ZIP archive</span></div>
+            <ol class="install-steps">
+                <li><h3>Choose your build</h3>
+                    <p>Open <strong>Apple menu → About This Mac</strong>.</p>
+                    <ul class="build-options">
+                        <li><span>Apple M-series chip</span><a data-download="macOS/arm64" href="index.html#downloads">Apple silicon</a></li>
+                        <li><span>Intel processor</span><a data-download="macOS/x86-64" href="index.html#downloads">Intel Mac</a></li>
+                    </ul>
+                    <p class="step-note">A DAW running through Rosetta needs the Intel Mac build.</p>
+                </li>
+                <li><h3>Copy the plugins</h3>
+                    <p>Close your DAW and extract the ZIP. Copy the formats you use to the folders listed below.</p>
+                    <p>In Finder, press <strong>Shift + Command + G</strong> and paste a folder path. Create the folder if needed.</p>
+                </li>
+                <li><h3>Rescan and load</h3>
+                    <p>Restart your DAW or rescan plugins, then load <strong>Open-Q</strong>.</p>
+                    <p class="step-note">There is no macOS installer. The ZIP contains the plugin bundles and standalone app.</p>
+                </li>
+            </ol>
+            <div class="folder-list" aria-label="macOS installation folders">
+                <div><strong>VST3</strong><code>~/Library/Audio/Plug-Ins/VST3/</code></div>
+                <div><strong>AU</strong><code>~/Library/Audio/Plug-Ins/Components/</code></div>
+                <div><strong>CLAP</strong><code>~/Library/Audio/Plug-Ins/CLAP/</code></div>
+                <div><strong>Standalone</strong><code>~/Applications/</code></div>
+            </div>
             <details class="compatibility-check">
-                <summary>Linux: check whether to choose AVX2</summary>
-                <p>After confirming <code>uname -m</code> prints <code>x86_64</code>, paste the whole block into your terminal. It reads the CPU features reported by your kernel and checks every listed processor.</p>
+                <summary>Using an Intel DAW on Apple silicon?</summary>
+                <ol>
+                    <li>Open <strong>Finder → Applications</strong>.</li>
+                    <li>Click your DAW’s app once, then press <strong>Command + I</strong> to open Get Info.</li>
+                    <li>Find the <strong>Kind</strong> field and use the matching choice below.</li>
+                </ol>
+                <ul class="rosetta-choices">
+                    <li><strong>Application (Intel):</strong> download <a data-download="macOS/x86-64" href="index.html#downloads">Intel Mac</a>.</li>
+                    <li><strong>Application (Apple silicon):</strong> download <a data-download="macOS/arm64" href="index.html#downloads">Apple silicon</a>.</li>
+                    <li><strong>Application (Universal):</strong> look for the <strong>Open using Rosetta</strong> checkbox. If it is checked, download <a data-download="macOS/x86-64" href="index.html#downloads">Intel Mac</a>. If it is unchecked, download <a data-download="macOS/arm64" href="index.html#downloads">Apple silicon</a>.</li>
+                </ul>
+                <p><a href="https://support.apple.com/en-us/102527">Apple’s Rosetta guide ↗</a></p>
+            </details>
+        </section>
+
+        <section id="linux" class="install-platform" aria-labelledby="linux-title">
+            <div class="install-platform-heading"><h2 id="linux-title"><img class="brand-icon" src="assets/icons/linux.svg" alt="" width="26" height="26">Linux</h2><span>ZIP archive</span></div>
+            <ol class="install-steps">
+                <li><h3>Choose your build</h3>
+                    <p>Open a terminal and run <code>uname -m</code>.</p>
+                    <ul class="build-options">
+                        <li><code>x86_64</code><a data-download="Linux/x86-64" href="index.html#downloads">x86-64</a></li>
+                        <li><span><code>aarch64</code> / <code>arm64</code></span><a data-download="Linux/arm64" href="index.html#downloads">ARM64</a></li>
+                    </ul>
+                    <p class="step-note">Use a native 64-bit DAW. Other architectures have no matching build.</p>
+                </li>
+                <li><h3>Copy the plugins</h3>
+                    <p>Close your DAW and extract the ZIP. Copy VST3 and/or CLAP to the folders below, or to your DAW’s configured plugin folders.</p>
+                </li>
+                <li><h3>Rescan and load</h3>
+                    <p>Restart your DAW or rescan plugins, then load <strong>Open-Q</strong>.</p>
+                    <p class="step-note">The standalone executable is in the Standalone folder.</p>
+                </li>
+            </ol>
+            <div class="folder-list" aria-label="Linux installation folders">
+                <div><strong>VST3</strong><code>~/.vst3/</code></div>
+                <div><strong>CLAP</strong><code>~/.clap/</code></div>
+            </div>
+            <details class="compatibility-check">
+                <summary>Optional: check whether to use the AVX2 build</summary>
+                <p>For <code>x86_64</code> systems. Paste this block into your terminal. It checks every processor listed by your kernel.</p>
                 <pre tabindex="0" aria-label="Linux AVX2 compatibility check"><code id="linux-avx2-check">awk &#x27;
 BEGIN {
     n = split(&quot;avx avx2 bmi1 bmi2 f16c fma abm movbe xsave aes pclmulqdq cx16 lahf_lm popcnt pni ssse3 sse4_1 sse4_2&quot;, required)
@@ -55,28 +142,46 @@ BEGIN {
 }
 END { print ((seen &amp;&amp; ok) ? &quot;Choose Linux x86-64 AVX2&quot; : &quot;Choose Linux x86-64&quot;) }
 &#x27; /proc/cpuinfo</code></pre>
-                <p><strong>Follow the printed choice:</strong> <code>Choose Linux x86-64 AVX2</code> means select that download under <strong>More builds</strong>. <code>Choose Linux x86-64</code> means select the standard Linux download. If the command cannot run or no choice appears, use standard x86-64.</p>
-                <p>This is a conservative check: missing kernel information also selects the standard build. In a virtual machine, run it inside the same virtual machine as your DAW.</p>
+                <p class="check-result"><strong>Result includes AVX2?</strong> Download <a data-download="Linux/x86-64-AVX2" href="index.html#downloads">Intel / AMD · AVX2</a>. Otherwise, download <a data-download="Linux/x86-64" href="index.html#downloads">Intel / AMD (x86-64)</a>. Missing information or a failed check means use the main download.</p>
+                <p>Run the check in the same virtual machine as your DAW, if applicable.</p>
             </details>
-            <p>These checks cover the <a href="https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/low-level-sys-info.tex">x86-64-v3 instruction set</a> plus AES and carry-less multiplication, as required by Open-Q’s AVX2 build. The Linux check uses <a href="https://docs.kernel.org/arch/x86/cpuinfo.html">kernel-reported CPU flags</a>. Keep the standard build if compatibility cannot be confirmed.</p>
-            <p><a href="index.html#downloads">Back to downloads</a></p>
+            <details class="compatibility-check">
+                <summary>Standalone app won’t launch?</summary>
+                <p>If extraction removed the executable permission, open a terminal in the extracted ZIP folder and run:</p>
+                <pre tabindex="0"><code>chmod +x Standalone/Open-Q</code></pre>
+            </details>
         </section>
-        <h2>Windows installation</h2>
-        <p>Run the versioned <code>.exe</code> installer. Select VST3, CLAP and/or Standalone, then follow setup. Plugins go into their standard Common Files folders; the standalone app gets a Start-menu shortcut. Use Windows Installed Apps to uninstall.</p>
-        <h2>macOS installation</h2>
-        <p>Extract the ZIP. Copy the desired bundles to these folders, creating them if needed:</p>
-        <ul>
-            <li>VST3: <code>~/Library/Audio/Plug-Ins/VST3/</code></li>
-            <li>AU (<code>.component</code>): <code>~/Library/Audio/Plug-Ins/Components/</code></li>
-            <li>CLAP: <code>~/Library/Audio/Plug-Ins/CLAP/</code></li>
-            <li>Standalone (<code>.app</code>): <code>~/Applications/</code> or <code>/Applications/</code></li>
-        </ul>
-        <p>Finder's Go → Go to Folder accepts these paths. If macOS blocks opening trusted downloaded software, follow <a href="https://support.apple.com/en-us/102445">Apple's Privacy &amp; Security instructions</a>. There is no macOS installer yet. Delete the copied bundles to uninstall.</p>
-        <h2>Linux installation</h2>
-        <p>Extract the ZIP. Copy the VST3 bundle into <code>~/.vst3/</code> and the CLAP plugin into <code>~/.clap/</code>, or use the plugin directories configured in your DAW. Launch the executable in the Standalone directory. If extraction removed its executable permission, run <code>chmod +x Standalone/Open-Q</code>. Delete copied files to uninstall.</p>
-        <h2>After installing</h2>
-        <p>Restart your DAW or rescan plugins. Uninstalling binaries does not delete your saved user presets. To roll back, close your DAW and reinstall the previous version. This project is still in development; saved-session compatibility across early versions is not guaranteed.</p>
-        <p><a href="https://github.com/Yohansenanayake/Open-Q/issues">Report a problem</a> with the full download version, OS, CPU architecture and DAW version.</p>
+
+        <section class="install-support" aria-labelledby="install-help-title">
+            <h2 id="install-help-title">Help &amp; troubleshooting</h2>
+            <details class="compatibility-check">
+                <summary>Windows or macOS shows a security warning</summary>
+                <p>These beta builds are unsigned, and macOS builds are not notarized. Download only from <a href="https://github.com/Yohansenanayake/Open-Q/releases">Open-Q’s GitHub Releases</a>.</p>
+                <p>On macOS, follow <a href="https://support.apple.com/en-us/102445">Apple’s Privacy &amp; Security instructions</a> for trusted downloaded software.</p>
+            </details>
+            <details class="compatibility-check">
+                <summary>Verify a download with SHA-256</summary>
+                <p>Replace <code>filename</code> with your downloaded file’s name. Compare the result with <code>SHA256SUMS.txt</code> from the same release.</p>
+                <p><strong>Windows · PowerShell</strong></p>
+                <pre tabindex="0"><code>Get-FileHash "filename" -Algorithm SHA256</code></pre>
+                <p><strong>macOS · Terminal</strong></p>
+                <pre tabindex="0"><code>shasum -a 256 "filename"</code></pre>
+                <p><strong>Linux · Terminal</strong></p>
+                <pre tabindex="0"><code>sha256sum "filename"</code></pre>
+            </details>
+            <details class="compatibility-check">
+                <summary id="avx2">Why not choose AVX2 just from the CPU name?</summary>
+                <p>The i3/i5/i7 label alone does not establish compatibility. Open-Q’s AVX2 build requires <a href="https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/low-level-sys-info.tex">x86-64-v3</a> plus AES and carry-less multiplication. The checks above include these extra requirements.</p>
+                <p>The <a href="https://docs.kernel.org/arch/x86/cpuinfo.html">Linux kernel’s feature list</a> can be incomplete; its check conservatively selects the standard build when information is missing. There is no separate AVX2 download for Mac or ARM64.</p>
+            </details>
+            <details class="compatibility-check">
+                <summary>Uninstall, roll back or keep presets</summary>
+                <p><strong>Windows:</strong> uninstall through Installed Apps. <strong>macOS/Linux:</strong> delete the copied plugins and standalone app. Your saved user presets remain.</p>
+                <p>To roll back, close your DAW and reinstall the previous version. Keep a copy of its installer or ZIP.</p>
+                <p>Early beta versions may change saved-session compatibility. Save your work before testing.</p>
+            </details>
+            <div class="guide-footer"><a href="index.html#downloads">← Back to downloads</a><a href="https://github.com/Yohansenanayake/Open-Q/issues">Report an installation issue ↗</a></div>
+        </section>
     </main>
 </body>
 </html>

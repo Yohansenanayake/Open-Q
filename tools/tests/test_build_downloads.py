@@ -5,10 +5,11 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
-from build_downloads import build_site, render_downloads
+from build_downloads import build_site, render_downloads, render_installation_guide
 from release_metadata import package_names
 
 REPOSITORY = 'Yohansenanayake/Open-Q'
@@ -19,12 +20,14 @@ class Links(HTMLParser):
     def __init__(self, html):
         super().__init__()
         self.hrefs = []
+        self.anchors = []
         self.feed(html)
 
     def handle_starttag(self, tag, attrs):
         href = dict(attrs).get('href')
         if tag == 'a' and href:
             self.hrefs.append(href)
+            self.anchors.append(dict(attrs))
 
 
 def release(tag, date='2026-10-29T10:00:00Z', preview=False, draft=False):
@@ -37,6 +40,60 @@ def release(tag, date='2026-10-29T10:00:00Z', preview=False, draft=False):
 
 
 class DownloadSiteTests(unittest.TestCase):
+    def test_guide_links_use_published_assets_and_prefer_stable_then_beta(self):
+        stable = release('v0.1.0')
+        beta = release('v0.2.0-beta.1', preview=True)
+        for items, selected in [([beta], beta), ([beta, stable], stable)]:
+            with self.subTest(tag=selected['tag_name']):
+                guide = render_installation_guide(items, REPOSITORY)
+                urls = Links(guide).hrefs
+                self.assertIn(f'Open-Q {selected["tag_name"][1:]}', guide)
+                for asset in selected['assets']:
+                    if asset['name'] != 'SHA256SUMS.txt':
+                        self.assertIn(asset['browser_download_url'], urls)
+        for items in [[], [release('v0.1.0', draft=True)]]:
+            urls = Links(render_installation_guide(items, REPOSITORY)).hrefs
+            self.assertFalse(any('/releases/download/' in url for url in urls))
+
+    def test_guide_missing_or_unverified_assets_fall_back_to_downloads(self):
+        item = release('v0.1.0-beta.2', preview=True)
+        for asset in item['assets']:
+            if '-Windows-' in asset['name']:
+                asset['size'] = 0
+        guide = render_installation_guide([item], REPOSITORY)
+        links = [anchor for anchor in Links(guide).anchors if anchor.get('data-download', '').startswith('Windows/')]
+        self.assertTrue(links)
+        self.assertTrue(all(anchor['href'] == 'index.html#downloads' for anchor in links))
+
+    def test_platform_icons_are_local_and_plugin_formats_are_text_badges(self):
+        html = render_downloads([release('v0.1.0-beta.2', preview=True)], REPOSITORY)
+        guide = (ROOT / 'website/install.html').read_text()
+        for name in ('apple', 'windows', 'linux'):
+            path = f'assets/icons/{name}.svg'
+            self.assertIn(f'src="{path}"', html)
+            self.assertIn(f'src="{path}"', guide)
+            root = ET.fromstring((ROOT / 'website' / path).read_text())
+            self.assertEqual(root.tag, '{http://www.w3.org/2000/svg}svg')
+        for name in ('VST3', 'AU', 'CLAP', 'Standalone'):
+            self.assertIn(f'<li class="format-badge">{name}</li>', html)
+        self.assertNotIn('clap.svg', html)
+
+    def test_alternate_builds_have_separate_links_and_resources_follow_the_cards(self):
+        item = release('v0.1.0-beta.2', preview=True)
+        html = render_downloads([item], REPOSITORY)
+        anchors = {anchor['href']: anchor for anchor in Links(html).anchors}
+        for asset in item['assets']:
+            if asset['name'] == 'SHA256SUMS.txt':
+                continue
+            classes = anchors[asset['browser_download_url']]['class'].split()
+            alternate = '-AVX2' in asset['name'] or any(
+                f'-{system}-arm64' in asset['name'] for system in ('Windows', 'Linux'))
+            self.assertIn('alternate-download' if alternate else 'download-link', classes)
+            if alternate:
+                self.assertNotIn('download-link', classes)
+        self.assertLess(html.index('class="download-grid"'), html.index('class="release-links"'))
+        self.assertNotIn('(compatible CPU required)', html)
+
     def test_channels_choose_latest_published_release_independently(self):
         stable = release('v0.1.0')
         preview = release('v0.2.0-beta.2', preview=True)
@@ -129,10 +186,12 @@ class DownloadSiteTests(unittest.TestCase):
                 self.assertIn(f'src="assets/{name}"', html)
                 self.assertEqual((output / 'assets' / name).read_bytes(), (ROOT / 'assets/images' / name).read_bytes())
             for path in ['styles.css', 'install.html', 'comparison.js', 'assets/OpenQ_Logo_White.svg', 'assets/kofi-cup.avif',
+                         'assets/icons/apple.svg', 'assets/icons/windows.svg', 'assets/icons/linux.svg',
+                         'assets/icons/Font-Awesome-LICENSE.txt', 'assets/icons/README.md',
                          'assets/Open-Q_Interface_1.png', 'assets/Open-Q_Interface_2.png',
                          'assets/Open-Q_Interface_3.png', 'assets/Open-Q_Interface_4.png']:
                 self.assertGreater((output / path).stat().st_size, 0)
-            self.assertEqual((output / 'install.html').read_bytes(), (ROOT / 'website/install.html').read_bytes())
+            self.assertIn('Open-Q 0.1.0-beta.1', (output / 'install.html').read_text())
             self.assertIn('id="choose-build"', (output / 'install.html').read_text())
 
 

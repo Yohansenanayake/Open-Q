@@ -70,4 +70,4 @@ python3 tools/build_downloads.py --releases /tmp/openq-releases.json --output _s
 python3 -m http.server --directory _site 8000
 ```
 
-An empty JSON array (`[]`) can be used to preview the no-release state without GitHub access. `website/index.html` is the design template; keep its `RELEASE_DOWNLOADS_START`/`RELEASE_DOWNLOADS_END` comment pair when editing the download layout. `_site/` is generated and ignored. Installation guidance lives in `website/install.html`.
+An empty JSON array (`[]`) can be used to preview the no-release state without GitHub access. `website/index.html` is the design template; keep its `RELEASE_DOWNLOADS_START`/`RELEASE_DOWNLOADS_END` comment pair when editing the download layout. `_site/` is generated and ignored. Installation guidance lives in `website/install.html`. Its build links resolve to verified assets from the latest published stable release, or the latest beta when no stable release exists; missing assets keep their Downloads-page fallback. Preserve the `data-download` attributes and `INSTALL_RELEASE` marker when editing the guide.
