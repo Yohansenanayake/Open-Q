@@ -5,7 +5,7 @@
 ## Project direction
 
 - Build an open-source JUCE parametric EQ, incrementally. Complete the requested step without porting an entire reference plugin or adding speculative modes/features.
-- For new DSP/UI features, study the relevant implementation in `/home/yohan/Projects/audio/ZLEqualizer` (primary) or `/home/yohan/Projects/audio/ZLSpectrumEqualizer` (secondary). Origins and pinned revisions are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Do not import their excluded logos.
+- For new DSP/UI features, study the relevant implementation in [ZLEqualizer](https://github.com/ZL-Audio/ZLEqualizer) (primary) or [ZLSpectrumEqualizer](https://github.com/ZL-Audio/ZLSpectrumEqualizer) (secondary). Origins and pinned revisions are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Do not import their excluded logos.
 - Preserve copyright/license headers when reusing code. Pin dependencies and record concise attribution. Open-Q is AGPL-3.0-only; its logo is separately reserved under [licenses/OpenQ-Logo.txt](licenses/OpenQ-Logo.txt).
 - Do not update dependency/reference revisions incidentally. Keep product-specific CMake changes outside the `cmake/` template submodule.
 
@@ -19,6 +19,8 @@
 | CI, release versions, architectures or website downloads | [docs/releasing.md](docs/releasing.md) |
 
 Source and tests are the authority for implementation details; update affected documentation when behavior changes. Local research/probes in `yohan-docs/` are gitignored and may be absent in other checkouts. Consult the relevant study when available, especially `filter-design-research.md` for coefficient-design work; do not load every wiki or invent missing evidence.
+
+Read `docs/local-references.md` if present for local reference clone locations. This optional, gitignored file maps repository names to paths; contributors can create their own. If absent, use the committed documentation and upstream references without assuming a machine-specific path.
 
 ## Compatibility and DSP
 

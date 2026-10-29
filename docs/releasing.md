@@ -32,6 +32,8 @@ For local release-configuration checks, run `python3 -m unittest discover -s too
 
 ## Publishing and website updates
 
+Keep pending user-visible changes in [CHANGELOG.md](../CHANGELOG.md) under **Unreleased**. When cutting a release candidate, move them into a dated section with the full version (for example `0.1.0-beta.1`) and leave a new Unreleased section above it. Commit this before tagging. Use that section to review and edit the draft's generated release notes before publication.
+
 1. Set the numeric `VERSION` (for example `0.1.0`), commit and push the implementation/workflow changes to `main`.
 2. Push a new tag: `v0.1.0-beta.1` for testing, or `v0.1.0` for a stable candidate. Do not move an old tag to new code.
 3. Wait for Release to build/test the eight variants and prepare a draft containing versioned binaries and checksums.

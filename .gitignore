@@ -31,6 +31,9 @@ packaging/Output/*
 
 yohan-docs/*
 
+# Machine-specific reference clone locations
+/docs/local-references.md
+
 # Python release-configuration checks
 __pycache__/
 

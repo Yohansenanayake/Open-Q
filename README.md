@@ -6,7 +6,7 @@
 
 A free, open-source parametric equalizer for **Windows, macOS and Linux**, built with JUCE. Made by **Yohan Senanayake**.
 
-[**Downloads & previews**](https://github.com/Yohansenanayake/Open-Q/releases) · [Report a bug](https://github.com/Yohansenanayake/Open-Q/issues) · [Build from source](docs/development.md)
+[**Downloads & previews**](https://github.com/Yohansenanayake/Open-Q/releases) · [Changelog](CHANGELOG.md) · [Report a bug](https://github.com/Yohansenanayake/Open-Q/issues) · [Build from source](docs/development.md)
 
 [![Build & Test](https://github.com/Yohansenanayake/Open-Q/actions/workflows/build_and_test.yml/badge.svg?branch=main)](https://github.com/Yohansenanayake/Open-Q/actions/workflows/build_and_test.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg)](LICENSE)
@@ -50,6 +50,8 @@ Restart your DAW or rescan plugins after installation. Downloads are not yet pub
 ## Contributing
 
 Bug reports, listening feedback and focused pull requests are welcome. For bugs, include the full download version, OS, CPU architecture, DAW and steps to reproduce.
+
+Please follow the [code of conduct](CODE_OF_CONDUCT.md). It includes a private contact for conduct concerns.
 
 See [development instructions](docs/development.md) for building, tests and debugging, and the [release guide](docs/releasing.md) for CI and distribution.
 
