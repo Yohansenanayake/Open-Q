@@ -4,7 +4,7 @@ Task-specific implementation map, not a feature backlog. Confirm current values 
 
 ## Parameters and filter engine
 
-`BandParameters.h` defines 24 fixed slots and the six per-band fields: frequency, gain, Q, status, type and slope. Slot identity is independent of UI selection and frequency order. `PluginParameters.h` derives the aggregate parameter count (currently 147), declares schema 7, trims and global bypass. Preserve enum values and host parameter order.
+`BandParameters.h` defines 24 fixed slots and the six per-band fields: frequency, gain, Q, status, type and slope. Slot identity is independent of UI selection and frequency order. `PluginParameters.h` derives the aggregate parameter count (currently 147), declares schema 8, trims and global bypass. Schema-7 sessions migrate to 1× oversampling after complete validation; schemas through 6 remain unsupported. Preserve enum values and host parameter order.
 
 | Owner | Policy |
 | --- | --- |
@@ -28,9 +28,21 @@ IN/Pre follows input trim; OUT/Post follows the final global bypass mix. Thus by
 
 `LevelMeterTransport` uses independent interval-maximum `PeakLatch` values. The editor is the sole consumer, distributing readings to both strips once per admitted graph frame; drain latches without animation when hidden. Capture is independent of analyzer visibility. Meter artwork is cached narrowly, bar/tick paints skip unchanged pixels and numeric maxima update at 10 Hz. Peaks are transient, not saved state. Tests: `GainMeterTests.cpp`, `GlobalBypassTests.cpp`.
 
+## Oversampling and processing rates
+
+`dsp/Oversampling.h` owns preallocated JUCE maximum-quality minimum-phase IIR 2×/4× converters and the raw-input delay ring. Default 1× uses the direct EQ path with zero added latency. Conversion surrounds the complete band bank; gains, global bypass fades, meters and analyzer packets stay at host rate. Bands use the multiplied sample rate for coefficient generation and 20 ms smoothing, while target frequency ceilings remain tied to host rate. Double coefficients/histories and pinned designs remain unchanged.
+
+The session property `oversamplingMode` is 0/1/2 for 1×/2×/4×, independent of host automation parameters. The bottom-bar selector changes the requested quality. Library presets and Default preserve it; DAW state saves and restores it. Missing quality defaults to 1×. Presets from schema 7 remain loadable.
+
+Live changes fade the final output to silence over 20 ms, publish a generation-tagged request, and continue processing without blocking. A processor-owned 30 Hz message-thread timer reports the new integer converter latency to the host and acknowledges the request; audio activates/reset-prepares the new mode while silent and fades in. Host preparation supersedes outstanding handoffs and applies the latest request directly. Once host notification is pending, that handoff finishes before another request is taken. A host may restart processing or briefly interrupt compensation. The message loop must run for live changes; requests made without callbacks remain pending. Non-realtime requests defer to preparation; a pending, unacknowledged live transition is cancelled if rendering becomes non-realtime.
+
+Dry input is captured before both trims and delayed by the active mode's integer latency for global bypass, including the forced host-bypass callback. The wet engine stays warm and latency does not change on global bypass. Alignment removes bulk timing differences, not the converter's frequency-dependent phase. Mode changes intentionally permit history resets; ordinary band/global bypass transitions keep their existing policies.
+
+`ProcessingConfiguration` publishes coherent host-rate/active-mode snapshots to UI workers without audio-thread locks or messages. Reads make one attempt and leave the caller's cached snapshot unchanged while a publication is busy. The graph retains its last valid configuration; the response worker defers the update without consuming queued geometry, then retries on the next refresh. Target response coefficients use the internal rate; axes/nodes use host rate. Curves describe the EQ target and exclude converter coloration. Future Pre/Post saturation belongs inside this single conversion pair; no saturation, placement control or dynamic EQ is implemented yet. Tests: `OversamplingTests.cpp`. This feature targets VST3 and Standalone; CLAP-specific latency/reactivation support is deferred. The existing CLAP target is not validated for live oversampling changes.
+
 ## Response and analyzer workers
 
-The editor owns the response/analyzer workers. Response geometry and complete frames use SPSC triple buffers. The response worker reads parameter atomics and the processor's atomic prepared sample rate, computes per-band target digital curves with the shared coefficient function and sums On bands in dB. It works without `processBlock`, including stopped playback, but waits for a prepared sample rate. It does not visualize smoothing/fades/ringing; UI code must not read live DSP histories.
+The editor owns the response/analyzer workers. Response geometry and complete frames use SPSC triple buffers. The response worker reads parameter atomics and the processor's coherent prepared processing configuration, computes per-band target digital curves with the shared coefficient function and sums On bands in dB. It works without `processBlock`, including stopped playback, but waits for a prepared sample rate. It does not visualize smoothing/fades/ringing; UI code must not read live DSP histories.
 
 The processor's fixed packet `AnalyzerTransport` has one audio producer and one editor-worker consumer. Aligned pre/post packets carry sequence, rate, layout and session tags. When full, drop new samples and advance the source sequence so the consumer detects discontinuities; never reset this FIFO from the UI/preparation thread. No FFT/capture allocation or wait occurs in audio processing.
 
@@ -54,6 +66,6 @@ Closing cards/panels must not change band state or reopen the previous selection
 
 `source/ui/presets/` adapts the pinned ZLE browser, lists, scrolling and JSON codec. Synchronous scanning/I/O is an explicit current choice, not an audio-thread operation. Scan on opening/library changes, search cached metadata, clear search on hiding while retaining group selection, and flush scrolling through admitted graph frames. Save through temporary-file replacement; confirm overwrite/deletion, bound input/tree depth and avoid symlink directory traversal.
 
-Presets store band settings and trims while preserving bypass/analyzer/editor size on load. Default resets sound parameters from their declared defaults, preserving those display/bypass preferences. The library lives under user application data/manufacturer/plugin/Presets. State replacement goes through complete validation in `restoreStateInformation`.
+Presets store band settings and trims while preserving bypass/oversampling/analyzer/editor size on load. Default resets sound parameters from their declared defaults, preserving those display/bypass/quality preferences. The library lives under user application data/manufacturer/plugin/Presets. State replacement goes through complete validation in `restoreStateInformation`.
 
 The processor stores optional `presetName` session metadata (trimmed single-line text, maximum 256 characters; absent means Default). Numeric-looking text is valid. Update the name only after successful load/save, not selection or ordinary edits. Recall restores the label without reading a preset file. Keep metadata locks outside audio; the existing editor timer refreshes only changed header text. Dirty tracking, program mapping, background preset I/O and gain matching remain unimplemented; add only when requested. Tests: `PresetBrowserTests.cpp`, `MultibandTests.cpp`, `GlobalBypassTests.cpp`.

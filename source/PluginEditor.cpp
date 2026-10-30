@@ -1,15 +1,20 @@
 #include "PluginEditor.h"
-#include "ui/presets/preset_browser.hpp"
 #include "ui/GainTimingTrace.h"
 #include "ui/Palette.h"
 #include "ui/UiScale.h"
+#include "ui/presets/preset_browser.hpp"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), pluginProcessor (p), analyzerTransport (p.getAnalyzerTransport()), headerBar (p.getAnalyzerTransport(), p.parameters), bottomBar (p.parameters), responseGraph (p.parameters, p.getResponseSampleRate()), bandCard (p.parameters)
+    : AudioProcessorEditor (&p), pluginProcessor (p), analyzerTransport (p.getAnalyzerTransport()), headerBar (p.getAnalyzerTransport(), p.parameters), bottomBar (p.parameters), responseGraph (p.parameters, p.getProcessingConfiguration()), bandCard (p.parameters)
 {
     setLookAndFeel (&lookAndFeel);
     // Panel dismissal returns focus here instead of selecting a graph node.
     setWantsKeyboardFocus (true);
+    bottomBar.oversampling.onChange = [this] {
+        if (pluginProcessor.setOversamplingMode (bottomBar.oversampling.getSelectedId() - 1))
+            pluginProcessor.updateHostDisplay (juce::AudioProcessorListener::ChangeDetails().withNonParameterStateChanged (true));
+    };
+    responseGraph.setTooltip ("Target EQ response at the active processing rate; excludes oversampling converter coloration.");
     responseGraph.setAnalyzerTransport (analyzerTransport);
     addAndMakeVisible (responseGraph);
     addAndMakeVisible (headerBar);
@@ -191,6 +196,8 @@ void PluginEditor::positionBandCard (bool resizing)
 
 PluginEditor::~PluginEditor()
 {
+    bottomBar.oversampling.onChange = nullptr;
+    bottomBar.oversampling.closePopup();
     setTimingListeners (false);
     if (presetBrowser != nullptr)
         presetBrowser->onClose = nullptr;
@@ -221,6 +228,7 @@ void PluginEditor::timerCallback()
         setSize (size.width, size.height);
     const auto now = juce::Time::getMillisecondCounterHiRes() * 0.001;
     bottomBar.messageThreadTick (now);
+    bottomBar.refreshOversampling (pluginProcessor.getOversamplingMode(), pluginProcessor.getActiveOversamplingMode(), pluginProcessor.isOversamplingPending());
     if (!isShowing())
     {
         (void) pluginProcessor.getLevelMeters().read();

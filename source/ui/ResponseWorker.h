@@ -2,6 +2,7 @@
 #pragma once
 #include "../BandParameters.h"
 #include "../dsp/FilterCoefficients.h"
+#include "../dsp/ProcessingConfiguration.h"
 #include "../utility/TripleBuffer.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -44,6 +45,7 @@ namespace openq
         std::array<juce::Path, bandCount> bandCurves;
         std::array<BandSettings, bandCount> settings;
         BankResponse response;
+        double hostSampleRate = 0.0;
         ResponseGeometry geometry;
         bool valid = false;
     };
@@ -51,7 +53,7 @@ namespace openq
     class ResponseWorker : private juce::Thread
     {
     public:
-        ResponseWorker (juce::AudioProcessorValueTreeState& parameters, const std::atomic<double>& sampleRate);
+        ResponseWorker (juce::AudioProcessorValueTreeState& parameters, const ProcessingConfiguration& sampleRate);
         ~ResponseWorker() override;
         bool start();
         void stop();
@@ -63,7 +65,7 @@ namespace openq
     private:
         void run() override;
         std::array<BandParameterPointers, bandCount> bandParameters;
-        const std::atomic<double>& sampleRate;
+        const ProcessingConfiguration& sampleRate;
         TripleBuffer<ResponseGeometry> geometry;
         TripleBuffer<ResponseFrame> frames;
     };

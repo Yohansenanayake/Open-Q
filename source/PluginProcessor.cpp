@@ -35,10 +35,12 @@ PluginProcessor::PluginProcessor()
     parameters.state.setProperty ("bellDesign", bellDesignRevision, nullptr);
     parameters.state.setProperty ("shelfDesign", shelfDesignRevision, nullptr);
     parameters.state.setProperty ("cutDesign", cutDesignRevision, nullptr);
+    startTimerHz (30);
 }
 
 PluginProcessor::~PluginProcessor()
 {
+    stopTimer();
 }
 
 //==============================================================================
@@ -112,24 +114,107 @@ void PluginProcessor::changeProgramName (int index, const juce::String& newName)
 void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     juce::ignoreUnused (samplesPerBlock);
+    processingSampleRate = std::isfinite (sampleRate) && sampleRate >= openq::bandLimits::minimumSampleRateHz ? sampleRate : 0.0;
+    switchGeneration.fetch_add (1);
+    switchReady.store (0);
+    switchCommit.store (0);
+    switchToken = 0;
+    reconfigurationGain.reset (std::max (processingSampleRate, openq::bandLimits::minimumSampleRateHz), openq::bypassFadeSeconds);
+    reconfigurationGain.setCurrentAndTargetValue (1.0);
+    activateOversampling (getOversamplingMode());
+    setLatencySamples (oversampling.latency (getActiveOversamplingMode()));
     bypassWet.reset (sampleRate, openq::bypassFadeSeconds);
     bypassWet.setCurrentAndTargetValue (bypassParameter->load (std::memory_order_relaxed) > 0.5f ? 0.0 : 1.0);
-    for (size_t i = 0; i < bands.size(); ++i)
-    {
-        const auto target = bandParameters[i].load();
-        bands[i].prepare (sampleRate, target.frequency, target.gain, target.q, target.status, target.type, target.slope);
-    }
     inputGain.prepare (sampleRate, inputGainParameter->load (std::memory_order_relaxed));
     outputGain.prepare (sampleRate, outputGainParameter->load (std::memory_order_relaxed));
     levelMeters.prepare (getTotalNumInputChannels());
-    responseSampleRate.store (sampleRate, std::memory_order_relaxed);
     analyzer.prepare (sampleRate);
 }
 
 void PluginProcessor::releaseResources()
 {
+    switchReady.store (0);
+    switchCommit.store (0);
+    switchGeneration.fetch_add (1);
+    switchToken = 0;
+    oversampling.reset();
     for (auto& band : bands)
         band.reset();
+}
+
+bool PluginProcessor::setOversamplingMode (int mode)
+{
+    if (mode < 0 || mode >= openq::oversamplingModeCount)
+        return false;
+    requestedOversampling.store (mode);
+    return true;
+}
+
+void PluginProcessor::activateOversampling (int mode)
+{
+    oversampling.reset();
+    for (size_t i = 0; i < bands.size(); ++i)
+    {
+        const auto target = bandParameters[i].load();
+        const auto frequency = std::min (std::isfinite (target.frequency) ? target.frequency : openq::bandLimits::defaultFrequencyHz, openq::bandLimits::effectiveMaximumFrequency (processingSampleRate));
+        bands[i].prepare (processingSampleRate * (1 << mode), frequency, target.gain, target.q, target.status, target.type, target.slope);
+    }
+    activeOversampling.store (mode);
+    processingConfiguration.publish ({ processingSampleRate, mode });
+}
+
+void PluginProcessor::timerCallback()
+{
+    const auto token = switchReady.load();
+    if (token == 0)
+    {
+        setLatencySamples (oversampling.latency (getActiveOversamplingMode()));
+        return;
+    }
+    if (switchCommit.load() == token)
+        return;
+    const auto mode = static_cast<int> (token & 3u);
+    // JUCE notifies host listeners under a lock; only the message thread does this.
+    setLatencySamples (oversampling.latency (mode));
+    if (switchReady.load() == token)
+        switchCommit.store (token);
+    else
+        setLatencySamples (oversampling.latency (getActiveOversamplingMode()));
+}
+
+void PluginProcessor::updateOversampling()
+{
+    const auto requested = getOversamplingMode();
+    if (switchToken != 0)
+    {
+        if (switchCommit.load() == switchToken)
+        {
+            activateOversampling (static_cast<int> (switchToken & 3u));
+            switchReady.store (0);
+            switchToken = 0;
+            reconfigurationGain.setTargetValue (1.0);
+        }
+        else if (isNonRealtime())
+        {
+            // Offline rendering must not wait for a host message loop.
+            switchReady.store (0);
+            switchToken = 0;
+            reconfigurationGain.setTargetValue (1.0);
+        }
+        // Once notification starts, finish that handoff before taking another request.
+        return;
+    }
+    if (requested == getActiveOversamplingMode() || isNonRealtime())
+    {
+        reconfigurationGain.setTargetValue (1.0);
+        return;
+    }
+    reconfigurationGain.setTargetValue (0.0);
+    if (!reconfigurationGain.isSmoothing() && juce::exactlyEqual (reconfigurationGain.getCurrentValue(), 0.0))
+    {
+        switchToken = ((switchGeneration.fetch_add (1) + 1) << 2) | static_cast<unsigned> (requested);
+        switchReady.store (switchToken);
+    }
 }
 
 bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -185,31 +270,50 @@ void PluginProcessor::processAudio (juce::AudioBuffer<float>& buffer, bool force
     for (size_t i = 0; i < bands.size(); ++i)
     {
         const auto target = bandParameters[i].load();
-        bands[i].setParameters (target.frequency, target.gain, target.q, target.status, target.type, target.slope);
+        const auto frequency = std::min (std::isfinite (target.frequency) ? target.frequency : openq::bandLimits::defaultFrequencyHz, openq::bandLimits::effectiveMaximumFrequency (processingSampleRate));
+        bands[i].setParameters (frequency, target.gain, target.q, target.status, target.type, target.slope);
     }
     // Fixed chunks also handle blocks larger than the host's preparation hint without allocation.
     for (int offset = 0; offset < buffer.getNumSamples(); offset += bypassChunkSamples)
     {
+        updateOversampling();
+        const auto mode = getActiveOversamplingMode();
         const auto samples = std::min (bypassChunkSamples, buffer.getNumSamples() - offset);
         juce::AudioBuffer<float> chunk (buffer.getArrayOfWritePointers(), inputs, offset, samples);
-        for (int channel = 0; channel < inputs; ++channel)
-            std::copy_n (chunk.getReadPointer (channel), samples, drySamples[static_cast<size_t> (channel)].begin());
+        oversampling.captureDry (chunk, inputs, mode, drySamples);
         const auto inputPeaks = inputGain.process (chunk, inputs);
         analyzer.beginBlock (chunk, inputs);
-        for (auto& band : bands)
-            band.process (chunk, inputs);
+        if (mode == 0)
+        {
+            for (auto& band : bands)
+                band.process (chunk, inputs);
+        }
+        else if (inputs > 0)
+        {
+            juce::dsp::AudioBlock<float> block (chunk);
+            auto internal = oversampling.up (block, mode);
+            std::array<float*, 2> pointers { internal.getChannelPointer (0), internal.getChannelPointer (1) };
+            juce::AudioBuffer<float> highRate (pointers.data(), inputs, static_cast<int> (internal.getNumSamples()));
+            // Future Pre/Post saturation belongs around this band bank, inside conversion.
+            for (auto& band : bands)
+                band.process (highRate, inputs);
+            oversampling.down (block, mode);
+        }
         (void) outputGain.process (chunk, inputs);
         std::array<float, 2> outputPeaks {};
         for (int sample = 0; sample < samples; ++sample)
         {
             const auto wet = bypassWet.getNextValue();
+            const auto configurationGain = reconfigurationGain.getNextValue();
             for (int channel = 0; channel < inputs; ++channel)
             {
                 const auto index = static_cast<size_t> (channel);
                 const auto dry = drySamples[index][static_cast<size_t> (sample)];
                 // Explicit endpoints preserve bit-exact active and dry audio.
-                const auto output = wet <= 0.0 ? dry : wet >= 1.0 ? chunk.getSample (channel, sample)
-                                                                  : static_cast<float> ((1.0 - wet) * dry + wet * chunk.getSample (channel, sample));
+                auto output = wet <= 0.0 ? dry : wet >= 1.0 ? chunk.getSample (channel, sample)
+                                                            : static_cast<float> ((1.0 - wet) * dry + wet * chunk.getSample (channel, sample));
+                if (!juce::exactlyEqual (configurationGain, 1.0))
+                    output = juce::exactlyEqual (configurationGain, 0.0) ? 0.0f : static_cast<float> (output * configurationGain);
                 chunk.setSample (channel, sample, output);
                 outputPeaks[index] = std::max (outputPeaks[index], std::abs (output));
             }
@@ -277,6 +381,7 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = parameters.copyState();
     state.setProperty ("presetName", getAppliedPresetName(), nullptr);
+    state.setProperty ("oversamplingMode", getOversamplingMode(), nullptr);
     const auto analyzerSettings = analyzer.getSettings();
     state.setProperty ("analyzerSettings", static_cast<int> (analyzerSettings.flags()), nullptr);
     state.setProperty ("analyzerConfiguration", static_cast<int> (analyzerSettings.configuration()), nullptr);
@@ -300,8 +405,9 @@ bool PluginProcessor::restoreStateInformation (const void* data, int sizeInBytes
     const auto xml = getXmlFromBinary (data, sizeInBytes);
     if (xml == nullptr || !xml->hasTagName ("OpenQState"))
         return false;
-    const auto state = juce::ValueTree::fromXml (*xml);
-    if (state.getProperty ("schemaVersion").toString() != juce::String (stateSchemaVersion)
+    auto state = juce::ValueTree::fromXml (*xml);
+    const auto schema = state.getProperty ("schemaVersion").toString();
+    if ((schema != "7" && schema != juce::String (stateSchemaVersion))
         || state.getProperty ("bandCount").toString() != juce::String (static_cast<int> (openq::bandCount))
         || state.getProperty ("bellDesign").toString() != bellDesignRevision
         || state.getProperty ("shelfDesign").toString() != shelfDesignRevision
@@ -367,7 +473,18 @@ bool PluginProcessor::restoreStateInformation (const void* data, int sizeInBytes
         if (!readDimension ("editorWidth", size.width) || !readDimension ("editorHeight", size.height) || !size.isValid())
             return false;
     }
+    int oversamplingMode = 0;
+    if (schema != "7")
+    {
+        const auto mode = state.getProperty ("oversamplingMode", 0).toString();
+        if (mode != "0" && mode != "1" && mode != "2")
+            return false;
+        oversamplingMode = mode.getIntValue();
+    }
+    state.setProperty ("schemaVersion", stateSchemaVersion, nullptr);
+    state.setProperty ("oversamplingMode", oversamplingMode, nullptr);
     parameters.replaceState (state);
+    (void) setOversamplingMode (oversamplingMode);
     (void) setAppliedPresetName (presetName);
     analyzer.setSettings (analyzerSettings);
     analyzer.setFillEnabled (fill == "1");

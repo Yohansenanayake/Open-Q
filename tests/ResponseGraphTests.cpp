@@ -118,7 +118,7 @@ TEST_CASE ("Target response follows all controls with no audio processing", "[re
 {
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
-    openq::ResponseWorker worker (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseWorker worker (processor.parameters, processor.getProcessingConfiguration());
     worker.setGeometry ({ 400, 200 });
     REQUIRE (worker.start());
     worker.requestUpdate();
@@ -158,7 +158,7 @@ TEST_CASE ("Response follows every slot and sums enabled bands before clipping w
 {
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
-    openq::ResponseWorker worker (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseWorker worker (processor.parameters, processor.getProcessingConfiguration());
     worker.setGeometry ({ 400, 200 });
     REQUIRE (worker.start());
     auto set = [&] (size_t band, const char* name, float value) {
@@ -238,7 +238,7 @@ TEST_CASE ("Response worker handles resize, invalid geometry, and repeated stop/
 {
     PluginProcessor processor;
     processor.prepareToPlay (8000.0, 64);
-    openq::ResponseWorker worker (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseWorker worker (processor.parameters, processor.getProcessingConfiguration());
     for (int iteration = 0; iteration < 3; ++iteration)
     {
         worker.setGeometry ({ 400, 200 });
@@ -264,7 +264,7 @@ TEST_CASE ("Response worker handles resize, invalid geometry, and repeated stop/
 TEST_CASE ("Target response waits for a prepared sample rate and follows state recall", "[response][threading]")
 {
     PluginProcessor processor;
-    openq::ResponseWorker worker (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseWorker worker (processor.parameters, processor.getProcessingConfiguration());
     worker.setGeometry ({ 400, 200 });
     REQUIRE (worker.start());
     worker.requestUpdate();
@@ -321,7 +321,7 @@ TEST_CASE ("Cut target curves follow type slope and recall without processBlock"
 {
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
-    openq::ResponseWorker worker (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseWorker worker (processor.parameters, processor.getProcessingConfiguration());
     worker.setGeometry ({ 400, 200 });
     REQUIRE (worker.start());
     auto set = [&] (const char* name, float value) {
@@ -522,7 +522,7 @@ TEST_CASE ("Band card control repaints do not redraw the spectrum underneath", "
             ResponseGraph::paint (g);
         }
         int paints = 0;
-    } graph (processor.parameters, processor.getResponseSampleRate());
+    } graph (processor.parameters, processor.getProcessingConfiguration());
     openq::UiLookAndFeel lookAndFeel;
     juce::Component root;
     root.setLookAndFeel (&lookAndFeel);
