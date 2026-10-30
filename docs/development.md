@@ -57,6 +57,7 @@ The template recursively embeds `assets/` as JUCE BinaryData. Large documentatio
 
 - Band ranges/defaults: `source/dsp/BandLimits.h`; slot capacity: `source/BandParameters.h`.
 - Graph coordinates: `source/ui/ResponseMapping.h`.
+- Oversampling: bottom-bar 1×/2×/4× selector; default 1× has zero latency. Quality changes briefly fade audio and may restart host compensation. Quality is saved in DAW sessions and preserved when loading sound presets/Default.
 - Colours: `source/ui/Palette.h`; shared styling: `UiLookAndFeel`, `ControlDrawing.h` and `RotaryStyle.h`.
 - Header logo/plaque: `source/ui/HeaderBar.h` and its implementation.
 
@@ -65,3 +66,5 @@ Rebuild and reopen the editor after changing colours or SVG artwork. The icon fo
 Ctrl+Shift+T toggles the optional UI timing recorder and exports `Open-Q-gain-timing*.csv` to the system temporary directory. It measures input callbacks and completed paints, not physical screen presentation. Capture is off by default and shared across editors in a loaded plugin module.
 
 Read [repository instructions](../CLAUDE.md) before changing DSP, state formats, thread handoffs or paint pacing. The [architecture reference](architecture.md) maps implementation areas; [UI regression notes](ui-regressions.md) explain the relevant safeguards and tests. Research and local diagnostic material live in `yohan-docs/`, which is intentionally not distributed in the repository.
+
+For oversampling CPU checks, run a Release `Benchmarks '[oversampling]'`. It measures six steady bells and all steep cuts with steady/automated settings at 1×/2×/4× with 256-, 128- and 64-sample stereo blocks at 48 kHz. Higher factors increase processing cost; simultaneous automation of all steep cuts can exceed the realtime block budget at 4×. These benchmarks do not include the future saturation stage.

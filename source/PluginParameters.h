@@ -3,7 +3,7 @@
 #include "BandParameters.h"
 namespace openq
 {
-    inline constexpr int stateSchemaVersion = 7;
+    inline constexpr int stateSchemaVersion = 8;
     inline constexpr std::array<const char*, 2> gainParameterIds { "input.gain", "output.gain" };
     inline constexpr auto bypassParameterId = "global.bypass";
     inline constexpr double bypassFadeSeconds = 0.02;

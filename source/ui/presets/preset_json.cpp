@@ -46,7 +46,7 @@ namespace openq::presets
         if (state.getNumChildren() != static_cast<int> (parameterCount) || !state.getChildWithProperty ("id", bypassParameterId).isValid())
             return juce::Result::fail ("Processor state is incomplete");
         state.removeChild (state.getChildWithProperty ("id", bypassParameterId), nullptr);
-        for (const auto* name : { "analyzerSettings", "analyzerConfiguration", "analyzerFill", "editorWidth", "editorHeight", "presetName" })
+        for (const auto* name : { "analyzerSettings", "analyzerConfiguration", "analyzerFill", "editorWidth", "editorHeight", "presetName", "oversamplingMode" })
             state.removeProperty (name, nullptr);
         if (const auto result = validateProcessorState (state); result.failed())
         {
@@ -119,8 +119,10 @@ namespace openq::presets
             return false;
         const auto preferences = juce::ValueTree::fromXml (*currentXml);
         state.addChild (preferences.getChildWithProperty ("id", bypassParameterId).createCopy(), -1, nullptr);
-        for (const auto* name : { "analyzerSettings", "analyzerConfiguration", "analyzerFill", "editorWidth", "editorHeight", "presetName" })
+        for (const auto* name : { "analyzerSettings", "analyzerConfiguration", "analyzerFill", "editorWidth", "editorHeight", "presetName", "oversamplingMode" })
             state.setProperty (name, preferences.getProperty (name), nullptr);
+        if (state.getProperty ("schemaVersion").toString() == "7")
+            state.setProperty ("schemaVersion", stateSchemaVersion, nullptr);
         juce::MemoryBlock merged;
         juce::AudioProcessor::copyXmlToBinary (*state.createXml(), merged);
         return processor.restoreStateInformation (merged.getData(), static_cast<int> (merged.getSize()));

@@ -13,10 +13,10 @@ namespace openq
         struct TargetParameters
         {
             std::array<BandSettings, bandCount> bands;
-            double sampleRate = 0.0;
+            ProcessingSnapshot configuration;
             bool operator== (const TargetParameters& other) const
             {
-                return bands == other.bands && juce::exactlyEqual (sampleRate, other.sampleRate);
+                return bands == other.bands && configuration == other.configuration;
             }
         };
     }
@@ -49,7 +49,7 @@ namespace openq
         return db;
     }
 
-    ResponseWorker::ResponseWorker (juce::AudioProcessorValueTreeState& parameters, const std::atomic<double>& rate)
+    ResponseWorker::ResponseWorker (juce::AudioProcessorValueTreeState& parameters, const ProcessingConfiguration& rate)
         : juce::Thread ("Open-Q response"),
           sampleRate (rate)
     {
@@ -80,9 +80,12 @@ namespace openq
             wait (-1);
             if (threadShouldExit())
                 break;
-            const auto geometryChanged = geometry.pull();
             TargetParameters target;
-            target.sampleRate = sampleRate.load (std::memory_order_relaxed);
+            if (!sampleRate.tryRead (target.configuration))
+                continue;
+            const auto geometryChanged = geometry.pull();
+            const auto hostRate = target.configuration.hostRate;
+            const auto internalRate = target.configuration.internalRate();
             for (size_t i = 0; i < bandCount; ++i)
                 target.bands[i] = bandParameters[i].load();
             const auto responseChanged = target != previous;
@@ -92,14 +95,15 @@ namespace openq
             previous = target;
             auto& frame = frames.getWriter();
             frame.geometry = geometry.getReader();
-            frame.response.sampleRate = target.sampleRate;
+            frame.response.sampleRate = internalRate;
+            frame.hostSampleRate = hostRate;
             frame.settings = target.bands;
             std::array<BandResponse, bandCount> individualResponses;
             for (size_t i = 0; i < bandCount; ++i)
             {
                 const auto& band = target.bands[i];
-                individualResponses[i] = { makeBandCoefficients (band.type, target.sampleRate, band.frequency, band.gain, band.q, band.slope), target.sampleRate };
-                frame.response.bands[i] = band.status == BandStatus::On ? individualResponses[i] : BandResponse { {}, target.sampleRate };
+                individualResponses[i] = { makeBandCoefficients (band.type, internalRate, std::min (std::isfinite (band.frequency) ? band.frequency : bandLimits::defaultFrequencyHz, bandLimits::effectiveMaximumFrequency (hostRate)), band.gain, band.q, band.slope), internalRate };
+                frame.response.bands[i] = band.status == BandStatus::On ? individualResponses[i] : BandResponse { {}, internalRate };
                 frame.bandCurves[i].clear();
             }
             frame.curve.clear();
@@ -108,7 +112,7 @@ namespace openq
             if (frame.valid)
             {
                 constexpr int points = 400;
-                const auto maxFrequency = responseMapping::maximumFrequency (frame.response.sampleRate);
+                const auto maxFrequency = responseMapping::maximumFrequency (hostRate);
                 for (int i = 0; i < points; ++i)
                 {
                     if (threadShouldExit())

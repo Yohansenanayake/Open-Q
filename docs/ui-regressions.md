@@ -33,6 +33,8 @@ Tests: `GainMeterTests.cpp`, `AnalyzerConfigurationTests.cpp`, `NodeGraphTests.c
 
 ## Portable rendering and timing tests
 
+Processing configuration reads must make one attempt, without waiting for an audio/preparation writer. Keep the graph's last coherent snapshot when publication is busy. The response worker must accept the configuration before consuming queued geometry, so a deferred resize is retried on the next refresh. `OversamplingTests.cpp` holds a publication open while exercising selection/painting and queued worker geometry.
+
 - Destroy an image's `juce::Graphics` before pixel/BitmapData/PNG readback. Windows Direct2D completes the frame when the drawing context ends.
 - Compare transparent compositing against the rendered underlay, not hardcoded native colour bytes; retain alpha and occlusion assertions.
 - A tracked control paint cycle can have zero body duration because it was culled or finished below timer resolution; SVG children can still paint. Keep cycle observations without claiming they prove full redraw or physical presentation.

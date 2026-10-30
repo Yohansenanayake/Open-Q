@@ -58,8 +58,7 @@ namespace openq
         void mouseUp (const juce::MouseEvent& event) override
         {
             if (GainTimingTrace::instance().isRecording())
-                GainTimingTrace::instance().record ("node_up", static_cast<int> (band),
-                    static_cast<double> (juce::Time::currentTimeMillis() - event.eventTime.toMilliseconds()), event.eventTime.toMilliseconds());
+                GainTimingTrace::instance().record ("node_up", static_cast<int> (band), static_cast<double> (juce::Time::currentTimeMillis() - event.eventTime.toMilliseconds()), event.eventTime.toMilliseconds());
             graph.cancelDrag();
         }
         void mouseDoubleClick (const juce::MouseEvent& event) override
@@ -110,7 +109,7 @@ namespace openq
         ResponseGraph& graph;
     };
 
-    ResponseGraph::ResponseGraph (juce::AudioProcessorValueTreeState& state, const std::atomic<double>& rate)
+    ResponseGraph::ResponseGraph (juce::AudioProcessorValueTreeState& state, const ProcessingConfiguration& rate)
         : parameters (state), sampleRate (rate), worker (state, rate)
     {
         setTitle ("Frequency response");
@@ -243,14 +242,14 @@ namespace openq
 
     double ResponseGraph::maximumFrequency() const
     {
-        const auto rate = displaySampleRate;
+        const auto rate = displayConfiguration.hostRate;
         return std::isfinite (rate) && rate >= bandLimits::minimumSampleRateHz ? responseMapping::maximumFrequency (rate) : 0.0;
     }
 
     juce::Point<float> ResponseGraph::nodePosition (const BandSettings& settings) const
     {
         const auto plot = plotBounds().toFloat();
-        const auto frequency = std::clamp (settings.frequency, bandLimits::minimumFrequencyHz, bandLimits::effectiveMaximumFrequency (displaySampleRate));
+        const auto frequency = std::clamp (settings.frequency, bandLimits::minimumFrequencyHz, bandLimits::effectiveMaximumFrequency (displayConfiguration.hostRate));
         return { plot.getX() + static_cast<float> (responseMapping::frequencyToProportion (frequency, maximumFrequency())) * plot.getWidth(),
             plot.getY() + static_cast<float> (responseMapping::dbToProportion (settings.gain * responseMapping::nodeGainScale (settings.type))) * plot.getHeight() };
     }
@@ -258,7 +257,7 @@ namespace openq
     juce::Point<float> ResponseGraph::constrainPosition (juce::Point<float> position, FilterType type) const
     {
         auto plot = plotBounds().toFloat();
-        const auto max = bandLimits::effectiveMaximumFrequency (displaySampleRate);
+        const auto max = bandLimits::effectiveMaximumFrequency (displayConfiguration.hostRate);
         plot.setWidth (plot.getWidth() * static_cast<float> (responseMapping::frequencyToProportion (max, maximumFrequency())));
         if (type != FilterType::Bell)
             plot = plot.withSizeKeepingCentre (plot.getWidth(), plot.getHeight() * static_cast<float> (responseMapping::nodeGainScale (type)));
@@ -268,9 +267,9 @@ namespace openq
     void ResponseGraph::updateNodes()
     {
         const auto previousBounds = getSelectedNodeBounds();
-        displaySampleRate = sampleRate.load (std::memory_order_relaxed);
+        (void) sampleRate.tryRead (displayConfiguration);
         const bool valid = maximumFrequency() > bandLimits::minimumFrequencyHz && !plotBounds().isEmpty();
-        if (draggedBand < bandCount && (!valid || !juce::exactlyEqual (dragSampleRate, displaySampleRate) || bandParameters[draggedBand].load().status == BandStatus::Off || bandParameters[draggedBand].load().type != dragType))
+        if (draggedBand < bandCount && (!valid || !juce::exactlyEqual (dragSampleRate, displayConfiguration.hostRate) || bandParameters[draggedBand].load().status == BandStatus::Off || bandParameters[draggedBand].load().type != dragType))
             cancelDrag();
         for (size_t band = 0; band < bandCount; ++band)
         {
@@ -340,7 +339,7 @@ namespace openq
         dragPosition = nodePosition (bandParameters[band].load());
         dragType = bandParameters[band].load().type;
         lastPointer = event.position;
-        dragSampleRate = displaySampleRate;
+        dragSampleRate = displayConfiguration.hostRate;
         dragParameters = { parameters.getParameter (bandParameterId (band, "frequency")), parameters.getParameter (bandParameterId (band, "gain")) };
         if (isCut (dragType))
             dragParameters[1] = nullptr;
@@ -376,7 +375,7 @@ namespace openq
         const auto plot = plotBounds().toFloat();
         if (!lockX && !juce::exactlyEqual (motion.x, 0.0f))
         {
-            const auto frequency = bandLimits::effectiveMaximumFrequency (displaySampleRate);
+            const auto frequency = bandLimits::effectiveMaximumFrequency (displayConfiguration.hostRate);
             const auto target = std::clamp (responseMapping::proportionToFrequency ((dragPosition.x - plot.getX()) / plot.getWidth(), maximumFrequency()), bandLimits::minimumFrequencyHz, frequency);
             dragParameters[0]->setValueNotifyingHost (dragParameters[0]->convertTo0to1 (static_cast<float> (target)));
         }
@@ -476,6 +475,7 @@ namespace openq
 
     void ResponseGraph::paint (juce::Graphics& g)
     {
+        (void) sampleRate.tryRead (displayConfiguration);
         const auto plot = plotBounds();
         // Opaque editor bars clip the graph edges even during a complete plot redraw.
         const bool repaintingPlot = !plot.isEmpty() && g.getClipBounds().contains (plot) && g.clipRegionIntersects (plot);
@@ -484,7 +484,7 @@ namespace openq
             GainTimingTrace::instance().record ("plot_begin");
         worker.pullFrame();
         const auto& frame = worker.getFrame();
-        artwork.setDisplay (plot, frame.valid ? frame.response.sampleRate : 0.0, analyzer != nullptr, uiScale);
+        artwork.setDisplay (plot, frame.valid ? frame.hostSampleRate : 0.0, analyzer != nullptr, uiScale);
         g.fillAll (palette::background);
         if (plot.isEmpty())
             return;
@@ -496,7 +496,7 @@ namespace openq
             if (spectrum.valid && spectrum.geometry == ResponseGeometry { plot.getWidth(), plot.getHeight() }
                 && spectrum.session == analyzerTransport->session()
                 && spectrum.settings.encode() == analyzerTransport->getSettings().encode()
-                && juce::exactlyEqual (spectrum.sampleRate, sampleRate.load (std::memory_order_relaxed)))
+                && juce::exactlyEqual (spectrum.sampleRate, displayConfiguration.hostRate))
             {
                 juce::Graphics::ScopedSaveState save (g);
                 if (!g.reduceClipRegion (plot))

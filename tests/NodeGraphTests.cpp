@@ -66,7 +66,7 @@ TEST_CASE ("Band slot colours stay distinct and follow selection without changin
 {
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
-    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseGraph graph (processor.parameters, processor.getProcessingConfiguration());
     graph.setSize (720, 400);
     openq::BandControlCard card (processor.parameters);
     card.setSize (openq::BandControlCard::preferredWidth, openq::BandControlCard::preferredHeight);
@@ -289,7 +289,7 @@ TEST_CASE ("Card timing capture links node input binding colours and paint cycle
 TEST_CASE ("Nodes reflect status, automation, recall and low sample rates without editing settings", "[nodes][ui]")
 {
     PluginProcessor processor;
-    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseGraph graph (processor.parameters, processor.getProcessingConfiguration());
     graph.setSize (720, 280);
     CHECK_FALSE (node (graph, 0).isVisible());
     processor.prepareToPlay (48000.0, 64);
@@ -366,7 +366,7 @@ TEST_CASE ("Node wheel Q edits remain independent while frequency and gain gestu
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
     Gestures gestures (processor);
-    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseGraph graph (processor.parameters, processor.getProcessingConfiguration());
     graph.setSize (720, 400);
     for (auto type : { openq::FilterType::Bell, openq::FilterType::LowCut })
     {
@@ -406,7 +406,7 @@ TEST_CASE ("Node axis locks, fine motion, wheel and boundaries use display mappi
     PluginProcessor processor;
     processor.prepareToPlay (8000.0, 64);
     Gestures gestures (processor);
-    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseGraph graph (processor.parameters, processor.getProcessingConfiguration());
     graph.setSize (720, 280);
     auto& first = node (graph, 0);
     const int locked = juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::commandModifier;
@@ -440,7 +440,7 @@ TEST_CASE ("Node creation initializes before On, bypass retains settings, and de
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
     Gestures gestures (processor);
-    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseGraph graph (processor.parameters, processor.getProcessingConfiguration());
     graph.setSize (720, 280);
     set (processor, 1, "q", 9.0f);
     set (processor, 1, "type", 2.0f);
@@ -480,7 +480,7 @@ TEST_CASE ("Interrupted node drags end host gestures", "[nodes][ui]")
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
     Gestures gestures (processor);
-    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseGraph graph (processor.parameters, processor.getProcessingConfiguration());
     graph.setSize (720, 280);
     auto& first = node (graph, 0);
     for (int interruption = 0; interruption < 4; ++interruption)
@@ -717,7 +717,7 @@ TEST_CASE ("Shelf nodes use half-gain placement and cancel drags on host type ch
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
     Gestures gestures (processor);
-    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseGraph graph (processor.parameters, processor.getProcessingConfiguration());
     graph.setSize (720, 280);
     auto& first = node (graph, 0);
     const auto zeroY = first.getBounds().getCentreY();
@@ -747,7 +747,7 @@ TEST_CASE ("Graph fills the configured bank and reuses the final deleted slot", 
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
     Gestures gestures (processor);
-    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseGraph graph (processor.parameters, processor.getProcessingConfiguration());
     graph.setSize (720, 280);
     for (size_t band = 1; band < openq::bandCount; ++band)
     {
@@ -873,7 +873,7 @@ TEST_CASE ("Cut nodes stay at zero dB ignore vertical edits and disable first-or
     PluginProcessor processor;
     processor.prepareToPlay (48000.0, 64);
     Gestures gestures (processor);
-    openq::ResponseGraph graph (processor.parameters, processor.getResponseSampleRate());
+    openq::ResponseGraph graph (processor.parameters, processor.getProcessingConfiguration());
     graph.setSize (720, 280);
     const auto zeroY = node (graph, 0).getBounds().getCentreY();
     for (auto type : { openq::FilterType::LowCut, openq::FilterType::HighCut })

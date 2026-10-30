@@ -5,10 +5,12 @@
 #include "dsp/BandFilter.h"
 #include "dsp/GainStage.h"
 #include "dsp/LevelMeterTransport.h"
+#include "dsp/Oversampling.h"
+#include "dsp/ProcessingConfiguration.h"
 #include "dsp/analyzer/AnalyzerTransport.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
-class PluginProcessor : public juce::AudioProcessor
+class PluginProcessor : public juce::AudioProcessor, private juce::Timer
 {
 public:
     PluginProcessor();
@@ -52,7 +54,11 @@ public:
     bool loadDefaultPreset();
     juce::AudioProcessorValueTreeState parameters;
 
-    const std::atomic<double>& getResponseSampleRate() const { return responseSampleRate; }
+    const openq::ProcessingConfiguration& getProcessingConfiguration() const { return processingConfiguration; }
+    bool setOversamplingMode (int mode);
+    int getOversamplingMode() const { return requestedOversampling.load(); }
+    int getActiveOversamplingMode() const { return activeOversampling.load(); }
+    bool isOversamplingPending() const { return getOversamplingMode() != getActiveOversamplingMode() || switchReady.load() != 0; }
     openq::EditorSize getEditorSize() const
     {
         const auto packed = editorSize.load (std::memory_order_relaxed);
@@ -72,13 +78,22 @@ private:
     juce::String appliedPresetName { "Default" };
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     void processAudio (juce::AudioBuffer<float>&, bool forceBypass);
-    static constexpr int bypassChunkSamples = 256;
+    void timerCallback() override;
+    void activateOversampling (int mode);
+    void updateOversampling();
+    openq::Oversampling oversampling;
+    openq::ProcessingConfiguration processingConfiguration;
+    double processingSampleRate = 0.0;
+    std::atomic<int> requestedOversampling { 0 }, activeOversampling { 0 };
+    std::atomic<std::uint64_t> switchReady { 0 }, switchCommit { 0 }, switchGeneration { 0 };
+    std::uint64_t switchToken = 0;
+    juce::SmoothedValue<double> reconfigurationGain { 1.0 };
+    static constexpr int bypassChunkSamples = openq::processingChunkSamples;
     std::array<std::array<float, bypassChunkSamples>, 2> drySamples {};
     juce::SmoothedValue<double, juce::ValueSmoothingTypes::Linear> bypassWet { 1.0 };
     std::atomic<float>* bypassParameter = nullptr;
     std::array<openq::BandParameterPointers, openq::bandCount> bandParameters;
     std::array<openq::BandFilter, openq::bandCount> bands;
-    std::atomic<double> responseSampleRate { 0.0 };
     openq::AnalyzerTransport analyzer;
     openq::LevelMeterTransport levelMeters;
     openq::GainStage inputGain, outputGain;

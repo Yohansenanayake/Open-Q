@@ -7,10 +7,10 @@
 
 namespace openq
 {
-    class ResponseGraph : public juce::Component, private juce::Timer
+    class ResponseGraph : public juce::Component, public juce::SettableTooltipClient, private juce::Timer
     {
     public:
-        ResponseGraph (juce::AudioProcessorValueTreeState& parameters, const std::atomic<double>& sampleRate);
+        ResponseGraph (juce::AudioProcessorValueTreeState& parameters, const ProcessingConfiguration& sampleRate);
         ~ResponseGraph() override;
         void paint (juce::Graphics& graphics) override;
         void paintOverChildren (juce::Graphics&) override;
@@ -58,7 +58,7 @@ namespace openq
         double maximumFrequency() const;
         juce::Rectangle<int> plotBounds() const;
         juce::AudioProcessorValueTreeState& parameters;
-        const std::atomic<double>& sampleRate;
+        const ProcessingConfiguration& sampleRate;
         std::array<BandParameterPointers, bandCount> bandParameters;
         std::array<std::unique_ptr<Node>, bandCount> nodes;
         size_t selectedBand = 0, draggedBand = bandCount;
@@ -66,7 +66,7 @@ namespace openq
         juce::Point<float> dragPosition, lastPointer;
         double dragSampleRate = 0.0;
         FilterType dragType = FilterType::Bell;
-        double displaySampleRate = 0.0;
+        ProcessingSnapshot displayConfiguration;
         ResponseWorker worker;
         std::unique_ptr<AnalyzerWorker> analyzer;
         AnalyzerTransport* analyzerTransport = nullptr;
