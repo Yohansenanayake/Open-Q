@@ -58,7 +58,7 @@ jobs:
         run: python3 tools/build_downloads.py --releases "$RUNNER_TEMP/openq-releases.json" --repository "$GITHUB_REPOSITORY" --output _site
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
